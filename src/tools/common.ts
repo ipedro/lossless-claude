@@ -1,7 +1,6 @@
-// TODO: Replace openclaw/plugin-sdk import with Claude Code SDK when available
-import type { AnyAgentTool as HostAnyAgentTool } from "openclaw/plugin-sdk";
+import type { AnyAgentTool as BridgeAnyAgentTool } from "../claude-bridge.js";
 
-export type AnyAgentTool = HostAnyAgentTool;
+export type AnyAgentTool = BridgeAnyAgentTool;
 
 /** Render structured payloads as deterministic text tool results. */
 export function jsonResult(payload: unknown): {

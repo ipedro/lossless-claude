@@ -13,7 +13,7 @@ import type {
   IngestResult,
   SubagentEndReason,
   SubagentSpawnPreparation,
-} from "openclaw/plugin-sdk";
+} from "./claude-bridge.js";
 import { ContextAssembler } from "./assembler.js";
 import { CompactionEngine, type CompactionConfig } from "./compaction.js";
 import type { LcmConfig } from "./db/config.js";

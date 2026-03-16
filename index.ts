@@ -95,7 +95,7 @@ type RuntimeModelAuth = {
   }) => Promise<RuntimeModelAuthResult | undefined>;
 };
 
-// Legacy OpenClaw PR reference — kept for historical context only; not applicable to Claude Code.
+// Legacy host PR reference — kept for historical context only.
 const MODEL_AUTH_PR_URL = "https://github.com/openclaw/openclaw/pull/41090";
 const MODEL_AUTH_MERGE_COMMIT = "4790e40";
 const MODEL_AUTH_REQUIRED_RELEASE = "the first host release after 2026.3.8";

@@ -1,4 +1,4 @@
-import type { ContextEngine } from "openclaw/plugin-sdk";
+import type { ContextEngine } from "./claude-bridge.js";
 import { sanitizeToolUseResultPairing } from "./transcript-repair.js";
 import type {
   ConversationStore,

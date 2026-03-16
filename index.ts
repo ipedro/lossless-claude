@@ -95,7 +95,8 @@ type RuntimeModelAuth = {
   }) => Promise<RuntimeModelAuthResult | undefined>;
 };
 
-// Legacy host PR reference — kept for historical context only.
+// Legacy upstream PR reference — the original OpenClaw PR that added runtime.modelAuth.
+// Retained for the auth-profile fallback warning message that fires on older host runtimes.
 const MODEL_AUTH_PR_URL = "https://github.com/openclaw/openclaw/pull/41090";
 const MODEL_AUTH_MERGE_COMMIT = "4790e40";
 const MODEL_AUTH_REQUIRED_RELEASE = "the first host release after 2026.3.8";

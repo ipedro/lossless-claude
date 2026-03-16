@@ -1,6 +1,7 @@
-import type { AnyAgentTool as OpenClawAnyAgentTool } from "openclaw/plugin-sdk";
+// TODO: Replace openclaw/plugin-sdk import with Claude Code SDK when available
+import type { AnyAgentTool as HostAnyAgentTool } from "openclaw/plugin-sdk";
 
-export type AnyAgentTool = OpenClawAnyAgentTool;
+export type AnyAgentTool = HostAnyAgentTool;
 
 /** Render structured payloads as deterministic text tool results. */
 export function jsonResult(payload: unknown): {

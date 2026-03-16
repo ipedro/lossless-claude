@@ -1,4 +1,4 @@
-# @martian-engineering/lossless-claw
+# lossless-claude
 
 ## 0.3.0
 

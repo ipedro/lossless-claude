@@ -2,7 +2,7 @@
 
 ## Overview
 
-Extract LCM from OpenClaw's in-tree `src/plugins/lcm/` into this standalone plugin package `@martian-engineering/lossless-claw`. The source code has already been copied into `src/` and `test/` directories but all imports still reference OpenClaw core internals. The main task is to refactor imports using dependency injection.
+Extract LCM from OpenClaw's in-tree `src/plugins/lcm/` into this standalone plugin package `lossless-claude`. The source code has already been copied into `src/` and `test/` directories but all imports still reference OpenClaw core internals. The main task is to refactor imports using dependency injection.
 
 ## Architecture
 
@@ -169,4 +169,4 @@ Tests need to mock LcmDependencies instead of core modules.
 1. **Message types**: LCM heavily uses `@mariozechner/pi-agent-core` message types. These must remain available — either as a direct dependency or re-exported from openclaw.
 2. **better-sqlite3**: Native dependency. Plugin install with `--ignore-scripts` may fail. Need to verify prebuild availability.
 3. **Backward compat**: Env vars (LCM_CONTEXT_THRESHOLD etc.) must continue working.
-4. **Database path**: Keep `~/.openclaw/lcm.db` as default.
+4. **Database path**: Keep `~/.claude/lcm.db` as default.

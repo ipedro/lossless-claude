@@ -1,5 +1,5 @@
 /**
- * Compatibility bridge for plugin-sdk context-engine symbols.
+ * Compatibility bridge for Claude Code plugin-sdk context-engine symbols.
  *
  * This module intentionally exports only stable plugin-sdk surface area.
  */
@@ -20,3 +20,6 @@ export {
   registerContextEngine,
   type ContextEngineFactory,
 } from "openclaw/plugin-sdk";
+
+// TODO: Replace openclaw/plugin-sdk imports with Claude Code SDK when available
+export type ClaudePluginApi = import("openclaw/plugin-sdk").OpenClawPluginApi;

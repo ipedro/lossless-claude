@@ -88,8 +88,12 @@ if [ "$XGH_BACKEND" = "remote" ] && [ "$XGH_DRY_RUN" -eq 0 ]; then
       read -r -p "  Remote server URL [http://192.168.1.x:11434]: " XGH_REMOTE_URL
     fi
     XGH_REMOTE_URL="${XGH_REMOTE_URL:-}"
+    if [ -z "$XGH_REMOTE_URL" ]; then
+      error "XGH_REMOTE_URL is required for the remote backend — set it via environment variable or rerun interactively"
+      exit 1
+    fi
     if [[ ! "$XGH_REMOTE_URL" =~ ^https?:// ]]; then
-      echo -e "  ${RED}▸${NC} URL must start with http:// or https://" >&2
+      error "XGH_REMOTE_URL must start with http:// or https://"
       exit 1
     fi
   fi
@@ -342,6 +346,7 @@ QDRANTSVCEOF
 
   # Helper: fetch model IDs from a remote OpenAI-compat server
   _fetch_remote_models() {
+    if ! command -v python3 &>/dev/null; then return; fi
     curl -sf "${XGH_REMOTE_URL}/v1/models" 2>/dev/null \
       | python3 -c "import json,sys; [print(m['id'] + '|' + m['id']) for m in json.load(sys.stdin).get('data',[])]" \
       2>/dev/null || true
@@ -357,6 +362,7 @@ QDRANTSVCEOF
     # Try to auto-populate from remote server
     CUSTOM_LABEL="Model ID (as reported by remote server)"
     _model_available() {
+      command -v python3 &>/dev/null || return 1
       curl -sf "${XGH_REMOTE_URL}/v1/models" 2>/dev/null \
         | python3 -c "
 import json,sys

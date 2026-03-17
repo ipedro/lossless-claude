@@ -3,12 +3,12 @@
   "version": "0.3.0",
   "description": "Lossless context management for Claude Code — DAG-based conversation compaction with semantic memory promotion",
   "type": "module",
-  "main": "src/memory/index.ts",
+  "main": "dist/src/memory/index.js",
   "exports": {
-    ".": "./src/memory/index.ts"
+    ".": "./dist/src/memory/index.js"
   },
   "bin": {
-    "lossless-claude": "./bin/lossless-claude.ts"
+    "lossless-claude": "./dist/bin/lossless-claude.js"
   },
   "license": "MIT",
   "author": "Josh Lehman <josh@martian.engineering>",
@@ -22,14 +22,15 @@
     "dag"
   ],
   "files": [
-    "bin/",
-    "src/**/*.ts",
+    "dist/",
     "claude.plugin.json",
     "docs/",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
     "changeset": "changeset",
     "release:verify": "npm test && npm pack --dry-run",
     "test": "vitest run --dir test",

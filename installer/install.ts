@@ -147,15 +147,14 @@ export function setupDaemonService(deps: ServiceDeps = defaultDeps): void {
   }
 }
 
-export async function install(): Promise<void> {
+export async function install(deps: ServiceDeps = defaultDeps): Promise<void> {
   const lcDir = join(homedir(), ".lossless-claude");
-  mkdirSync(lcDir, { recursive: true });
+  deps.mkdirSync(lcDir, { recursive: true });
 
   // 1. Check cipher config
   const cipherConfig = join(homedir(), ".cipher", "cipher.yml");
-  if (!existsSync(cipherConfig)) {
-    console.error(`ERROR: ~/.cipher/cipher.yml not found. Install Cipher first.`);
-    process.exit(1);
+  if (!deps.existsSync(cipherConfig)) {
+    console.warn("Warning: ~/.cipher/cipher.yml not found — semantic search will be unavailable until setup completes");
   }
 
   // 2. Check ANTHROPIC_API_KEY
@@ -166,26 +165,26 @@ export async function install(): Promise<void> {
 
   // 3. Create config.json if not present
   const configPath = join(lcDir, "config.json");
-  if (!existsSync(configPath)) {
+  if (!deps.existsSync(configPath)) {
     const { loadDaemonConfig } = await import("../src/daemon/config.js");
     const defaults = loadDaemonConfig("/nonexistent");
-    writeFileSync(configPath, JSON.stringify(defaults, null, 2));
+    deps.writeFileSync(configPath, JSON.stringify(defaults, null, 2));
     console.log(`Created ${configPath}`);
   }
 
   // 4. Merge ~/.claude/settings.json
   const settingsPath = join(homedir(), ".claude", "settings.json");
   let existing: any = {};
-  if (existsSync(settingsPath)) {
+  if (deps.existsSync(settingsPath)) {
     try { existing = JSON.parse(readFileSync(settingsPath, "utf-8")); } catch {}
   }
   const merged = mergeClaudeSettings(existing);
-  mkdirSync(join(homedir(), ".claude"), { recursive: true });
-  writeFileSync(settingsPath, JSON.stringify(merged, null, 2));
+  deps.mkdirSync(join(homedir(), ".claude"), { recursive: true });
+  deps.writeFileSync(settingsPath, JSON.stringify(merged, null, 2));
   console.log(`Updated ${settingsPath}`);
 
   // 5. Set up and start the persistent daemon service
-  setupDaemonService();
+  setupDaemonService(deps);
 
   console.log(`\nlossless-claude installed successfully!`);
 }

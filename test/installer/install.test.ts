@@ -5,6 +5,7 @@ import {
   buildLaunchdPlist,
   buildSystemdUnit,
   setupDaemonService,
+  install,
   type ServiceDeps,
 } from "../../installer/install.js";
 import { homedir } from "node:os";
@@ -162,5 +163,20 @@ describe("setupDaemonService", () => {
     );
     expect(serviceCmds).toHaveLength(0);
     warnSpy.mockRestore();
+  });
+});
+
+// ─── install ────────────────────────────────────────────────────────────────
+
+describe("install", () => {
+  it("accepts deps parameter and warns when cipher.yml is missing", async () => {
+    const originalApiKey = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    const deps = makeDeps({ existsSync: vi.fn().mockReturnValue(false) });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await expect(install(deps)).resolves.not.toThrow();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("cipher.yml"));
+    warnSpy.mockRestore();
+    process.env.ANTHROPIC_API_KEY = originalApiKey;
   });
 });

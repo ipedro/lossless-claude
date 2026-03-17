@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { removeClaudeSettings, teardownDaemonService, type TeardownDeps } from "../../installer/uninstall.js";
+import { removeClaudeSettings, teardownDaemonService, uninstall, type TeardownDeps } from "../../installer/uninstall.js";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -13,11 +13,15 @@ function makeDeps(existsResult = true, overrides: Partial<TeardownDeps> = {}): T
   spawnSync: ReturnType<typeof vi.fn>;
   existsSync: ReturnType<typeof vi.fn>;
   rmSync: ReturnType<typeof vi.fn>;
+  readFileSync: ReturnType<typeof vi.fn>;
+  writeFileSync: ReturnType<typeof vi.fn>;
 } {
   return {
     spawnSync: makeSpawn(),
     existsSync: vi.fn().mockReturnValue(existsResult),
     rmSync: vi.fn(),
+    readFileSync: vi.fn().mockReturnValue("{}"),
+    writeFileSync: vi.fn(),
     ...overrides,
   };
 }
@@ -130,6 +134,43 @@ describe("teardownDaemonService", () => {
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Unsupported platform"));
     expect(deps.spawnSync).not.toHaveBeenCalled();
     expect(deps.rmSync).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+});
+
+// ─── uninstall ──────────────────────────────────────────────────────────────
+
+describe("uninstall", () => {
+  it("removes settings via deps.writeFileSync when settings.json exists", async () => {
+    const writeFileMock = vi.fn();
+    const deps: TeardownDeps = {
+      spawnSync: makeSpawn(),
+      existsSync: vi.fn().mockReturnValue(true),
+      rmSync: vi.fn(),
+      readFileSync: vi.fn().mockReturnValue(JSON.stringify({
+        hooks: { PreCompact: [{ matcher: "", hooks: [{ type: "command", command: "lossless-claude compact" }] }] },
+        mcpServers: { "lossless-claude": {} },
+      })),
+      writeFileSync: writeFileMock,
+    };
+    await uninstall(deps);
+    expect(writeFileMock).toHaveBeenCalledWith(
+      expect.stringContaining("settings.json"),
+      expect.any(String)
+    );
+  });
+
+  it("warns but does not throw when settings.json contains invalid JSON", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const deps: TeardownDeps = {
+      spawnSync: makeSpawn(),
+      existsSync: vi.fn().mockReturnValue(true),
+      rmSync: vi.fn(),
+      readFileSync: vi.fn().mockReturnValue("not valid json"),
+      writeFileSync: vi.fn(),
+    };
+    await expect(uninstall(deps)).resolves.not.toThrow();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("could not update"));
     warnSpy.mockRestore();
   });
 });

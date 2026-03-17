@@ -22,9 +22,17 @@ export interface TeardownDeps {
   spawnSync: (cmd: string, args: string[], opts?: any) => SpawnSyncReturns<string>;
   existsSync: (path: string) => boolean;
   rmSync: (path: string) => void;
+  readFileSync: (path: string, encoding: string) => string;
+  writeFileSync: (path: string, data: string) => void;
 }
 
-const defaultDeps: TeardownDeps = { spawnSync: spawnSync as any, existsSync, rmSync };
+const defaultDeps: TeardownDeps = {
+  spawnSync: spawnSync as any,
+  existsSync,
+  rmSync,
+  readFileSync: readFileSync as any,
+  writeFileSync,
+};
 
 export function teardownDaemonService(deps: TeardownDeps = defaultDeps): void {
   const platform = process.platform;
@@ -67,16 +75,16 @@ export function teardownDaemonService(deps: TeardownDeps = defaultDeps): void {
   }
 }
 
-export async function uninstall(): Promise<void> {
+export async function uninstall(deps: TeardownDeps = defaultDeps): Promise<void> {
   // 1. Stop and remove the daemon service
-  teardownDaemonService();
+  teardownDaemonService(deps);
 
   // 2. Remove lossless-claude entries from ~/.claude/settings.json
   const settingsPath = join(homedir(), ".claude", "settings.json");
-  if (existsSync(settingsPath)) {
+  if (deps.existsSync(settingsPath)) {
     try {
-      const existing = JSON.parse(readFileSync(settingsPath, "utf-8"));
-      writeFileSync(settingsPath, JSON.stringify(removeClaudeSettings(existing), null, 2));
+      const existing = JSON.parse(deps.readFileSync(settingsPath, "utf-8"));
+      deps.writeFileSync(settingsPath, JSON.stringify(removeClaudeSettings(existing), null, 2));
       console.log(`Removed lossless-claude from ${settingsPath}`);
     } catch (err) {
       console.warn(`Warning: could not update ${settingsPath}: ${err instanceof Error ? err.message : err}`);

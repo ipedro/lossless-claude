@@ -32,12 +32,13 @@ export function mergeClaudeSettings(existing: any): any {
 
 export interface ServiceDeps {
   spawnSync: (cmd: string, args: string[], opts?: any) => SpawnSyncReturns<string>;
+  readFileSync: (path: string, encoding: string) => string;
   writeFileSync: (path: string, data: string) => void;
   mkdirSync: (path: string, opts?: any) => void;
   existsSync: (path: string) => boolean;
 }
 
-const defaultDeps: ServiceDeps = { spawnSync: spawnSync as any, writeFileSync, mkdirSync, existsSync };
+const defaultDeps: ServiceDeps = { spawnSync: spawnSync as any, readFileSync, writeFileSync, mkdirSync, existsSync };
 
 export function resolveBinaryPath(deps: Pick<ServiceDeps, "spawnSync" | "existsSync"> = defaultDeps): string {
   const result = deps.spawnSync("which", ["lossless-claude"], { encoding: "utf-8" });
@@ -176,7 +177,7 @@ export async function install(deps: ServiceDeps = defaultDeps): Promise<void> {
   const settingsPath = join(homedir(), ".claude", "settings.json");
   let existing: any = {};
   if (deps.existsSync(settingsPath)) {
-    try { existing = JSON.parse(readFileSync(settingsPath, "utf-8")); } catch {}
+    try { existing = JSON.parse(deps.readFileSync(settingsPath, "utf-8")); } catch {}
   }
   const merged = mergeClaudeSettings(existing);
   deps.mkdirSync(join(homedir(), ".claude"), { recursive: true });

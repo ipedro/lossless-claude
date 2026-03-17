@@ -19,12 +19,14 @@ function makeSpawn(status = 0, stdout = "") {
 
 function makeDeps(overrides: Partial<ServiceDeps> = {}): ServiceDeps & {
   spawnSync: ReturnType<typeof vi.fn>;
+  readFileSync: ReturnType<typeof vi.fn>;
   writeFileSync: ReturnType<typeof vi.fn>;
   mkdirSync: ReturnType<typeof vi.fn>;
   existsSync: ReturnType<typeof vi.fn>;
 } {
   return {
     spawnSync: makeSpawn(),
+    readFileSync: vi.fn().mockReturnValue("{}"),
     writeFileSync: vi.fn(),
     mkdirSync: vi.fn(),
     existsSync: vi.fn().mockReturnValue(false),

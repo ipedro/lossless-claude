@@ -92,10 +92,10 @@ if [ "$XGH_BACKEND" = "remote" ] && [ "$XGH_DRY_RUN" -eq 0 ]; then
       error "XGH_REMOTE_URL is required for the remote backend — set it via environment variable or rerun interactively"
       exit 1
     fi
-    if [[ ! "$XGH_REMOTE_URL" =~ ^https?:// ]]; then
-      error "XGH_REMOTE_URL must start with http:// or https://"
-      exit 1
-    fi
+  fi
+  if [[ ! "$XGH_REMOTE_URL" =~ ^https?:// ]]; then
+    error "XGH_REMOTE_URL must start with http:// or https://"
+    exit 1
   fi
   if curl -sf --max-time 5 "${XGH_REMOTE_URL}/v1/models" >/dev/null 2>&1; then
     info "Remote server reachable ✓"

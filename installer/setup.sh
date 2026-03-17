@@ -85,6 +85,7 @@ if [ "$XGH_DRY_RUN" -eq 0 ] && [ -z "${_ORIGINAL_XGH_BACKEND}" ]; then
     else
       echo "    1) Local — vllm-mlx (macOS Apple Silicon)"
     fi
+    echo -e "       ${DIM}(will stop Ollama if running — port 11434 conflict)${NC}"
     if [ "$XGH_BACKEND" = "ollama" ]; then
       echo -e "    ${GREEN}2)${NC} Local — Ollama (Linux / Intel Mac)          ${DIM}[auto-detected]${NC}"
     else

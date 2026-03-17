@@ -214,6 +214,12 @@ PYEOF
         brew install qdrant 2>/dev/null || warn "Could not install Qdrant via brew — install manually: brew install qdrant"
       fi
 
+      if ! command -v qdrant &>/dev/null && ! [ -x "${HOME}/.qdrant/bin/qdrant" ]; then
+        warn "Qdrant not found after install attempt — install manually via Homebrew (brew install qdrant) or place the binary at ${HOME}/.qdrant/bin/qdrant"
+        exit 1
+      fi
+      info "Qdrant: $(command -v qdrant 2>/dev/null || echo "${HOME}/.qdrant/bin/qdrant")"
+
       # Start services via brew
       if ! curl -sf http://localhost:11434 >/dev/null 2>&1; then
         brew services start ollama 2>/dev/null || warn "Could not start Ollama service — start manually: brew services start ollama"

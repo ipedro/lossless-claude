@@ -346,7 +346,7 @@ QDRANTSVCEOF
 
   # Helper: fetch model IDs from a remote OpenAI-compat server
   _fetch_remote_models() {
-    if ! command -v python3 &>/dev/null; then return; fi
+    if ! command -v python3 &>/dev/null; then return 0; fi
     curl -sf "${XGH_REMOTE_URL}/v1/models" 2>/dev/null \
       | python3 -c "import json,sys; [print(m['id'] + '|' + m['id']) for m in json.load(sys.stdin).get('data',[])]" \
       2>/dev/null || true

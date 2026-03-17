@@ -181,4 +181,32 @@ describe("install", () => {
     warnSpy.mockRestore();
     process.env.ANTHROPIC_API_KEY = originalApiKey;
   });
+
+  it("invokes setup.sh as step 0 before other steps", async () => {
+    const originalApiKey = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    const spawnMock = makeSpawn(0);
+    const deps = makeDeps({ spawnSync: spawnMock, existsSync: vi.fn().mockReturnValue(false) });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await install(deps);
+    const firstCall = spawnMock.mock.calls[0];
+    expect(firstCall[0]).toBe("bash");
+    expect(firstCall[1][0]).toContain("setup.sh");
+    warnSpy.mockRestore();
+    process.env.ANTHROPIC_API_KEY = originalApiKey;
+  });
+
+  it("continues when setup.sh exits non-zero", async () => {
+    const originalApiKey = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    const deps = makeDeps({
+      spawnSync: makeSpawn(1),
+      existsSync: vi.fn().mockReturnValue(false),
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await expect(install(deps)).resolves.not.toThrow();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("setup.sh"));
+    warnSpy.mockRestore();
+    process.env.ANTHROPIC_API_KEY = originalApiKey;
+  });
 });

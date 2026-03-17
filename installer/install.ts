@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 
 const LC_HOOK_COMPACT = { type: "command", command: "lossless-claude compact" };
@@ -149,6 +150,13 @@ export function setupDaemonService(deps: ServiceDeps = defaultDeps): void {
 }
 
 export async function install(deps: ServiceDeps = defaultDeps): Promise<void> {
+  // Step 0: infrastructure setup (backend, models, Qdrant, cipher.yml)
+  const setupScript = join(dirname(fileURLToPath(import.meta.url)), "setup.sh");
+  const setupResult = deps.spawnSync("bash", [setupScript], { stdio: "inherit", env: process.env });
+  if (setupResult.status !== 0) {
+    console.warn(`Warning: setup.sh exited with code ${setupResult.status} — continuing`);
+  }
+
   const lcDir = join(homedir(), ".lossless-claude");
   deps.mkdirSync(lcDir, { recursive: true });
 

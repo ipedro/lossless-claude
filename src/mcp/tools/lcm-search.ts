@@ -7,6 +7,7 @@ export const lcmSearchTool = {
       query: { type: "string", description: "Natural language search query" },
       limit: { type: "number", description: "Max results per layer (default: 5)" },
       layers: { type: "array", items: { type: "string", enum: ["episodic", "semantic"] }, description: "Which memory layers to search (default: both)" },
+      tags: { type: "array", items: { type: "string" }, description: "Filter results to entries that include all specified tags (e.g. ['reasoning'], ['decision', 'architecture'])" },
     },
     required: ["query"],
   },

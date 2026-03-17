@@ -6,14 +6,16 @@ import { lcmGrepTool } from "./tools/lcm-grep.js";
 import { lcmExpandTool } from "./tools/lcm-expand.js";
 import { lcmDescribeTool } from "./tools/lcm-describe.js";
 import { lcmSearchTool } from "./tools/lcm-search.js";
+import { lcmStoreTool } from "./tools/lcm-store.js";
 
-const TOOLS = [lcmGrepTool, lcmExpandTool, lcmDescribeTool, lcmSearchTool];
+const TOOLS = [lcmGrepTool, lcmExpandTool, lcmDescribeTool, lcmSearchTool, lcmStoreTool];
 
 const TOOL_ROUTES: Record<string, string> = {
   lcm_grep: "/grep",
   lcm_expand: "/expand",
   lcm_describe: "/describe",
   lcm_search: "/search",
+  lcm_store: "/store",
 };
 
 export function getMcpToolDefinitions() { return TOOLS; }

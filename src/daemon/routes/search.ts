@@ -16,8 +16,9 @@ import { RetrievalEngine } from "../../retrieval.js";
 export function createSearchHandler(config: DaemonConfig): RouteHandler {
   return async (_req, res, body) => {
     const input = JSON.parse(body || "{}");
-    const { query, limit = 5, layers, cwd } = input;
+    const { query, limit = 5, layers, tags, cwd } = input;
     const activeLayers: string[] = layers ?? ["episodic", "semantic"];
+    const filterTags: string[] | undefined = Array.isArray(tags) && tags.length > 0 ? tags : undefined;
 
     if (!query) {
       sendJson(res, 400, { error: "query is required" });
@@ -39,7 +40,10 @@ export function createSearchHandler(config: DaemonConfig): RouteHandler {
           const summStore = new SummaryStore(db);
           const engine = new RetrievalEngine(convStore, summStore);
           const result = await engine.grep({ query, scope: "all" });
-          episodic = result.matches.slice(0, limit);
+          const episodicMatches = filterTags
+            ? result.matches.filter((m: any) => filterTags.every(t => m.tags?.includes(t)))
+            : result.matches;
+          episodic = episodicMatches.slice(0, limit);
           db.close();
         }
       } catch { /* non-fatal */ }
@@ -51,7 +55,9 @@ export function createSearchHandler(config: DaemonConfig): RouteHandler {
         const require = createRequire(import.meta.url);
         const store = require(join(homedir(), ".local", "lib", "qdrant-store.js"));
         const results = await store.search(query, config.cipher.collection, limit, config.restoration.semanticThreshold);
-        semantic = results;
+        semantic = filterTags
+          ? results.filter((r: any) => filterTags.every(t => r.payload?.tags?.includes(t)))
+          : results;
       } catch { /* non-fatal — Qdrant may not be running */ }
     }
 

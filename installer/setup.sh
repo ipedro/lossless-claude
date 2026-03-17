@@ -5,6 +5,7 @@ set -euo pipefail
 XGH_LLM_MODEL="${XGH_LLM_MODEL:-}"
 XGH_EMBED_MODEL="${XGH_EMBED_MODEL:-}"
 XGH_MODEL_PORT="${XGH_MODEL_PORT:-11434}"
+_ORIGINAL_XGH_BACKEND="${XGH_BACKEND:-}"   # capture before auto-detection
 XGH_BACKEND="${XGH_BACKEND:-}"
 XGH_REMOTE_URL="${XGH_REMOTE_URL:-}"
 
@@ -42,9 +43,8 @@ if [ "$XGH_DRY_RUN" -eq 1 ]; then
 fi
 
 # ── 0. Backend picker ─────────────────────────────────────────────────────────
-# Skip picker if XGH_BACKEND was explicitly set by the caller
-_XGH_BACKEND_WAS_SET="${XGH_BACKEND}"
-if [ "$XGH_DRY_RUN" -eq 0 ] && [ -z "${_XGH_BACKEND_WAS_SET}" ]; then
+# Skip picker if XGH_BACKEND was explicitly set by the caller (check original value, before auto-detection)
+if [ "$XGH_DRY_RUN" -eq 0 ] && [ -z "${_ORIGINAL_XGH_BACKEND}" ]; then
   if [ -z "${_XGH_BACKEND_PICKED:-}" ]; then
     echo ""
     echo -e "  ${BOLD}Which inference backend?${NC}"
@@ -66,7 +66,9 @@ if [ "$XGH_DRY_RUN" -eq 0 ] && [ -z "${_XGH_BACKEND_WAS_SET}" ]; then
     else
       _DEFAULT_BACKEND_NUM=2
     fi
-    read -r -p "  Pick [${_DEFAULT_BACKEND_NUM}]: " _backend_choice
+    if [ -t 0 ]; then
+      read -r -p "  Pick [${_DEFAULT_BACKEND_NUM}]: " _backend_choice
+    fi
     _backend_choice="${_backend_choice:-${_DEFAULT_BACKEND_NUM}}"
     case "$_backend_choice" in
       1) XGH_BACKEND="vllm-mlx" ;;
@@ -82,7 +84,9 @@ fi
 if [ "$XGH_BACKEND" = "remote" ] && [ "$XGH_DRY_RUN" -eq 0 ]; then
   if [ -z "$XGH_REMOTE_URL" ]; then
     echo ""
-    read -r -p "  Remote server URL [http://192.168.1.x:11434]: " XGH_REMOTE_URL
+    if [ -t 0 ]; then
+      read -r -p "  Remote server URL [http://192.168.1.x:11434]: " XGH_REMOTE_URL
+    fi
     XGH_REMOTE_URL="${XGH_REMOTE_URL:-}"
     if [[ ! "$XGH_REMOTE_URL" =~ ^https?:// ]]; then
       echo -e "  ${RED}▸${NC} URL must start with http:// or https://" >&2
@@ -101,8 +105,12 @@ if [ "$XGH_DRY_RUN" -eq 0 ]; then
   lane "Installing backend dependencies"
 
   if ! command -v brew &>/dev/null; then
-    info "Homebrew not found — installing"
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    if [ -t 0 ]; then
+      info "Homebrew not found — installing (official installer)"
+      /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    else
+      warn "Homebrew not found and no interactive terminal available — install manually: https://brew.sh"
+    fi
   fi
 
   # ── Backend-specific dependencies ───────────────────────
@@ -143,7 +151,8 @@ if [ "$XGH_DRY_RUN" -eq 0 ]; then
     if [ -f "$_QDRANT_PLIST" ]; then
       # Inject MALLOC_CONF if not already present
       if ! grep -q "MALLOC_CONF" "$_QDRANT_PLIST" 2>/dev/null; then
-        python3 - "$_QDRANT_PLIST" <<'PYEOF'
+        if command -v python3 &>/dev/null; then
+          python3 - "$_QDRANT_PLIST" <<'PYEOF'
 import sys, re
 path = sys.argv[1]
 content = open(path).read()
@@ -158,7 +167,10 @@ if '<key>MALLOC_CONF</key>' not in content:
     open(path, 'w').write(content)
     print('Patched MALLOC_CONF into', path)
 PYEOF
-        info "Qdrant plist: injected MALLOC_CONF=background_thread:false"
+          info "Qdrant plist: injected MALLOC_CONF=background_thread:false"
+        else
+          warn "python3 not found — skipping Qdrant plist MALLOC_CONF patch (memory performance may be affected)"
+        fi
       fi
     fi
 
@@ -180,40 +192,69 @@ PYEOF
     fi
 
   elif [ "$XGH_BACKEND" = "ollama" ]; then
-    # ── Linux / Intel Mac: Ollama + Qdrant binary ────────
+    if [[ "$(uname)" == "Darwin" ]]; then
+      # ── macOS Intel: Ollama + Qdrant via Homebrew ────────
+      if ! command -v ollama &>/dev/null; then
+        info "Installing Ollama via Homebrew..."
+        brew install ollama 2>/dev/null || warn "Could not install Ollama via brew — install manually: brew install ollama"
+      fi
 
-    # Install Ollama if not present
-    if ! command -v ollama &>/dev/null; then
-      info "Installing Ollama..."
-      curl -fsSL https://ollama.com/install.sh | sh
-    fi
+      if ! command -v ollama &>/dev/null; then
+        warn "Ollama not found after install attempt — install manually: brew install ollama"
+        exit 1
+      fi
+      info "Ollama: $(command -v ollama)"
 
-    # Guard: if ollama still not in PATH, abort
-    if ! command -v ollama &>/dev/null; then
-      warn "Ollama not found after install attempt — install manually: curl -fsSL https://ollama.com/install.sh | sh"
-      exit 1
-    fi
-    info "Ollama: $(command -v ollama)"
+      if ! command -v qdrant &>/dev/null && ! [ -x "${HOME}/.qdrant/bin/qdrant" ]; then
+        info "Installing Qdrant via Homebrew..."
+        brew install qdrant 2>/dev/null || warn "Could not install Qdrant via brew — install manually: brew install qdrant"
+      fi
 
-    # Install Qdrant binary (arch-aware)
-    if ! [ -x "${HOME}/.qdrant/bin/qdrant" ]; then
-      info "Installing Qdrant binary..."
-      mkdir -p "${HOME}/.qdrant/bin"
-      ARCH=$(uname -m)
-      QDRANT_VER=$(curl -sf "https://api.github.com/repos/qdrant/qdrant/releases/latest" | grep '"tag_name"' | cut -d'"' -f4)
-      curl -fsSL "https://github.com/qdrant/qdrant/releases/download/${QDRANT_VER}/qdrant-${ARCH}-unknown-linux-gnu.tar.gz" \
-        | tar -xz -C "${HOME}/.qdrant/bin/"
-      chmod +x "${HOME}/.qdrant/bin/qdrant"
-      info "Qdrant ${QDRANT_VER} → ${HOME}/.qdrant/bin/qdrant"
+      # Start services via brew
+      if ! curl -sf http://localhost:11434 >/dev/null 2>&1; then
+        brew services start ollama 2>/dev/null || warn "Could not start Ollama service — start manually: brew services start ollama"
+      fi
+      if ! curl -sf http://localhost:6333/healthz >/dev/null 2>&1; then
+        brew services start qdrant 2>/dev/null || warn "Could not start Qdrant service — start manually: brew services start qdrant"
+      else
+        info "Qdrant is already running"
+      fi
+
     else
-      info "Qdrant already installed: ${HOME}/.qdrant/bin/qdrant"
-    fi
+      # ── Linux: Ollama + Qdrant binary ────────────────────
 
-    # Write systemd user service for Qdrant
-    QDRANT_SVC_DIR="${HOME}/.config/systemd/user"
-    mkdir -p "$QDRANT_SVC_DIR"
-    mkdir -p "${HOME}/.lossless-claude/logs" "${HOME}/.qdrant/storage"
-    cat > "${QDRANT_SVC_DIR}/lossless-claude-qdrant.service" <<QDRANTSVCEOF
+      # Install Ollama if not present
+      if ! command -v ollama &>/dev/null; then
+        info "Installing Ollama..."
+        curl -fsSL https://ollama.com/install.sh | sh
+      fi
+
+      # Guard: if ollama still not in PATH, abort
+      if ! command -v ollama &>/dev/null; then
+        warn "Ollama not found after install attempt — install manually: curl -fsSL https://ollama.com/install.sh | sh"
+        exit 1
+      fi
+      info "Ollama: $(command -v ollama)"
+
+      # Install Qdrant binary (Linux-only tarball)
+      if ! [ -x "${HOME}/.qdrant/bin/qdrant" ]; then
+        info "Installing Qdrant binary..."
+        mkdir -p "${HOME}/.qdrant/bin"
+        ARCH=$(uname -m)
+        QDRANT_VER=$(curl -sf "https://api.github.com/repos/qdrant/qdrant/releases/latest" | grep '"tag_name"' | cut -d'"' -f4)
+        curl -fsSL "https://github.com/qdrant/qdrant/releases/download/${QDRANT_VER}/qdrant-${ARCH}-unknown-linux-gnu.tar.gz" \
+          | tar -xz -C "${HOME}/.qdrant/bin/"
+        chmod +x "${HOME}/.qdrant/bin/qdrant"
+        info "Qdrant ${QDRANT_VER} → ${HOME}/.qdrant/bin/qdrant"
+      else
+        info "Qdrant already installed: ${HOME}/.qdrant/bin/qdrant"
+      fi
+
+      # Write systemd user service for Qdrant
+      QDRANT_SVC_DIR="${HOME}/.config/systemd/user"
+      mkdir -p "$QDRANT_SVC_DIR"
+      mkdir -p "${HOME}/.lossless-claude/logs" "${HOME}/.qdrant/storage"
+      cat > "${QDRANT_SVC_DIR}/lossless-claude-qdrant.service" <<QDRANTSVCEOF
 [Unit]
 Description=Qdrant vector database (lossless-claude)
 After=network.target
@@ -231,10 +272,11 @@ StandardError=append:%h/.lossless-claude/logs/qdrant.log
 [Install]
 WantedBy=default.target
 QDRANTSVCEOF
-    loginctl enable-linger "$USER" 2>/dev/null || true
-    systemctl --user daemon-reload 2>/dev/null || true
-    systemctl --user enable --now lossless-claude-qdrant.service 2>/dev/null \
-      || warn "Could not enable lossless-claude-qdrant.service — start manually: systemctl --user start lossless-claude-qdrant"
+      loginctl enable-linger "$USER" 2>/dev/null || true
+      systemctl --user daemon-reload 2>/dev/null || true
+      systemctl --user enable --now lossless-claude-qdrant.service 2>/dev/null \
+        || warn "Could not enable lossless-claude-qdrant.service — start manually: systemctl --user start lossless-claude-qdrant"
+    fi
 
   elif [ "$XGH_BACKEND" = "remote" ]; then
     # ── Remote: no local model server — install Qdrant locally for vector storage ──
@@ -459,11 +501,15 @@ print('yes' if '${1}' in ids else 'no')
     done
     echo "    c) Custom ${CUSTOM_LABEL}"
     echo ""
-    read -r -p "  Pick [${DEFAULT_LLM_IDX}]: " llm_choice
+    if [ -t 0 ]; then
+      read -r -p "  Pick [${DEFAULT_LLM_IDX}]: " llm_choice
+    fi
     llm_choice="${llm_choice:-$DEFAULT_LLM_IDX}"
 
     if [ "$llm_choice" = "c" ] || [ "$llm_choice" = "C" ]; then
-      read -r -p "  Enter ${CUSTOM_LABEL}: " XGH_LLM_MODEL
+      if [ -t 0 ]; then
+        read -r -p "  Enter ${CUSTOM_LABEL}: " XGH_LLM_MODEL
+      fi
     elif [ "$llm_choice" -ge 1 ] 2>/dev/null && [ "$llm_choice" -le "${#LLM_MODELS[@]}" ]; then
       IFS='|' read -r XGH_LLM_MODEL _ <<< "${LLM_MODELS[$((llm_choice-1))]}"
     else
@@ -496,11 +542,15 @@ print('yes' if '${1}' in ids else 'no')
     done
     echo "    c) Custom ${CUSTOM_LABEL}"
     echo ""
-    read -r -p "  Pick [${DEFAULT_EMBED_IDX}]: " embed_choice
+    if [ -t 0 ]; then
+      read -r -p "  Pick [${DEFAULT_EMBED_IDX}]: " embed_choice
+    fi
     embed_choice="${embed_choice:-$DEFAULT_EMBED_IDX}"
 
     if [ "$embed_choice" = "c" ] || [ "$embed_choice" = "C" ]; then
-      read -r -p "  Enter ${CUSTOM_LABEL}: " XGH_EMBED_MODEL
+      if [ -t 0 ]; then
+        read -r -p "  Enter ${CUSTOM_LABEL}: " XGH_EMBED_MODEL
+      fi
     elif [ "$embed_choice" -ge 1 ] 2>/dev/null && [ "$embed_choice" -le "${#EMBED_MODELS[@]}" ]; then
       IFS='|' read -r XGH_EMBED_MODEL _ <<< "${EMBED_MODELS[$((embed_choice-1))]}"
     else
@@ -614,7 +664,8 @@ CIPHERYMLEOF
   else
     # Update model names (and provider/type) in existing cipher.yml to match current selection
     info "cipher.yml exists — syncing model names and backend"
-    python3 - "$CIPHER_YML" "$XGH_LLM_MODEL" "$XGH_EMBED_MODEL" "$XGH_MODEL_PORT" "$XGH_BACKEND" "${XGH_REMOTE_URL:-}" <<'SYNCEOF'
+    if command -v python3 &>/dev/null; then
+      python3 - "$CIPHER_YML" "$XGH_LLM_MODEL" "$XGH_EMBED_MODEL" "$XGH_MODEL_PORT" "$XGH_BACKEND" "${XGH_REMOTE_URL:-}" <<'SYNCEOF'
 import sys, re
 path, llm_model, embed_model, port, backend, remote_url = sys.argv[1:]
 content = open(path).read()
@@ -643,6 +694,9 @@ else:
 open(path, 'w').write(content)
 print(f'  synced: llm={llm_model} embed={embed_model} backend={backend}' + (f' remote={remote_url}' if remote_url else f' port={port}'))
 SYNCEOF
+    else
+      warn "python3 not found — cipher.yml model sync skipped (models may be stale in existing config)"
+    fi
   fi
 
 fi

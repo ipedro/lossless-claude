@@ -189,6 +189,7 @@ describe("uninstall with DryRunServiceDeps", () => {
       .flatMap((c: any[]) => c)
       .filter((s: any) => typeof s === "string" && s.includes("[dry-run]"));
 
+    expect(dryRunLines.length).toBeGreaterThan(0);
     // uninstall uses unload, not load — no launchctl load should appear
     expect(dryRunLines.every((l: string) => !l.includes("would run: launchctl load"))).toBe(true);
 

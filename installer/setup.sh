@@ -204,7 +204,7 @@ PYEOF
 
   elif [ "$XGH_BACKEND" = "ollama" ]; then
     if [[ "$(uname)" == "Darwin" ]]; then
-      # ── macOS Intel: Ollama + Qdrant via Homebrew ────────
+      # ── macOS: Ollama + Qdrant via Homebrew ────────
       _ensure_brew
       if ! command -v ollama &>/dev/null; then
         info "Installing Ollama via Homebrew..."

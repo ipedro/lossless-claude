@@ -31,6 +31,23 @@ warn()  { echo -e "  ${YELLOW}▸${NC} $*"; }
 error() { echo -e "  ${RED}▸${NC} $*" >&2; }
 lane()  { echo ""; echo -e "  ${CYAN}━━━${NC} ${BOLD}$*${NC}"; echo ""; }
 
+# Ensure Homebrew is installed (macOS only; exits with an error on Linux or non-interactive runs)
+_ensure_brew() {
+  if ! command -v brew &>/dev/null; then
+    if [ "$(uname)" != "Darwin" ]; then
+      error "Homebrew is required for this backend but is only supported on macOS"
+      exit 1
+    fi
+    if [ -t 0 ]; then
+      info "Homebrew not found — installing (official installer)"
+      /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    else
+      error "Homebrew not found and no interactive terminal available — install manually: https://brew.sh"
+      exit 1
+    fi
+  fi
+}
+
 echo ""
 echo -e "  ${BOLD}lossless-claude${NC} ${DIM}memory stack setup${NC}"
 echo ""
@@ -108,18 +125,12 @@ fi
 if [ "$XGH_DRY_RUN" -eq 0 ]; then
   lane "Installing backend dependencies"
 
-  if ! command -v brew &>/dev/null; then
-    if [ -t 0 ]; then
-      info "Homebrew not found — installing (official installer)"
-      /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    else
-      warn "Homebrew not found and no interactive terminal available — install manually: https://brew.sh"
-    fi
-  fi
-
   # ── Backend-specific dependencies ───────────────────────
   if [ "$XGH_BACKEND" = "vllm-mlx" ]; then
     # ── Apple Silicon: vllm-mlx + Qdrant via Homebrew ────
+
+    # Ensure Homebrew is available (required for this backend on macOS)
+    _ensure_brew
 
     # Install uv (Python package installer) if not present
     if ! command -v uv &>/dev/null; then
@@ -198,6 +209,10 @@ PYEOF
   elif [ "$XGH_BACKEND" = "ollama" ]; then
     if [[ "$(uname)" == "Darwin" ]]; then
       # ── macOS Intel: Ollama + Qdrant via Homebrew ────────
+
+      # Ensure Homebrew is available (required for the macOS ollama path)
+      _ensure_brew
+
       if ! command -v ollama &>/dev/null; then
         info "Installing Ollama via Homebrew..."
         brew install ollama 2>/dev/null || warn "Could not install Ollama via brew — install manually: brew install ollama"

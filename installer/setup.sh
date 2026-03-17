@@ -105,21 +105,28 @@ if [ "$XGH_BACKEND" = "remote" ] && [ "$XGH_DRY_RUN" -eq 0 ]; then
 fi
 
 # ── 1. Backend-specific dependencies ──────────────────────────────────────────
+
+# Ensure Homebrew is available on macOS; no-op on other platforms.
+# Installs brew interactively if missing and stdin is a TTY; aborts otherwise.
+_ensure_brew() {
+  if [[ "$(uname)" != "Darwin" ]]; then return; fi
+  if command -v brew &>/dev/null; then return; fi
+  if [ -t 0 ]; then
+    info "Homebrew not found — installing (official installer)"
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  else
+    error "Homebrew is required but not installed, and no interactive terminal is available — install it first: https://brew.sh"
+    exit 1
+  fi
+}
+
 if [ "$XGH_DRY_RUN" -eq 0 ]; then
   lane "Installing backend dependencies"
-
-  if ! command -v brew &>/dev/null; then
-    if [ -t 0 ]; then
-      info "Homebrew not found — installing (official installer)"
-      /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    else
-      warn "Homebrew not found and no interactive terminal available — install manually: https://brew.sh"
-    fi
-  fi
 
   # ── Backend-specific dependencies ───────────────────────
   if [ "$XGH_BACKEND" = "vllm-mlx" ]; then
     # ── Apple Silicon: vllm-mlx + Qdrant via Homebrew ────
+    _ensure_brew
 
     # Install uv (Python package installer) if not present
     if ! command -v uv &>/dev/null; then
@@ -198,6 +205,7 @@ PYEOF
   elif [ "$XGH_BACKEND" = "ollama" ]; then
     if [[ "$(uname)" == "Darwin" ]]; then
       # ── macOS Intel: Ollama + Qdrant via Homebrew ────────
+      _ensure_brew
       if ! command -v ollama &>/dev/null; then
         info "Installing Ollama via Homebrew..."
         brew install ollama 2>/dev/null || warn "Could not install Ollama via brew — install manually: brew install ollama"
@@ -289,6 +297,7 @@ QDRANTSVCEOF
     # Install Qdrant locally (arch-aware, same as Ollama path)
     if ! command -v qdrant &>/dev/null && ! [ -x "${HOME}/.qdrant/bin/qdrant" ]; then
       if [[ "$(uname)" == "Darwin" ]]; then
+        _ensure_brew
         info "Installing Qdrant via Homebrew..."
         brew install qdrant 2>/dev/null || warn "Could not install Qdrant via brew — install manually"
       else

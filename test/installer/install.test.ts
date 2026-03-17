@@ -10,6 +10,7 @@ import {
 } from "../../installer/install.js";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { existsSync } from "node:fs";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -237,5 +238,23 @@ describe("install", () => {
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("setup.sh"));
     warnSpy.mockRestore();
     process.env.ANTHROPIC_API_KEY = originalApiKey;
+  });
+});
+
+// ─── setup.sh dry-run preview ────────────────────────────────────────────────
+
+describe("setup.sh XGH_DRY_RUN=1 preview", () => {
+  it.skipIf(!existsSync("/bin/bash"))("prints [dry-run] lines and exits 0 without writing files", async () => {
+    const { spawnSync } = await import("node:child_process");
+    const { join, dirname } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const setupScript = join(dirname(fileURLToPath(import.meta.url)), "../../installer/setup.sh");
+    const result = spawnSync("bash", [setupScript], {
+      encoding: "utf-8",
+      env: { ...process.env, XGH_DRY_RUN: "1", XGH_BACKEND: "ollama" },
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("[dry-run] backend:");
+    expect(result.stdout).toContain("[dry-run] would write: ~/.cipher/cipher.yml");
   });
 });

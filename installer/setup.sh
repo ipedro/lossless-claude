@@ -38,7 +38,38 @@ echo ""
 # ── Dry run guard ─────────────────────────────────────────────────────────────
 XGH_DRY_RUN="${XGH_DRY_RUN:-0}"
 if [ "$XGH_DRY_RUN" -eq 1 ]; then
-  echo "lossless-claude setup.sh: DRY_RUN=1, skipping all installs"
+  # Determine why this backend was chosen
+  if [ -n "$_ORIGINAL_XGH_BACKEND" ]; then
+    _backend_reason="explicitly set"
+  elif [[ "$(uname)" == "Darwin" ]] && [[ "$(uname -m)" == "arm64" ]]; then
+    _backend_reason="auto-detected, Apple Silicon"
+  else
+    _backend_reason="auto-detected"
+  fi
+
+  echo "  [dry-run] backend: ${XGH_BACKEND} (${_backend_reason})"
+
+  case "$XGH_BACKEND" in
+    vllm-mlx)
+      echo "  [dry-run] would install: vllm-mlx via pip"
+      ;;
+    ollama)
+      echo "  [dry-run] would install: ollama"
+      ;;
+    remote)
+      echo "  [dry-run] remote URL: ${XGH_REMOTE_URL}"
+      ;;
+  esac
+
+  if ! command -v qdrant &>/dev/null && ! brew list qdrant &>/dev/null 2>&1; then
+    if [[ "$(uname)" == "Darwin" ]]; then
+      echo "  [dry-run] would install: qdrant via brew"
+    else
+      echo "  [dry-run] would install: qdrant"
+    fi
+  fi
+
+  echo "  [dry-run] would write: ~/.cipher/cipher.yml"
   exit 0
 fi
 

@@ -2,19 +2,19 @@
 set -euo pipefail
 
 # ── Colors / helpers ──────────────────────────────────────────────────────────
-LC_LLM_MODEL="${LC_LLM_MODEL:-}"
-LC_EMBED_MODEL="${LC_EMBED_MODEL:-}"
-LC_MODEL_PORT="${LC_MODEL_PORT:-11434}"
-LC_BACKEND="${LC_BACKEND:-}"
-LC_REMOTE_URL="${LC_REMOTE_URL:-}"
+XGH_LLM_MODEL="${XGH_LLM_MODEL:-}"
+XGH_EMBED_MODEL="${XGH_EMBED_MODEL:-}"
+XGH_MODEL_PORT="${XGH_MODEL_PORT:-11434}"
+XGH_BACKEND="${XGH_BACKEND:-}"
+XGH_REMOTE_URL="${XGH_REMOTE_URL:-}"
 
 # Determine inference backend: remote if explicitly set, vllm-mlx on Apple Silicon, Ollama everywhere else
-if [ -n "$LC_BACKEND" ] && [ "$LC_BACKEND" = "remote" ]; then
+if [ -n "$XGH_BACKEND" ] && [ "$XGH_BACKEND" = "remote" ]; then
   : # keep as remote — user explicitly set this
 elif [[ "$(uname)" == "Darwin" ]] && [[ "$(uname -m)" == "arm64" ]]; then
-  LC_BACKEND="${LC_BACKEND:-vllm-mlx}"
+  XGH_BACKEND="${XGH_BACKEND:-vllm-mlx}"
 else
-  LC_BACKEND="${LC_BACKEND:-ollama}"
+  XGH_BACKEND="${XGH_BACKEND:-ollama}"
 fi
 
 RED='\033[0;31m'
@@ -35,33 +35,33 @@ echo -e "  ${BOLD}lossless-claude${NC} ${DIM}memory stack setup${NC}"
 echo ""
 
 # ── Dry run guard ─────────────────────────────────────────────────────────────
-LC_DRY_RUN="${LC_DRY_RUN:-0}"
-if [ "$LC_DRY_RUN" -eq 1 ]; then
+XGH_DRY_RUN="${XGH_DRY_RUN:-0}"
+if [ "$XGH_DRY_RUN" -eq 1 ]; then
   echo "lossless-claude setup.sh: DRY_RUN=1, skipping all installs"
   exit 0
 fi
 
 # ── 0. Backend picker ─────────────────────────────────────────────────────────
-# Skip picker if LC_BACKEND was explicitly set by the caller
-_LC_BACKEND_WAS_SET="${LC_BACKEND}"
-if [ "$LC_DRY_RUN" -eq 0 ] && [ -z "${_LC_BACKEND_WAS_SET}" ]; then
-  if [ -z "${_LC_BACKEND_PICKED:-}" ]; then
+# Skip picker if XGH_BACKEND was explicitly set by the caller
+_XGH_BACKEND_WAS_SET="${XGH_BACKEND}"
+if [ "$XGH_DRY_RUN" -eq 0 ] && [ -z "${_XGH_BACKEND_WAS_SET}" ]; then
+  if [ -z "${_XGH_BACKEND_PICKED:-}" ]; then
     echo ""
     echo -e "  ${BOLD}Which inference backend?${NC}"
     echo ""
-    if [ "$LC_BACKEND" = "vllm-mlx" ]; then
+    if [ "$XGH_BACKEND" = "vllm-mlx" ]; then
       echo -e "    ${GREEN}1)${NC} Local — vllm-mlx (macOS Apple Silicon)     ${DIM}[auto-detected]${NC}"
     else
       echo "    1) Local — vllm-mlx (macOS Apple Silicon)"
     fi
-    if [ "$LC_BACKEND" = "ollama" ]; then
+    if [ "$XGH_BACKEND" = "ollama" ]; then
       echo -e "    ${GREEN}2)${NC} Local — Ollama (Linux / Intel Mac)          ${DIM}[auto-detected]${NC}"
     else
       echo "    2) Local — Ollama (Linux / Intel Mac)"
     fi
     echo "    3) Remote — connect to another machine's server"
     echo ""
-    if [ "$LC_BACKEND" = "vllm-mlx" ]; then
+    if [ "$XGH_BACKEND" = "vllm-mlx" ]; then
       _DEFAULT_BACKEND_NUM=1
     else
       _DEFAULT_BACKEND_NUM=2
@@ -69,35 +69,35 @@ if [ "$LC_DRY_RUN" -eq 0 ] && [ -z "${_LC_BACKEND_WAS_SET}" ]; then
     read -r -p "  Pick [${_DEFAULT_BACKEND_NUM}]: " _backend_choice
     _backend_choice="${_backend_choice:-${_DEFAULT_BACKEND_NUM}}"
     case "$_backend_choice" in
-      1) LC_BACKEND="vllm-mlx" ;;
-      2) LC_BACKEND="ollama" ;;
-      3) LC_BACKEND="remote" ;;
+      1) XGH_BACKEND="vllm-mlx" ;;
+      2) XGH_BACKEND="ollama" ;;
+      3) XGH_BACKEND="remote" ;;
       *) : ;; # keep auto-detected
     esac
-    _LC_BACKEND_PICKED=1
+    _XGH_BACKEND_PICKED=1
   fi
 fi
 
 # ── Remote URL prompt and validation ─────────────────────────────────────────
-if [ "$LC_BACKEND" = "remote" ] && [ "$LC_DRY_RUN" -eq 0 ]; then
-  if [ -z "$LC_REMOTE_URL" ]; then
+if [ "$XGH_BACKEND" = "remote" ] && [ "$XGH_DRY_RUN" -eq 0 ]; then
+  if [ -z "$XGH_REMOTE_URL" ]; then
     echo ""
-    read -r -p "  Remote server URL [http://192.168.1.x:11434]: " LC_REMOTE_URL
-    LC_REMOTE_URL="${LC_REMOTE_URL:-}"
-    if [[ ! "$LC_REMOTE_URL" =~ ^https?:// ]]; then
+    read -r -p "  Remote server URL [http://192.168.1.x:11434]: " XGH_REMOTE_URL
+    XGH_REMOTE_URL="${XGH_REMOTE_URL:-}"
+    if [[ ! "$XGH_REMOTE_URL" =~ ^https?:// ]]; then
       echo -e "  ${RED}▸${NC} URL must start with http:// or https://" >&2
       exit 1
     fi
   fi
-  if curl -sf --max-time 5 "${LC_REMOTE_URL}/v1/models" >/dev/null 2>&1; then
+  if curl -sf --max-time 5 "${XGH_REMOTE_URL}/v1/models" >/dev/null 2>&1; then
     info "Remote server reachable ✓"
   else
-    warn "Cannot reach ${LC_REMOTE_URL} — continuing anyway (server may not be running yet)"
+    warn "Cannot reach ${XGH_REMOTE_URL} — continuing anyway (server may not be running yet)"
   fi
 fi
 
 # ── 1. Backend-specific dependencies ──────────────────────────────────────────
-if [ "$LC_DRY_RUN" -eq 0 ]; then
+if [ "$XGH_DRY_RUN" -eq 0 ]; then
   lane "Installing backend dependencies"
 
   if ! command -v brew &>/dev/null; then
@@ -106,7 +106,7 @@ if [ "$LC_DRY_RUN" -eq 0 ]; then
   fi
 
   # ── Backend-specific dependencies ───────────────────────
-  if [ "$LC_BACKEND" = "vllm-mlx" ]; then
+  if [ "$XGH_BACKEND" = "vllm-mlx" ]; then
     # ── Apple Silicon: vllm-mlx + Qdrant via Homebrew ────
 
     # Install uv (Python package installer) if not present
@@ -179,7 +179,7 @@ PYEOF
       info "Qdrant is already running"
     fi
 
-  elif [ "$LC_BACKEND" = "ollama" ]; then
+  elif [ "$XGH_BACKEND" = "ollama" ]; then
     # ── Linux / Intel Mac: Ollama + Qdrant binary ────────
 
     # Install Ollama if not present
@@ -236,7 +236,7 @@ QDRANTSVCEOF
     systemctl --user enable --now lossless-claude-qdrant.service 2>/dev/null \
       || warn "Could not enable lossless-claude-qdrant.service — start manually: systemctl --user start lossless-claude-qdrant"
 
-  elif [ "$LC_BACKEND" = "remote" ]; then
+  elif [ "$XGH_BACKEND" = "remote" ]; then
     # ── Remote: no local model server — install Qdrant locally for vector storage ──
     info "Remote backend — no local model server install needed"
 
@@ -300,22 +300,22 @@ QDRANTSVCEOF
 
   # Helper: fetch model IDs from a remote OpenAI-compat server
   _fetch_remote_models() {
-    curl -sf "${LC_REMOTE_URL}/v1/models" 2>/dev/null \
+    curl -sf "${XGH_REMOTE_URL}/v1/models" 2>/dev/null \
       | python3 -c "import json,sys; [print(m['id'] + '|' + m['id']) for m in json.load(sys.stdin).get('data',[])]" \
       2>/dev/null || true
   }
 
   # Select active arrays and availability helper based on backend
-  if [ "$LC_BACKEND" = "vllm-mlx" ]; then
+  if [ "$XGH_BACKEND" = "vllm-mlx" ]; then
     LLM_MODELS=("${VLLM_LLM_MODELS[@]}")
     EMBED_MODELS=("${VLLM_EMBED_MODELS[@]}")
     CUSTOM_LABEL="HuggingFace model ID"
     _model_available() { _model_cached "$1"; }
-  elif [ "$LC_BACKEND" = "remote" ]; then
+  elif [ "$XGH_BACKEND" = "remote" ]; then
     # Try to auto-populate from remote server
     CUSTOM_LABEL="Model ID (as reported by remote server)"
     _model_available() {
-      curl -sf "${LC_REMOTE_URL}/v1/models" 2>/dev/null \
+      curl -sf "${XGH_REMOTE_URL}/v1/models" 2>/dev/null \
         | python3 -c "
 import json,sys
 data=json.load(sys.stdin)
@@ -325,7 +325,7 @@ print('yes' if '${1}' in ids else 'no')
     }
     # Try to populate model lists from remote server
     _REMOTE_MODELS=""
-    if [ -n "$LC_REMOTE_URL" ] && curl -sf --max-time 5 "${LC_REMOTE_URL}/v1/models" >/dev/null 2>&1; then
+    if [ -n "$XGH_REMOTE_URL" ] && curl -sf --max-time 5 "${XGH_REMOTE_URL}/v1/models" >/dev/null 2>&1; then
       _REMOTE_MODELS=$(_fetch_remote_models)
     fi
     if [ -n "$_REMOTE_MODELS" ]; then
@@ -366,10 +366,10 @@ print('yes' if '${1}' in ids else 'no')
   EMBED_MODELS=("${_sorted[@]}")
   unset _sorted _e
 
-  if [ "$LC_BACKEND" = "vllm-mlx" ]; then
+  if [ "$XGH_BACKEND" = "vllm-mlx" ]; then
     ORIG_DEFAULT_LLM="mlx-community/Llama-3.2-3B-Instruct-4bit"
     ORIG_DEFAULT_EMBED="mlx-community/nomicai-modernbert-embed-base-8bit"
-  elif [ "$LC_BACKEND" = "remote" ]; then
+  elif [ "$XGH_BACKEND" = "remote" ]; then
     # Default to first item in the list
     IFS='|' read -r ORIG_DEFAULT_LLM _ <<< "${LLM_MODELS[0]}"
     IFS='|' read -r ORIG_DEFAULT_EMBED _ <<< "${EMBED_MODELS[0]}"
@@ -435,7 +435,7 @@ print('yes' if '${1}' in ids else 'no')
   DEFAULT_EMBED_IDX=$(_default_index "$DEFAULT_EMBED" "${EMBED_MODELS[@]}")
 
   # Interactive model picker (skip if env vars are set)
-  if [ -z "$LC_LLM_MODEL" ]; then
+  if [ -z "$XGH_LLM_MODEL" ]; then
     echo ""
     echo -e "  ${BOLD}Pick an LLM${NC} ${DIM}(Cipher's reasoning brain)${NC}"
     echo ""
@@ -463,16 +463,16 @@ print('yes' if '${1}' in ids else 'no')
     llm_choice="${llm_choice:-$DEFAULT_LLM_IDX}"
 
     if [ "$llm_choice" = "c" ] || [ "$llm_choice" = "C" ]; then
-      read -r -p "  Enter ${CUSTOM_LABEL}: " LC_LLM_MODEL
+      read -r -p "  Enter ${CUSTOM_LABEL}: " XGH_LLM_MODEL
     elif [ "$llm_choice" -ge 1 ] 2>/dev/null && [ "$llm_choice" -le "${#LLM_MODELS[@]}" ]; then
-      IFS='|' read -r LC_LLM_MODEL _ <<< "${LLM_MODELS[$((llm_choice-1))]}"
+      IFS='|' read -r XGH_LLM_MODEL _ <<< "${LLM_MODELS[$((llm_choice-1))]}"
     else
-      LC_LLM_MODEL="$DEFAULT_LLM"
+      XGH_LLM_MODEL="$DEFAULT_LLM"
     fi
   fi
-  LC_LLM_MODEL="${LC_LLM_MODEL:-$DEFAULT_LLM}"
+  XGH_LLM_MODEL="${XGH_LLM_MODEL:-$DEFAULT_LLM}"
 
-  if [ -z "$LC_EMBED_MODEL" ]; then
+  if [ -z "$XGH_EMBED_MODEL" ]; then
     echo ""
     echo -e "  ${BOLD}Pick an embedding model${NC} ${DIM}(semantic search engine)${NC}"
     echo ""
@@ -500,23 +500,23 @@ print('yes' if '${1}' in ids else 'no')
     embed_choice="${embed_choice:-$DEFAULT_EMBED_IDX}"
 
     if [ "$embed_choice" = "c" ] || [ "$embed_choice" = "C" ]; then
-      read -r -p "  Enter ${CUSTOM_LABEL}: " LC_EMBED_MODEL
+      read -r -p "  Enter ${CUSTOM_LABEL}: " XGH_EMBED_MODEL
     elif [ "$embed_choice" -ge 1 ] 2>/dev/null && [ "$embed_choice" -le "${#EMBED_MODELS[@]}" ]; then
-      IFS='|' read -r LC_EMBED_MODEL _ <<< "${EMBED_MODELS[$((embed_choice-1))]}"
+      IFS='|' read -r XGH_EMBED_MODEL _ <<< "${EMBED_MODELS[$((embed_choice-1))]}"
     else
-      LC_EMBED_MODEL="$DEFAULT_EMBED"
+      XGH_EMBED_MODEL="$DEFAULT_EMBED"
     fi
   fi
-  LC_EMBED_MODEL="${LC_EMBED_MODEL:-$DEFAULT_EMBED}"
+  XGH_EMBED_MODEL="${XGH_EMBED_MODEL:-$DEFAULT_EMBED}"
 
   # Warn if non-768-dim embed model selected on Ollama (existing collections are 768-dim)
-  if [ "$LC_BACKEND" = "ollama" ] && [[ "$LC_EMBED_MODEL" != "nomic-embed-text" ]]; then
+  if [ "$XGH_BACKEND" = "ollama" ] && [[ "$XGH_EMBED_MODEL" != "nomic-embed-text" ]]; then
     warn "Non-768-dim embed model selected. Existing 768-dim Qdrant collections will be incompatible."
-    warn "  Run with LC_RESET_COLLECTION=1 if you want to recreate collections."
+    warn "  Run with XGH_RESET_COLLECTION=1 if you want to recreate collections."
   fi
 
-  info "LLM model:       ${LC_LLM_MODEL}"
-  info "Embedding model:  ${LC_EMBED_MODEL}"
+  info "LLM model:       ${XGH_LLM_MODEL}"
+  info "Embedding model:  ${XGH_EMBED_MODEL}"
 
   # ── 3. cipher.yml generation ──────────────────────────────────────────────────
   lane "Wiring up the memory layer 🧬"
@@ -526,22 +526,22 @@ print('yes' if '${1}' in ids else 'no')
   if [ ! -f "$CIPHER_YML" ]; then
     info "Generating cipher.yml"
     mkdir -p "${HOME}/.cipher"
-    if [ "$LC_BACKEND" = "vllm-mlx" ]; then
+    if [ "$XGH_BACKEND" = "vllm-mlx" ]; then
       cat > "$CIPHER_YML" <<CIPHERYMLEOF
 mcpServers: {}
 
 llm:
   provider: openai
-  model: ${LC_LLM_MODEL}
+  model: ${XGH_LLM_MODEL}
   maxIterations: 50
   apiKey: placeholder
-  baseURL: http://localhost:${LC_MODEL_PORT}/v1
+  baseURL: http://localhost:${XGH_MODEL_PORT}/v1
 
 embedding:
   type: openai
-  model: ${LC_EMBED_MODEL}
+  model: ${XGH_EMBED_MODEL}
   apiKey: placeholder
-  baseURL: http://localhost:${LC_MODEL_PORT}/v1
+  baseURL: http://localhost:${XGH_MODEL_PORT}/v1
   dimensions: 768
 
 systemPrompt:
@@ -554,22 +554,22 @@ systemPrompt:
     - Explaining complex technical concepts
     - Reasoning through programming challenges
 CIPHERYMLEOF
-    elif [ "$LC_BACKEND" = "remote" ]; then
+    elif [ "$XGH_BACKEND" = "remote" ]; then
       cat > "$CIPHER_YML" <<CIPHERYMLEOF
 mcpServers: {}
 
 llm:
   provider: openai
-  model: ${LC_LLM_MODEL}
+  model: ${XGH_LLM_MODEL}
   maxIterations: 50
   apiKey: placeholder
-  baseURL: ${LC_REMOTE_URL}/v1
+  baseURL: ${XGH_REMOTE_URL}/v1
 
 embedding:
   type: openai
-  model: ${LC_EMBED_MODEL}
+  model: ${XGH_EMBED_MODEL}
   apiKey: placeholder
-  baseURL: ${LC_REMOTE_URL}/v1
+  baseURL: ${XGH_REMOTE_URL}/v1
   dimensions: 768
 
 systemPrompt:
@@ -589,14 +589,14 @@ mcpServers: {}
 
 llm:
   provider: ollama
-  model: ${LC_LLM_MODEL}
+  model: ${XGH_LLM_MODEL}
   maxIterations: 50
-  baseURL: http://localhost:${LC_MODEL_PORT}
+  baseURL: http://localhost:${XGH_MODEL_PORT}
 
 embedding:
   type: ollama
-  model: ${LC_EMBED_MODEL}
-  baseURL: http://localhost:${LC_MODEL_PORT}
+  model: ${XGH_EMBED_MODEL}
+  baseURL: http://localhost:${XGH_MODEL_PORT}
   dimensions: 768
 
 systemPrompt:
@@ -614,7 +614,7 @@ CIPHERYMLEOF
   else
     # Update model names (and provider/type) in existing cipher.yml to match current selection
     info "cipher.yml exists — syncing model names and backend"
-    python3 - "$CIPHER_YML" "$LC_LLM_MODEL" "$LC_EMBED_MODEL" "$LC_MODEL_PORT" "$LC_BACKEND" "${LC_REMOTE_URL:-}" <<'SYNCEOF'
+    python3 - "$CIPHER_YML" "$XGH_LLM_MODEL" "$XGH_EMBED_MODEL" "$XGH_MODEL_PORT" "$XGH_BACKEND" "${XGH_REMOTE_URL:-}" <<'SYNCEOF'
 import sys, re
 path, llm_model, embed_model, port, backend, remote_url = sys.argv[1:]
 content = open(path).read()

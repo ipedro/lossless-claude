@@ -399,3 +399,19 @@ section {
 .site-footer a:hover {
   color: var(--color-text);
 }
+
+/* === Hero emoji === */
+.hero-emoji {
+  display: block;
+  font-size: 2.5rem;
+  margin-bottom: var(--spacing-xs);
+  line-height: 1;
+}
+
+.install-label {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: var(--spacing-xs);
+}

@@ -186,3 +186,76 @@ section {
   color: var(--color-text-secondary);
   line-height: 1.5;
 }
+
+/* === DAG Section === */
+.how-it-works h2 {
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: var(--spacing-lg);
+}
+
+.dag-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.dag-step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) 0;
+  opacity: 0.35;
+  transition: opacity 0.4s ease;
+}
+
+.dag-step.active {
+  opacity: 1;
+}
+
+.no-js .dag-step {
+  opacity: 1;
+}
+
+.dag-step-number {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.dag-step-content h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.dag-step-content p {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  line-height: 1.45;
+}
+
+.dag-connector {
+  width: 2px;
+  height: 16px;
+  background: var(--color-border);
+  margin-left: 15px;
+}
+
+@media (max-width: 600px) {
+  .how-it-works h2 {
+    font-size: 1.25rem;
+  }
+}

@@ -78,6 +78,54 @@
         </div>
       </div>
     </section>
+
+    <!-- How It Works -->
+    <section class="how-it-works">
+      <div class="container">
+        <h2>How it works</h2>
+        <div class="dag-steps">
+          <div class="dag-step" data-step="1">
+            <div class="dag-step-number">1</div>
+            <div class="dag-step-content">
+              <h4>Messages arrive</h4>
+              <p>Every message is stored verbatim in a local SQLite database. Nothing is discarded.</p>
+            </div>
+          </div>
+          <div class="dag-connector"></div>
+          <div class="dag-step" data-step="2">
+            <div class="dag-step-number">2</div>
+            <div class="dag-step-content">
+              <h4>Compaction</h4>
+              <p>Older messages are grouped into leaf summaries by a background daemon — your session is never blocked.</p>
+            </div>
+          </div>
+          <div class="dag-connector"></div>
+          <div class="dag-step" data-step="3">
+            <div class="dag-step-number">3</div>
+            <div class="dag-step-content">
+              <h4>DAG nodes</h4>
+              <p>Leaf summaries condense further into higher-level nodes, forming a directed acyclic graph of your project history.</p>
+            </div>
+          </div>
+          <div class="dag-connector"></div>
+          <div class="dag-step" data-step="4">
+            <div class="dag-step-number">4</div>
+            <div class="dag-step-content">
+              <h4>Cipher promotion</h4>
+              <p>High-signal nodes — architectural decisions, bug fixes, design rationale — are promoted to Cipher, the long-term semantic memory store.</p>
+            </div>
+          </div>
+          <div class="dag-connector"></div>
+          <div class="dag-step" data-step="5">
+            <div class="dag-step-number">5</div>
+            <div class="dag-step-content">
+              <h4>Context assembly</h4>
+              <p>Each new session is assembled from recent raw messages + DAG summaries + Cipher recall. Full fidelity, minimal tokens.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <script>
@@ -93,6 +141,26 @@
       }
     });
   });
+
+  // Remove no-js class
+  document.documentElement.classList.remove('no-js');
+
+  // Scroll-triggered DAG step animation
+  if ('IntersectionObserver' in window) {
+    var dagSteps = document.querySelectorAll('.dag-step');
+    var observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('active');
+        }
+      });
+    }, { threshold: 0.5 });
+    dagSteps.forEach(function(step) { observer.observe(step); });
+  } else {
+    document.querySelectorAll('.dag-step').forEach(function(s) {
+      s.classList.add('active');
+    });
+  }
   </script>
 </body>
 </html>

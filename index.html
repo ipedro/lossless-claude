@@ -27,6 +27,33 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- Content added in subsequent tasks -->
+  <main>
+    <!-- Hero -->
+    <section class="hero">
+      <div class="container">
+        <h1>Claude Code has a memory problem.<br>lossless-claude fixes it — nothing is ever lost.</h1>
+        <p class="subhead">Every message, forever. Built natively for Claude Code.</p>
+        <div class="install-block">
+          <code>claude plugins install @ipedro/lossless-claude</code>
+          <button class="copy-btn" data-copy="claude plugins install @ipedro/lossless-claude" aria-label="Copy install command">Copy</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+  // Copy-to-clipboard
+  document.querySelectorAll('.copy-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var text = btn.getAttribute('data-copy');
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(function() {
+          btn.textContent = 'Copied!';
+          setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+        });
+      }
+    });
+  });
+  </script>
 </body>
 </html>

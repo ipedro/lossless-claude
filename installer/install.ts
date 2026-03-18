@@ -271,12 +271,7 @@ export async function install(deps: ServiceDeps = defaultDeps): Promise<void> {
     console.warn("Warning: ~/.cipher/cipher.yml not found — semantic search will be unavailable until setup completes");
   }
 
-  // 2. Check ANTHROPIC_API_KEY
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.warn("Warning: ANTHROPIC_API_KEY is not set. The daemon will need it at runtime — export it in your shell profile.");
-  }
-
-  // 3. Create or update config.json
+  // 2. Create or update config.json
   const configPath = join(lcDir, "config.json");
   if (!deps.existsSync(configPath)) {
     const cipherConfigPath = join(homedir(), ".cipher", "cipher.yml");

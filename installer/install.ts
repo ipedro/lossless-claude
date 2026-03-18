@@ -82,7 +82,9 @@ export function resolveBinaryPath(deps: Pick<ServiceDeps, "spawnSync" | "existsS
   return "lossless-claude";
 }
 
-export function buildLaunchdPlist(binaryPath: string, logPath: string): string {
+export function buildLaunchdPlist(binaryPath: string, logPath: string, nodeBinDir?: string): string {
+  const nodePath = nodeBinDir ?? "/opt/homebrew/bin";
+  const pathValue = `${nodePath}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin`;
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -95,6 +97,11 @@ export function buildLaunchdPlist(binaryPath: string, logPath: string): string {
     <string>daemon</string>
     <string>start</string>
   </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>${pathValue}</string>
+  </dict>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
@@ -135,7 +142,8 @@ export function setupDaemonService(deps: ServiceDeps = defaultDeps): void {
     const logPath = join(homedir(), ".lossless-claude", "daemon.log");
 
     deps.mkdirSync(plistDir, { recursive: true });
-    deps.writeFileSync(plistPath, buildLaunchdPlist(binaryPath, logPath));
+    const nodeBinDir = dirname(process.execPath);
+    deps.writeFileSync(plistPath, buildLaunchdPlist(binaryPath, logPath, nodeBinDir));
 
     // Unload first (idempotent — ignore errors if not loaded)
     deps.spawnSync("launchctl", ["unload", plistPath], { stdio: "inherit" });

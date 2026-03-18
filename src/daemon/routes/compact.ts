@@ -10,6 +10,7 @@ import { ConversationStore } from "../../store/conversation-store.js";
 import { SummaryStore } from "../../store/summary-store.js";
 import { CompactionEngine } from "../../compaction.js";
 import { createAnthropicSummarizer } from "../../llm/anthropic.js";
+import { createOpenAISummarizer } from "../../llm/openai.js";
 import { shouldPromote } from "../../promotion/detector.js";
 import { promoteSummary } from "../../promotion/promoter.js";
 
@@ -18,6 +19,18 @@ export const justCompactedMap = new Map<string, number>();
 export const JUST_COMPACTED_TTL_MS = 30_000;
 
 export function createCompactHandler(config: DaemonConfig): RouteHandler {
+  const summarize =
+    config.llm.provider === "openai"
+      ? createOpenAISummarizer({
+          model: config.llm.model,
+          baseURL: config.llm.baseURL,
+          apiKey: config.llm.apiKey,
+        })
+      : createAnthropicSummarizer({
+          model: config.llm.model,
+          apiKey: config.llm.apiKey,
+        });
+
   return async (_req, res, body) => {
     const input = JSON.parse(body || "{}");
     const { session_id, cwd, transcript_path } = input;
@@ -46,7 +59,6 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
       return;
     }
 
-    const summarize = createAnthropicSummarizer(config.llm);
     const engine = new CompactionEngine(conversationStore, summaryStore, {
       contextThreshold: 0.75,
       freshTailCount: 8,

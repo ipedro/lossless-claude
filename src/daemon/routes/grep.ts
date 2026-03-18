@@ -13,7 +13,7 @@ import { RetrievalEngine } from "../../retrieval.js";
 export function createGrepHandler(_config: DaemonConfig): RouteHandler {
   return async (_req, res, body) => {
     const input = JSON.parse(body || "{}");
-    const { query, scope, sessionId, since, cwd } = input;
+    const { query, scope, mode, since, cwd } = input;
 
     if (!query) {
       sendJson(res, 400, { error: "query is required" });
@@ -37,7 +37,7 @@ export function createGrepHandler(_config: DaemonConfig): RouteHandler {
       const convStore = new ConversationStore(db);
       const summStore = new SummaryStore(db);
       const engine = new RetrievalEngine(convStore, summStore);
-      const result = await engine.grep({ query, scope: scope ?? "all", sessionId, since });
+      const result = await engine.grep({ query, mode: mode ?? "full_text", scope: scope ?? "both", since });
       db.close();
       sendJson(res, 200, result);
     } catch (err) {

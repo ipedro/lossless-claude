@@ -15,7 +15,7 @@ type SummarizerOptions = {
 
 type SummarizeContext = { isCondensed?: boolean; targetTokens?: number; depth?: number };
 
-export type LcmSummarizeFn = (text: string, aggressive: boolean, ctx?: SummarizeContext) => Promise<string>;
+export type LcmSummarizeFn = (text: string, aggressive?: boolean, ctx?: SummarizeContext) => Promise<string>;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));

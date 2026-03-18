@@ -39,10 +39,14 @@ export function createSearchHandler(config: DaemonConfig): RouteHandler {
           const convStore = new ConversationStore(db);
           const summStore = new SummaryStore(db);
           const engine = new RetrievalEngine(convStore, summStore);
-          const result = await engine.grep({ query, scope: "all" });
+          const result = await engine.grep({ query, mode: "full_text", scope: "both" });
+          const allMatches = [...result.messages, ...result.summaries];
           const episodicMatches = filterTags
-            ? result.matches.filter((m: any) => filterTags.every(t => m.tags?.includes(t)))
-            : result.matches;
+            ? allMatches.filter((m) => {
+                const tags = (m as Record<string, unknown>).tags;
+                return Array.isArray(tags) && filterTags.every(t => tags.includes(t));
+              })
+            : allMatches;
           episodic = episodicMatches.slice(0, limit);
           db.close();
         }

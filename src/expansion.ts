@@ -14,7 +14,7 @@ export type ExpansionRequest = {
   /** Whether to include raw source messages at leaf level */
   includeMessages?: boolean;
   /** Conversation ID scope */
-  conversationId: number;
+  conversationId?: number;
 };
 
 export type ExpansionResult = {

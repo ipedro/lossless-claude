@@ -7,7 +7,7 @@ function readStdin(): Promise<string> {
   return new Promise((resolve) => {
     if (stdin.isTTY) { resolve(""); return; }
     const chunks: Buffer[] = [];
-    stdin.on("data", (chunk) => chunks.push(chunk));
+    stdin.on("data", (chunk: Buffer) => chunks.push(chunk));
     stdin.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
   });
 }

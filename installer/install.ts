@@ -49,7 +49,7 @@ export interface ServiceDeps {
   existsSync: (path: string) => boolean;
 }
 
-const defaultDeps: ServiceDeps = { spawnSync: spawnSync as any, readFileSync, writeFileSync, mkdirSync, existsSync };
+const defaultDeps: ServiceDeps = { spawnSync: spawnSync as any, readFileSync: (path, encoding) => readFileSync(path, encoding as BufferEncoding) as string, writeFileSync, mkdirSync, existsSync };
 
 export function resolveBinaryPath(deps: Pick<ServiceDeps, "spawnSync" | "existsSync"> = defaultDeps): string {
   const result = deps.spawnSync("sh", ["-c", "command -v lossless-claude"], { encoding: "utf-8" });

@@ -7,7 +7,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 const chunks: Buffer[] = [];
-process.stdin.on("data", (c) => chunks.push(c));
+process.stdin.on("data", (c: Buffer) => chunks.push(c));
 process.stdin.on("end", () => {
   const raw = Buffer.concat(chunks).toString("utf-8");
   const dir = join(homedir(), ".lossless-claude");

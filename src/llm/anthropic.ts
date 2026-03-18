@@ -5,6 +5,9 @@ import {
   buildCondensedSummaryPrompt,
   resolveTargetTokens,
 } from "../summarize.js";
+import type { LcmSummarizeFn, SummarizeContext } from "./types.js";
+
+export type { LcmSummarizeFn } from "./types.js";
 
 type SummarizerOptions = {
   model: string;
@@ -12,10 +15,6 @@ type SummarizerOptions = {
   _clientOverride?: any;
   _retryDelayMs?: number;
 };
-
-type SummarizeContext = { isCondensed?: boolean; targetTokens?: number; depth?: number };
-
-export type LcmSummarizeFn = (text: string, aggressive?: boolean, ctx?: SummarizeContext) => Promise<string>;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));

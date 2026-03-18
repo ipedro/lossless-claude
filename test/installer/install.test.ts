@@ -24,6 +24,7 @@ function makeDeps(overrides: Partial<ServiceDeps> = {}): ServiceDeps & {
   writeFileSync: ReturnType<typeof vi.fn>;
   mkdirSync: ReturnType<typeof vi.fn>;
   existsSync: ReturnType<typeof vi.fn>;
+  promptUser: ReturnType<typeof vi.fn>;
 } {
   return {
     spawnSync: makeSpawn(),
@@ -31,6 +32,7 @@ function makeDeps(overrides: Partial<ServiceDeps> = {}): ServiceDeps & {
     writeFileSync: vi.fn(),
     mkdirSync: vi.fn(),
     existsSync: vi.fn().mockReturnValue(false),
+    promptUser: vi.fn().mockResolvedValue("1"), // default: option 1 (Anthropic)
     ...overrides,
   };
 }
@@ -196,7 +198,7 @@ describe("install", () => {
     process.env.ANTHROPIC_API_KEY = originalApiKey;
   });
 
-  it("writes config.json with llm.apiKey set to empty string", async () => {
+  it("writes config.json with llm.apiKey set to env placeholder when ANTHROPIC_API_KEY is set", async () => {
     const originalApiKey = process.env.ANTHROPIC_API_KEY;
     process.env.ANTHROPIC_API_KEY = "test-key";
     const writeFileMock = vi.fn();
@@ -208,7 +210,8 @@ describe("install", () => {
     const configWriteCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
     expect(configWriteCall).toBeDefined();
     const written = JSON.parse(configWriteCall![1]);
-    expect(written.llm.apiKey).toBe("");
+    // Non-TTY path: uses env placeholder literal
+    expect(written.llm.apiKey).toBe("${ANTHROPIC_API_KEY}");
     process.env.ANTHROPIC_API_KEY = originalApiKey;
   });
 
@@ -260,6 +263,130 @@ describe("install with DryRunServiceDeps", () => {
 
     logSpy.mockRestore();
     warnSpy.mockRestore();
+  });
+});
+
+// ─── summarizer picker ───────────────────────────────────────────────────────
+
+describe("summarizer picker", () => {
+  const originalApiKey = process.env.ANTHROPIC_API_KEY;
+  const originalIsTTY = process.stdin.isTTY;
+
+  afterEach(() => {
+    process.env.ANTHROPIC_API_KEY = originalApiKey;
+    Object.defineProperty(process.stdin, "isTTY", { value: originalIsTTY, writable: true });
+  });
+
+  it("option 1 (Anthropic): writes provider=anthropic and apiKey literal to config.json", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-test";
+    Object.defineProperty(process.stdin, "isTTY", { value: true, writable: true });
+    const writeFileMock = vi.fn();
+    const deps = makeDeps({
+      existsSync: vi.fn().mockReturnValue(false),
+      writeFileSync: writeFileMock,
+      promptUser: vi.fn()
+        .mockResolvedValueOnce("1"),  // picker: option 1
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await install(deps);
+    warnSpy.mockRestore();
+    const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
+    expect(configCall).toBeDefined();
+    const written = JSON.parse(configCall![1]);
+    expect(written.llm.provider).toBe("anthropic");
+    expect(written.llm.apiKey).toBe("${ANTHROPIC_API_KEY}");
+    expect(written.llm.model).toBe("claude-haiku-4-5-20251001");
+  });
+
+  it("option 2 (local model): reads cipher.yml and writes provider=openai", async () => {
+    Object.defineProperty(process.stdin, "isTTY", { value: true, writable: true });
+    const cipherContent = `
+llm:
+  provider: openai
+  model: mlx-community/Qwen2.5-14B-Instruct-4bit
+  baseURL: http://localhost:11435/v1
+`;
+    const writeFileMock = vi.fn();
+    const deps = makeDeps({
+      existsSync: vi.fn().mockImplementation((p: string) =>
+        p.endsWith("cipher.yml") ? true : false
+      ),
+      readFileSync: vi.fn().mockImplementation((p: string) =>
+        p.endsWith("cipher.yml") ? cipherContent : "{}"
+      ),
+      writeFileSync: writeFileMock,
+      promptUser: vi.fn().mockResolvedValueOnce("2"),
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await install(deps);
+    warnSpy.mockRestore();
+    const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
+    expect(configCall).toBeDefined();
+    const written = JSON.parse(configCall![1]);
+    expect(written.llm.provider).toBe("openai");
+    expect(written.llm.baseURL).toBe("http://localhost:11435/v1");
+    expect(written.llm.model).toBe("mlx-community/Qwen2.5-14B-Instruct-4bit");
+    expect(written.llm.apiKey).toBe("");
+  });
+
+  it("option 3 (custom server): prompts for URL and model, writes provider=openai", async () => {
+    Object.defineProperty(process.stdin, "isTTY", { value: true, writable: true });
+    const writeFileMock = vi.fn();
+    const deps = makeDeps({
+      existsSync: vi.fn().mockReturnValue(false),
+      writeFileSync: writeFileMock,
+      promptUser: vi.fn()
+        .mockResolvedValueOnce("3")                           // picker: option 3
+        .mockResolvedValueOnce("http://192.168.1.5:8080/v1") // URL prompt
+        .mockResolvedValueOnce("my-model"),                   // model prompt
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await install(deps);
+    warnSpy.mockRestore();
+    const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
+    expect(configCall).toBeDefined();
+    const written = JSON.parse(configCall![1]);
+    expect(written.llm.provider).toBe("openai");
+    expect(written.llm.baseURL).toBe("http://192.168.1.5:8080/v1");
+    expect(written.llm.model).toBe("my-model");
+  });
+
+  it("invalid input re-prompts once then defaults to option 1", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-test";
+    Object.defineProperty(process.stdin, "isTTY", { value: true, writable: true });
+    const writeFileMock = vi.fn();
+    const deps = makeDeps({
+      existsSync: vi.fn().mockReturnValue(false),
+      writeFileSync: writeFileMock,
+      promptUser: vi.fn()
+        .mockResolvedValueOnce("9")   // invalid
+        .mockResolvedValueOnce("9"),  // invalid again → default to 1
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await install(deps);
+    warnSpy.mockRestore();
+    const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
+    const written = JSON.parse(configCall![1]);
+    expect(written.llm.provider).toBe("anthropic");
+  });
+
+  it("non-TTY (process.stdin.isTTY is false): skips picker and defaults to Anthropic", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-env";
+    Object.defineProperty(process.stdin, "isTTY", { value: false, writable: true });
+    const writeFileMock = vi.fn();
+    const promptUserMock = vi.fn();
+    const deps = makeDeps({
+      existsSync: vi.fn().mockReturnValue(false),
+      writeFileSync: writeFileMock,
+      promptUser: promptUserMock,
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await install(deps);
+    warnSpy.mockRestore();
+    expect(promptUserMock).not.toHaveBeenCalled(); // picker was skipped
+    const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
+    const written = JSON.parse(configCall![1]);
+    expect(written.llm.provider).toBe("anthropic");
   });
 });
 

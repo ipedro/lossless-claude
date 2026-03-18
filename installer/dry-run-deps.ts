@@ -55,6 +55,11 @@ export class DryRunServiceDeps implements ServiceDeps, TeardownDeps {
     return fakeZeroExit();
   }
 
+  async promptUser(question: string): Promise<string> {
+    console.log(`[dry-run] would prompt: ${question}`);
+    return "1"; // default to option 1 (Anthropic) in dry-run
+  }
+
   // ── pass-through ──────────────────────────────────────────────────────────
 
   readFileSync(path: string, encoding: string): string {

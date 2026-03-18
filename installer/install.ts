@@ -47,9 +47,22 @@ export interface ServiceDeps {
   writeFileSync: (path: string, data: string) => void;
   mkdirSync: (path: string, opts?: any) => void;
   existsSync: (path: string) => boolean;
+  promptUser: (question: string) => Promise<string>;
 }
 
-const defaultDeps: ServiceDeps = { spawnSync: spawnSync as any, readFileSync: (path, encoding) => readFileSync(path, encoding as BufferEncoding) as string, writeFileSync, mkdirSync, existsSync };
+async function readlinePrompt(question: string): Promise<string> {
+  const rl = (await import("node:readline/promises")).createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  try {
+    return await rl.question(question);
+  } finally {
+    rl.close();
+  }
+}
+
+const defaultDeps: ServiceDeps = { spawnSync: spawnSync as any, readFileSync: (path, encoding) => readFileSync(path, encoding as BufferEncoding) as string, writeFileSync, mkdirSync, existsSync, promptUser: readlinePrompt };
 
 export function resolveBinaryPath(deps: Pick<ServiceDeps, "spawnSync" | "existsSync"> = defaultDeps): string {
   const result = deps.spawnSync("sh", ["-c", "command -v lossless-claude"], { encoding: "utf-8" });
@@ -159,6 +172,88 @@ export function setupDaemonService(deps: ServiceDeps = defaultDeps): void {
   }
 }
 
+type SummarizerConfig = {
+  provider: "anthropic" | "openai";
+  model: string;
+  apiKey: string;
+  baseURL: string;
+};
+
+function parseCipherYml(content: string): { model: string; baseURL: string } | null {
+  try {
+    let inLlmSection = false;
+    let model = "";
+    let baseURL = "";
+    for (const line of content.split("\n")) {
+      if (/^llm:\s*$/.test(line)) { inLlmSection = true; continue; }
+      if (inLlmSection && /^[^\s]/.test(line)) break; // left llm section
+      if (inLlmSection) {
+        const modelMatch = line.match(/^\s+model:\s*(\S+)/);
+        if (modelMatch) model = modelMatch[1];
+        const urlMatch = line.match(/^\s+baseURL:\s*(\S+)/);
+        if (urlMatch) baseURL = urlMatch[1];
+      }
+    }
+    if (!model || !baseURL) return null;
+    // Ensure /v1 suffix (ollama's native API doesn't include it, OpenAI-compat needs it)
+    if (!baseURL.endsWith("/v1")) baseURL = baseURL + "/v1";
+    return { model, baseURL };
+  } catch {
+    return null;
+  }
+}
+
+async function pickSummarizer(deps: ServiceDeps, cipherConfigPath: string): Promise<SummarizerConfig> {
+  // Non-TTY (CI, piped stdin): skip interactive picker, default to Anthropic
+  if (!process.stdin.isTTY) {
+    const apiKey = process.env.ANTHROPIC_API_KEY ? "${ANTHROPIC_API_KEY}" : "";
+    return { provider: "anthropic", model: "claude-haiku-4-5-20251001", apiKey, baseURL: "" };
+  }
+
+  console.log("\n  ─── Summarizer (for conversation compaction)\n");
+  console.log("  1) Anthropic API     (best quality — requires API key)");
+  console.log("  2) Local model       (reuse your vllm-mlx / ollama endpoint)");
+  console.log("  3) Custom server     (any OpenAI-compatible URL)");
+  console.log("");
+
+  let choice = (await deps.promptUser("  Pick [1]: ")).trim();
+  if (!["1", "2", "3"].includes(choice)) {
+    console.log("  Invalid choice — please enter 1, 2, or 3.");
+    choice = (await deps.promptUser("  Pick [1]: ")).trim();
+  }
+  if (!["1", "2", "3"].includes(choice)) {
+    choice = "1"; // default after two invalid attempts
+  }
+
+  if (choice === "2") {
+    // Read from cipher.yml
+    try {
+      const cipherContent = deps.readFileSync(cipherConfigPath, "utf-8");
+      const parsed = parseCipherYml(cipherContent);
+      if (parsed) {
+        return { provider: "openai", model: parsed.model, apiKey: "", baseURL: parsed.baseURL };
+      }
+    } catch {}
+    console.warn("  Warning: Could not read local model config from cipher.yml — falling back to manual entry.");
+    choice = "3";
+  }
+
+  if (choice === "3") {
+    const baseURL = (await deps.promptUser("  Server URL (e.g. http://192.168.1.x:8080/v1): ")).trim();
+    const model = (await deps.promptUser("  Model name: ")).trim();
+    return { provider: "openai", model, apiKey: "", baseURL };
+  }
+
+  // Option 1: Anthropic
+  const apiKey = process.env.ANTHROPIC_API_KEY ? "${ANTHROPIC_API_KEY}" : "";
+  return {
+    provider: "anthropic",
+    model: "claude-haiku-4-5-20251001",
+    apiKey,
+    baseURL: "",
+  };
+}
+
 export async function install(deps: ServiceDeps = defaultDeps): Promise<void> {
   // Step 0: infrastructure setup (backend, models, Qdrant, cipher.yml)
   const setupScript = join(dirname(fileURLToPath(import.meta.url)), "setup.sh");
@@ -181,13 +276,14 @@ export async function install(deps: ServiceDeps = defaultDeps): Promise<void> {
     console.warn("Warning: ANTHROPIC_API_KEY is not set. The daemon will need it at runtime — export it in your shell profile.");
   }
 
-  // 3. Create config.json if not present
+  // 3. Create or update config.json
   const configPath = join(lcDir, "config.json");
   if (!deps.existsSync(configPath)) {
+    const cipherConfigPath = join(homedir(), ".cipher", "cipher.yml");
+    const summarizerConfig = await pickSummarizer(deps, cipherConfigPath);
     const { loadDaemonConfig } = await import("../src/daemon/config.js");
     const defaults = loadDaemonConfig("/nonexistent");
-    // Never persist the API key to disk — the daemon reads it from env at runtime
-    defaults.llm.apiKey = "";
+    defaults.llm = { ...defaults.llm, ...summarizerConfig };
     deps.writeFileSync(configPath, JSON.stringify(defaults, null, 2));
     console.log(`Created ${configPath}`);
   }

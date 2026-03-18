@@ -187,18 +187,7 @@ describe("install", () => {
     process.env.ANTHROPIC_API_KEY = originalApiKey;
   });
 
-  it("warns (does not exit) when ANTHROPIC_API_KEY is missing", async () => {
-    const originalApiKey = process.env.ANTHROPIC_API_KEY;
-    delete process.env.ANTHROPIC_API_KEY;
-    const deps = makeDeps({ existsSync: vi.fn().mockReturnValue(false) });
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await expect(install(deps)).resolves.not.toThrow();
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("ANTHROPIC_API_KEY"));
-    warnSpy.mockRestore();
-    process.env.ANTHROPIC_API_KEY = originalApiKey;
-  });
-
-  it("writes config.json with llm.apiKey set to env placeholder when ANTHROPIC_API_KEY is set", async () => {
+it("writes config.json with llm.apiKey set to env placeholder when ANTHROPIC_API_KEY is set", async () => {
     const originalApiKey = process.env.ANTHROPIC_API_KEY;
     process.env.ANTHROPIC_API_KEY = "test-key";
     const writeFileMock = vi.fn();

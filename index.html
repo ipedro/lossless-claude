@@ -123,55 +123,30 @@
             </div>
           </div>
         </div>
+        <p class="how-it-works-note">Context is never truncated. Each turn, it's assembled fresh — recent raw messages, DAG summaries, and Cipher recall — always within the model's window. Compaction runs automatically in the background after each turn, triggered once enough messages accumulate.</p>
       </div>
     </section>
 
-    <!-- What's Different -->
-    <section class="comparison">
+    <!-- Built on lossless-claw -->
+    <section class="lineage">
       <div class="container">
-        <h2>What's different</h2>
-        <table class="comparison-table">
-          <thead>
-            <tr>
-              <th>Feature</th>
-              <th>lossless-claw</th>
-              <th>lossless-claude</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Long-term memory</td>
-              <td>&mdash;</td>
-              <td>Cipher integration — semantic promotion across sessions</td>
-            </tr>
-            <tr>
-              <td>Smart promotion</td>
-              <td>&mdash;</td>
-              <td>Auto-detects high-signal summaries (decisions, fixes, architecture)</td>
-            </tr>
-            <tr>
-              <td>Background daemon</td>
-              <td>&mdash;</td>
-              <td>Compaction runs automatically without blocking your session</td>
-            </tr>
-            <tr>
-              <td>Multi-LLM</td>
-              <td>Generic abstraction</td>
-              <td>Anthropic-native + any OpenAI-compatible endpoint</td>
-            </tr>
-            <tr>
-              <td>Claude Code integration</td>
-              <td>Script-based / manual</td>
-              <td>Plugin manifest + lifecycle hooks + MCP tools</td>
-            </tr>
-          </tbody>
-        </table>
-        <p class="attribution">
-          lossless-claude builds on the DAG architecture pioneered by
-          <a href="https://github.com/Martian-Engineering/lossless-claude">lossless-claw</a>
-          from <a href="https://martian.engineering">Martian Engineering</a>.
-          We're grateful for their foundational work.
-        </p>
+        <h2>Built on lossless-claw</h2>
+        <div class="lineage-blocks">
+          <div class="lineage-block">
+            <h3>What we inherited</h3>
+            <p>The DAG-based compaction architecture, lossless message retention, and the LCM memory model — all from <a href="https://github.com/Martian-Engineering/lossless-claude">lossless-claw</a> by <a href="https://martian.engineering">Martian Engineering</a>. We're grateful for their foundational work.</p>
+          </div>
+          <div class="lineage-block">
+            <h3>What we added</h3>
+            <ul>
+              <li><strong>Long-term memory via Cipher</strong> — high-signal summaries promoted to persistent semantic storage, recalled across sessions</li>
+              <li><strong>Smart promotion engine</strong> — automatically detects architectural decisions, bug fixes, and design rationale worth keeping forever</li>
+              <li><strong>Background daemon</strong> — compaction never blocks your session</li>
+              <li><strong>Anthropic-native + OpenAI-compatible</strong> — use any summarization model</li>
+              <li><strong>Claude Code native</strong> — plugin manifest, lifecycle hooks, MCP tools</li>
+            </ul>
+          </div>
+        </div>
       </div>
     </section>
 

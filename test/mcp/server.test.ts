@@ -2,10 +2,10 @@ import { describe, it, expect } from "vitest";
 import { getMcpToolDefinitions } from "../../src/mcp/server.js";
 
 describe("MCP tool definitions", () => {
-  it("exposes exactly 5 tools", () => {
+  it("exposes exactly 7 tools", () => {
     const tools = getMcpToolDefinitions();
-    expect(tools).toHaveLength(5);
-    expect(tools.map((t: any) => t.name).sort()).toEqual(["lcm_describe", "lcm_expand", "lcm_grep", "lcm_search", "lcm_store"]);
+    expect(tools).toHaveLength(7);
+    expect(tools.map((t: any) => t.name).sort()).toEqual(["lcm_describe", "lcm_doctor", "lcm_expand", "lcm_grep", "lcm_search", "lcm_stats", "lcm_store"]);
   });
 
   it("each tool has name, description, inputSchema", () => {

@@ -11,8 +11,10 @@ import { lcmExpandTool } from "./tools/lcm-expand.js";
 import { lcmDescribeTool } from "./tools/lcm-describe.js";
 import { lcmSearchTool } from "./tools/lcm-search.js";
 import { lcmStoreTool } from "./tools/lcm-store.js";
+import { lcmStatsTool } from "./tools/lcm-stats.js";
+import { lcmDoctorTool } from "./tools/lcm-doctor.js";
 
-const TOOLS = [lcmGrepTool, lcmExpandTool, lcmDescribeTool, lcmSearchTool, lcmStoreTool];
+const TOOLS = [lcmGrepTool, lcmExpandTool, lcmDescribeTool, lcmSearchTool, lcmStoreTool, lcmStatsTool, lcmDoctorTool];
 
 const TOOL_ROUTES: Record<string, string> = {
   lcm_grep: "/grep",
@@ -20,6 +22,49 @@ const TOOL_ROUTES: Record<string, string> = {
   lcm_describe: "/describe",
   lcm_search: "/search",
   lcm_store: "/store",
+};
+
+const LOCAL_TOOLS: Record<string, (args: Record<string, unknown>) => Promise<string>> = {
+  lcm_stats: async (args) => {
+    const { collectStats } = await import("../stats.js");
+    const stats = collectStats();
+    const verbose = args.verbose === true;
+    const lines: string[] = [];
+    lines.push("## Overview");
+    lines.push(`- Projects: ${stats.projects}`);
+    lines.push(`- Conversations: ${stats.conversations}`);
+    lines.push(`- Messages stored: ${stats.messages}`);
+    lines.push(`- Summaries created: ${stats.summaries}`);
+    lines.push(`- DAG max depth: ${stats.maxDepth}`);
+    lines.push(`- Promoted memories: ${stats.promotedCount}`);
+    lines.push("");
+    lines.push("## Token Savings");
+    const saved = stats.rawTokens - stats.summaryTokens;
+    const pct = stats.rawTokens > 0 ? ((saved / stats.rawTokens) * 100).toFixed(1) : "0.0";
+    const ratio = stats.ratio > 0 ? stats.ratio.toFixed(1) + "x" : "–";
+    lines.push(`- Raw tokens: ${stats.rawTokens}`);
+    lines.push(`- Summary tokens: ${stats.summaryTokens}`);
+    lines.push(`- Saved: ${saved} (${pct}%)`);
+    lines.push(`- Compression ratio: ${ratio}`);
+    if (verbose && stats.conversationDetails.length > 0) {
+      lines.push("");
+      lines.push("## Per-Conversation");
+      lines.push("| # | msgs | sums | depth | raw | summary | saved | ratio |");
+      lines.push("|---|------|------|-------|-----|---------|-------|-------|");
+      for (const c of stats.conversationDetails) {
+        const s = c.rawTokens - c.summaryTokens;
+        const p = c.rawTokens > 0 ? ((s / c.rawTokens) * 100).toFixed(0) + "%" : "–";
+        const r = c.ratio > 0 ? c.ratio.toFixed(1) + "x" : "–";
+        lines.push(`| ${c.conversationId} | ${c.messages} | ${c.summaries} | ${c.maxDepth} | ${c.rawTokens} | ${c.summaryTokens} | ${p} | ${r} |`);
+      }
+    }
+    return lines.join("\n");
+  },
+  lcm_doctor: async () => {
+    const { runDoctor, formatResultsPlain } = await import("../doctor/doctor.js");
+    const results = await runDoctor();
+    return formatResultsPlain(results);
+  },
 };
 
 export function getMcpToolDefinitions() { return TOOLS; }
@@ -37,6 +82,11 @@ export async function startMcpServer(): Promise<void> {
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
+    const localHandler = LOCAL_TOOLS[req.params.name];
+    if (localHandler) {
+      const text = await localHandler((req.params.arguments ?? {}) as Record<string, unknown>);
+      return { content: [{ type: "text", text }] };
+    }
     const route = TOOL_ROUTES[req.params.name];
     if (!route) throw new Error(`Unknown tool: ${req.params.name}`);
     const result = await client.post(route, { ...req.params.arguments, cwd: process.env.PWD ?? process.cwd() });

@@ -78,11 +78,11 @@ function testMcpHandshake(): Promise<CheckResult> {
         try {
           const parsed = JSON.parse(toolsLine);
           const count = parsed.result?.tools?.length ?? 0;
-          resolve({ name: "mcp-handshake-lcm", category: "MCP Servers", status: count === 5 ? "pass" : "warn", message: `lossless-claude: ${count}/5 tools` });
+          resolve({ name: "mcp-handshake-lcm", category: "MCP Servers", status: count === 7 ? "pass" : "warn", message: `lossless-claude: ${count}/7 tools` });
           return;
         } catch {}
       }
-      resolve({ name: "mcp-handshake-lcm", category: "MCP Servers", status: "warn", message: `lossless-claude: 0/5 tools` });
+      resolve({ name: "mcp-handshake-lcm", category: "MCP Servers", status: "warn", message: `lossless-claude: 0/7 tools` });
     });
     child.on("error", () => {
       clearTimeout(timer);
@@ -257,4 +257,29 @@ export function printResults(results: CheckResult[]): void {
   const warn = results.filter(r => r.status === "warn").length;
 
   console.log(`\n  ${pass} passed, ${fail} failed, ${warn} warnings\n`);
+}
+
+export function formatResultsPlain(results: CheckResult[]): string {
+  const lines: string[] = [];
+  let currentCategory = "";
+
+  for (const r of results) {
+    if (r.category !== currentCategory) {
+      currentCategory = r.category;
+      lines.push(`\n## ${currentCategory}`);
+    }
+    if (r.name === "stack") {
+      lines.push(r.message);
+      continue;
+    }
+    const icon = r.status === "pass" ? "OK" : r.status === "warn" ? "WARN" : "FAIL";
+    const suffix = r.fixApplied ? " (auto-fixed)" : "";
+    lines.push(`- [${icon}] ${r.name}: ${r.message}${suffix}`);
+  }
+
+  const pass = results.filter(r => r.status === "pass" && r.name !== "stack").length;
+  const fail = results.filter(r => r.status === "fail").length;
+  const warn = results.filter(r => r.status === "warn").length;
+  lines.push(`\n${pass} passed, ${fail} failed, ${warn} warnings`);
+  return lines.join("\n");
 }

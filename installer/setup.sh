@@ -248,42 +248,6 @@ if [ "$XGH_DRY_RUN" -eq 0 ]; then
       info "Qdrant is already running"
     fi
 
-    # ── vLLM-MLX LaunchAgent ──────────────────────────────────
-    _VLLM_MLX_BIN=$(command -v vllm-mlx 2>/dev/null || echo "")
-    _VLLM_MLX_PLIST="${HOME}/Library/LaunchAgents/com.lossless-claude.vllm-mlx.plist"
-    _LCM_LOG_DIR="${HOME}/.lossless-claude/logs"
-    mkdir -p "$_LCM_LOG_DIR"
-
-    if [ -n "$_VLLM_MLX_BIN" ]; then
-      _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-      _PLIST_TEMPLATE="${_SCRIPT_DIR}/templates/com.lossless-claude.vllm-mlx.plist"
-
-      if [ -f "$_PLIST_TEMPLATE" ]; then
-        cp "$_PLIST_TEMPLATE" "$_VLLM_MLX_PLIST"
-        sed -i '' "s|__VLLM_MLX_BIN__|${_VLLM_MLX_BIN}|g" "$_VLLM_MLX_PLIST"
-        sed -i '' "s|__EMBED_MODEL__|${XGH_EMBED_MODEL}|g" "$_VLLM_MLX_PLIST"
-        sed -i '' "s|__MODEL_PORT__|${XGH_MODEL_PORT}|g" "$_VLLM_MLX_PLIST"
-        sed -i '' "s|__LOG_DIR__|${_LCM_LOG_DIR}|g" "$_VLLM_MLX_PLIST"
-        sed -i '' "s|__HOME__|${HOME}|g" "$_VLLM_MLX_PLIST"
-
-        # If user also picked a local LLM (not claude-server), inject --model args
-        if [ -n "${XGH_LLM_MODEL:-}" ] && [ "${_LLM_PROVIDER:-claude-server}" != "claude-server" ]; then
-          /usr/libexec/PlistBuddy -c "Add :ProgramArguments: string '--model'" "$_VLLM_MLX_PLIST" 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :ProgramArguments: string '${XGH_LLM_MODEL}'" "$_VLLM_MLX_PLIST" 2>/dev/null || true
-        fi
-
-        # Unload any existing, then load
-        launchctl unload "$_VLLM_MLX_PLIST" 2>/dev/null || true
-        launchctl load "$_VLLM_MLX_PLIST" 2>/dev/null \
-          || warn "Could not load vLLM-MLX plist — start manually: launchctl load ${_VLLM_MLX_PLIST}"
-        info "vLLM-MLX LaunchAgent loaded (embedding: ${XGH_EMBED_MODEL}, port: ${XGH_MODEL_PORT})"
-      else
-        warn "vLLM-MLX plist template not found — skipping LaunchAgent setup"
-      fi
-    else
-      warn "vllm-mlx binary not found — skipping LaunchAgent setup (install with: uv tool install vllm-mlx)"
-    fi
-
   elif [ "$XGH_BACKEND" = "ollama" ]; then
     if [[ "$(uname)" == "Darwin" ]]; then
       # ── macOS: Ollama + Qdrant via Homebrew ────────
@@ -877,6 +841,45 @@ print(msg + (f' remote={remote_url}' if remote_url else f' port={port}'))
 SYNCEOF
     else
       warn "python3 not found — cipher.yml model sync skipped (models may be stale in existing config)"
+    fi
+  fi
+
+  # ── vLLM-MLX LaunchAgent (after model selection, so XGH_EMBED_MODEL is set) ──
+  if [ "$XGH_BACKEND" = "vllm-mlx" ]; then
+    _VLLM_MLX_BIN=$(command -v vllm-mlx 2>/dev/null || echo "")
+    _VLLM_MLX_PLIST="${HOME}/Library/LaunchAgents/com.lossless-claude.vllm-mlx.plist"
+    _LCM_LOG_DIR="${HOME}/.lossless-claude/logs"
+    mkdir -p "$_LCM_LOG_DIR"
+
+    if [ -n "$_VLLM_MLX_BIN" ]; then
+      _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+      _PLIST_TEMPLATE="${_SCRIPT_DIR}/templates/com.lossless-claude.vllm-mlx.plist"
+
+      if [ -f "$_PLIST_TEMPLATE" ]; then
+        # Unload first (may already be registered from a previous install)
+        launchctl bootout "gui/$(id -u)/com.lossless-claude.vllm-mlx" 2>/dev/null || true
+
+        cp "$_PLIST_TEMPLATE" "$_VLLM_MLX_PLIST"
+        sed -i '' "s|__VLLM_MLX_BIN__|${_VLLM_MLX_BIN}|g" "$_VLLM_MLX_PLIST"
+        sed -i '' "s|__EMBED_MODEL__|${XGH_EMBED_MODEL}|g" "$_VLLM_MLX_PLIST"
+        sed -i '' "s|__MODEL_PORT__|${XGH_MODEL_PORT}|g" "$_VLLM_MLX_PLIST"
+        sed -i '' "s|__LOG_DIR__|${_LCM_LOG_DIR}|g" "$_VLLM_MLX_PLIST"
+        sed -i '' "s|__HOME__|${HOME}|g" "$_VLLM_MLX_PLIST"
+
+        # If user also picked a local LLM (not claude-server), inject --model args
+        if [ -n "${XGH_LLM_MODEL:-}" ] && [ "${_LLM_PROVIDER:-claude-server}" != "claude-server" ]; then
+          /usr/libexec/PlistBuddy -c "Add :ProgramArguments: string '--model'" "$_VLLM_MLX_PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :ProgramArguments: string '${XGH_LLM_MODEL}'" "$_VLLM_MLX_PLIST" 2>/dev/null || true
+        fi
+
+        launchctl load "$_VLLM_MLX_PLIST" 2>/dev/null \
+          || warn "Could not load vLLM-MLX plist — start manually: launchctl load ${_VLLM_MLX_PLIST}"
+        info "vLLM-MLX LaunchAgent loaded (embedding: ${XGH_EMBED_MODEL}, port: ${XGH_MODEL_PORT})"
+      else
+        warn "vLLM-MLX plist template not found — skipping LaunchAgent setup"
+      fi
+    else
+      warn "vllm-mlx binary not found — skipping LaunchAgent setup (install with: uv tool install vllm-mlx)"
     fi
   fi
 

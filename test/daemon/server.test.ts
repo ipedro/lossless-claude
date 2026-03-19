@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { createDaemon, type DaemonInstance } from "../../src/daemon/server.js";
 import { loadDaemonConfig } from "../../src/daemon/config.js";
 
@@ -20,5 +20,64 @@ describe("daemon server", () => {
     daemon = await createDaemon(loadDaemonConfig("/x", { daemon: { port: 0 } }));
     const res = await fetch(`http://127.0.0.1:${daemon.address().port}/nope`);
     expect(res.status).toBe(404);
+  });
+});
+
+describe("daemon proxy integration", () => {
+  let daemon: DaemonInstance | undefined;
+  afterEach(async () => { if (daemon) { await daemon.stop(); daemon = undefined; } });
+
+  it("accepts proxyManager option and calls start on daemon creation", async () => {
+    const mockProxy = {
+      start: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn().mockResolvedValue(undefined),
+      isHealthy: vi.fn().mockResolvedValue(true),
+      port: 3456,
+      available: true,
+    };
+    const config = loadDaemonConfig("/x", {
+      daemon: { port: 0 },
+      llm: { provider: "disabled" },
+    });
+    daemon = await createDaemon(config, { proxyManager: mockProxy });
+    expect(mockProxy.start).toHaveBeenCalled();
+  });
+
+  it("calls proxyManager.stop() on daemon shutdown", async () => {
+    const mockProxy = {
+      start: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn().mockResolvedValue(undefined),
+      isHealthy: vi.fn().mockResolvedValue(true),
+      port: 3456,
+      available: true,
+    };
+    const config = loadDaemonConfig("/x", {
+      daemon: { port: 0 },
+      llm: { provider: "disabled" },
+    });
+    daemon = await createDaemon(config, { proxyManager: mockProxy });
+    await daemon.stop();
+    expect(mockProxy.stop).toHaveBeenCalled();
+    daemon = undefined; // already stopped
+  });
+
+  it("continues without error when proxyManager.start() rejects", async () => {
+    const mockProxy = {
+      start: vi.fn().mockRejectedValue(new Error("spawn failed")),
+      stop: vi.fn().mockResolvedValue(undefined),
+      isHealthy: vi.fn().mockResolvedValue(false),
+      port: 3456,
+      available: false,
+    };
+    const config = loadDaemonConfig("/x", {
+      daemon: { port: 0 },
+      llm: { provider: "disabled" },
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    daemon = await createDaemon(config, { proxyManager: mockProxy });
+    // Daemon should still be running
+    const res = await fetch(`http://127.0.0.1:${daemon.address().port}/health`);
+    expect(res.status).toBe(200);
+    warnSpy.mockRestore();
   });
 });

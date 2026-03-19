@@ -29,7 +29,7 @@
   ],
   "scripts": {
     "build": "tsc && cp installer/setup.sh dist/installer/setup.sh",
-    "prepare": "npm run build",
+    "prepack": "npm run build",
     "changeset": "changeset",
     "release:verify": "npm test && npm pack --dry-run",
     "test": "vitest run --dir test",

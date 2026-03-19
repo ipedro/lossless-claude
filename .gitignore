@@ -1,5 +1,4 @@
 node_modules/
-dist/
 *.tsbuildinfo
 .DS_Store
 .worktrees
@@ -8,5 +7,5 @@ data/
 
 # TUI
 tui/lcm-tui
-dist/
+tui/dist/
 tui/tui

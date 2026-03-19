@@ -1,0 +1,72 @@
+import { readFileSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+export function removeClaudeSettings(existing) {
+    const settings = JSON.parse(JSON.stringify(existing));
+    settings.hooks = settings.hooks ?? {};
+    settings.mcpServers = settings.mcpServers ?? {};
+    const LC_COMMANDS = new Set(["lossless-claude compact", "lossless-claude restore"]);
+    for (const event of Object.keys(settings.hooks)) {
+        settings.hooks[event] = settings.hooks[event].filter((entry) => !(Array.isArray(entry.hooks) && entry.hooks.some((h) => LC_COMMANDS.has(h.command))));
+    }
+    delete settings.mcpServers["lossless-claude"];
+    return settings;
+}
+const defaultDeps = {
+    spawnSync: spawnSync,
+    existsSync,
+    rmSync,
+    readFileSync: readFileSync,
+    writeFileSync,
+};
+export function teardownDaemonService(deps = defaultDeps) {
+    const platform = process.platform;
+    if (platform === "darwin") {
+        const plistPath = join(homedir(), "Library", "LaunchAgents", "com.lossless-claude.daemon.plist");
+        if (deps.existsSync(plistPath)) {
+            console.log("Stopping daemon service (launchd)...");
+            deps.spawnSync("launchctl", ["unload", plistPath], { stdio: "inherit" });
+            deps.rmSync(plistPath);
+            console.log(`Removed ${plistPath}`);
+        }
+        else {
+            console.warn("Warning: launchd plist not found, skipping unload.");
+        }
+    }
+    else if (platform === "linux") {
+        const unitPath = join(homedir(), ".config", "systemd", "user", "lossless-claude.service");
+        console.log("Stopping daemon service (systemd)...");
+        deps.spawnSync("systemctl", ["--user", "stop", "lossless-claude"], { stdio: "inherit" });
+        deps.spawnSync("systemctl", ["--user", "disable", "lossless-claude"], { stdio: "inherit" });
+        if (deps.existsSync(unitPath)) {
+            deps.rmSync(unitPath);
+            console.log(`Removed ${unitPath}`);
+        }
+        else {
+            console.warn("Warning: systemd unit file not found, skipping removal.");
+        }
+        deps.spawnSync("systemctl", ["--user", "daemon-reload"], { stdio: "inherit" });
+    }
+    else {
+        console.warn(`Warning: Unsupported platform "${platform}". Skipping daemon service teardown.`);
+    }
+}
+export async function uninstall(deps = defaultDeps) {
+    // 1. Stop and remove the daemon service
+    teardownDaemonService(deps);
+    // 2. Remove lossless-claude entries from ~/.claude/settings.json
+    const settingsPath = join(homedir(), ".claude", "settings.json");
+    if (deps.existsSync(settingsPath)) {
+        try {
+            const existing = JSON.parse(deps.readFileSync(settingsPath, "utf-8"));
+            deps.writeFileSync(settingsPath, JSON.stringify(removeClaudeSettings(existing), null, 2));
+            console.log(`Removed lossless-claude from ${settingsPath}`);
+        }
+        catch (err) {
+            console.warn(`Warning: could not update ${settingsPath}: ${err instanceof Error ? err.message : err}`);
+        }
+    }
+    console.log("lossless-claude uninstalled.");
+}
+//# sourceMappingURL=uninstall.js.map

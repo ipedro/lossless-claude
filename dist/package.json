@@ -1,0 +1,60 @@
+{
+    "name": "@ipedro/lossless-claude",
+    "version": "0.3.0",
+    "description": "Lossless context management for Claude Code — DAG-based conversation compaction with semantic memory promotion",
+    "type": "module",
+    "main": "dist/src/memory/index.js",
+    "exports": {
+        ".": "./dist/src/memory/index.js"
+    },
+    "bin": {
+        "lossless-claude": "./dist/bin/lossless-claude.js"
+    },
+    "license": "MIT",
+    "author": "Josh Lehman <josh@martian.engineering>",
+    "keywords": [
+        "claude-code",
+        "claude-code-plugin",
+        "context-management",
+        "llm",
+        "summarization",
+        "conversation-memory",
+        "dag"
+    ],
+    "files": [
+        "dist/",
+        "claude.plugin.json",
+        "docs/",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "build": "tsc",
+        "prepare": "npm run build",
+        "changeset": "changeset",
+        "release:verify": "npm test && npm pack --dry-run",
+        "test": "vitest run --dir test",
+        "version-packages": "changeset version"
+    },
+    "dependencies": {
+        "@anthropic-ai/sdk": "^0.39.0",
+        "@modelcontextprotocol/sdk": "^1.12.0",
+        "@sinclair/typebox": "0.34.48"
+    },
+    "devDependencies": {
+        "@changesets/cli": "^2.30.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.0.0"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ipedro/lossless-claude.git"
+    },
+    "homepage": "https://github.com/ipedro/lossless-claude#readme",
+    "bugs": {
+        "url": "https://github.com/ipedro/lossless-claude/issues"
+    }
+}

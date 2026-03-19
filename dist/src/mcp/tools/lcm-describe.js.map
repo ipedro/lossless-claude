@@ -1,0 +1,1 @@
+{"version":3,"file":"lcm-describe.js","sourceRoot":"","sources":["../../../../src/mcp/tools/lcm-describe.ts"],"names":[],"mappings":"AAAA,MAAM,CAAC,MAAM,eAAe,GAAG;IAC7B,IAAI,EAAE,cAAc;IACpB,WAAW,EAAE,2KAA2K;IACxL,WAAW,EAAE;QACX,IAAI,EAAE,QAAiB;QACvB,UAAU,EAAE;YACV,MAAM,EAAE,EAAE,IAAI,EAAE,QAAQ,EAAE,WAAW,EAAE,qBAAqB,EAAE;SAC/D;QACD,QAAQ,EAAE,CAAC,QAAQ,CAAC;KACrB;CACF,CAAC"}

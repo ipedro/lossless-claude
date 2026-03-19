@@ -38,6 +38,44 @@ describe("daemon server", () => {
   });
 });
 
+describe("daemon idle timeout", () => {
+  it("calls onIdle after idle timeout", async () => {
+    let idleCalled = false;
+    const config = loadDaemonConfig("/nonexistent");
+    config.daemon.port = 0;
+    config.daemon.idleTimeoutMs = 200;
+    const daemon = await createDaemon(config, { onIdle: () => { idleCalled = true; } });
+
+    // Wait for idle timeout
+    await new Promise(r => setTimeout(r, 400));
+
+    expect(idleCalled).toBe(true);
+    expect(daemon.idleTriggered).toBe(true);
+    await daemon.stop();
+  });
+
+  it("resets idle timer on request", async () => {
+    let idleCalled = false;
+    const config = loadDaemonConfig("/nonexistent");
+    config.daemon.port = 0;
+    config.daemon.idleTimeoutMs = 300;
+    const daemon = await createDaemon(config, { onIdle: () => { idleCalled = true; } });
+    const port = daemon.address().port;
+
+    // Make requests to keep alive
+    await fetch(`http://127.0.0.1:${port}/health`);
+    await new Promise(r => setTimeout(r, 200));
+    await fetch(`http://127.0.0.1:${port}/health`);
+    await new Promise(r => setTimeout(r, 200));
+
+    // Should still be alive (timer reset each time)
+    expect(idleCalled).toBe(false);
+    expect(daemon.idleTriggered).toBe(false);
+
+    await daemon.stop();
+  });
+});
+
 describe("daemon proxy integration", () => {
   let daemon: DaemonInstance | undefined;
   afterEach(async () => { if (daemon) { await daemon.stop(); daemon = undefined; } });

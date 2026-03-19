@@ -23,8 +23,8 @@ export const PKG_VERSION = (() => {
 })();
 
 export type RouteHandler = (req: IncomingMessage, res: ServerResponse, body: string) => Promise<void>;
-export type DaemonInstance = { address: () => AddressInfo; stop: () => Promise<void>; registerRoute: (method: string, path: string, handler: RouteHandler) => void };
-export type DaemonOptions = { proxyManager?: ProxyManager };
+export type DaemonInstance = { address: () => AddressInfo; stop: () => Promise<void>; registerRoute: (method: string, path: string, handler: RouteHandler) => void; idleTriggered: boolean };
+export type DaemonOptions = { proxyManager?: ProxyManager; onIdle?: () => void };
 
 export async function readBody(req: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
@@ -43,6 +43,22 @@ export async function createDaemon(config: DaemonConfig, options?: DaemonOptions
   const proxyManager = options?.proxyManager;
   const routes = new Map<string, RouteHandler>();
 
+  let idleTimer: ReturnType<typeof setTimeout> | null = null;
+  let idleTriggered = false;
+  const onIdle = options?.onIdle ?? (() => {
+    console.log("[lcm] idle timeout — shutting down");
+    process.exit(0);
+  });
+
+  function resetIdleTimer() {
+    if (config.daemon.idleTimeoutMs <= 0) return;
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      idleTriggered = true;
+      onIdle();
+    }, config.daemon.idleTimeoutMs);
+  }
+
   routes.set("GET /health", async (_req, res) =>
     sendJson(res, 200, { status: "ok", version: PKG_VERSION, uptime: Math.floor((Date.now() - startTime) / 1000) }));
   routes.set("POST /compact", createCompactHandler(config));
@@ -55,6 +71,7 @@ export async function createDaemon(config: DaemonConfig, options?: DaemonOptions
   routes.set("POST /recent", createRecentHandler(config));
 
   const server: Server = createServer(async (req, res) => {
+    resetIdleTimer();
     const key = `${req.method} ${req.url?.split("?")[0]}`;
     const handler = routes.get(key);
     if (!handler) { sendJson(res, 404, { error: "not found" }); return; }
@@ -76,15 +93,18 @@ export async function createDaemon(config: DaemonConfig, options?: DaemonOptions
 
   return new Promise((resolve) => {
     server.listen(config.daemon.port, "127.0.0.1", () => {
+      resetIdleTimer();
       resolve({
         address: () => server.address() as AddressInfo,
         stop: async () => {
+          if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
           if (proxyManager) {
             try { await proxyManager.stop(); } catch { /* non-fatal */ }
           }
           return new Promise<void>((r) => server.close(() => r()));
         },
         registerRoute: (method, path, handler) => routes.set(`${method} ${path}`, handler),
+        get idleTriggered() { return idleTriggered; },
       });
     });
   });

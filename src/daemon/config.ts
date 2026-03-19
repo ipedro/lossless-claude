@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 export type DaemonConfig = {
   version: number;
-  daemon: { port: number; socketPath: string; logLevel: string; logMaxSizeMB: number; logRetentionDays: number };
+  daemon: { port: number; socketPath: string; logLevel: string; logMaxSizeMB: number; logRetentionDays: number; idleTimeoutMs: number };
   compaction: {
     leafTokens: number; maxDepth: number;
     promotionThresholds: { minDepth: number; compressionRatio: number; keywords: Record<string, string[]>; architecturePatterns: string[] };
@@ -18,7 +18,7 @@ export type DaemonConfig = {
 
 const DEFAULTS: DaemonConfig = {
   version: 1,
-  daemon: { port: 3737, socketPath: join(homedir(), ".lossless-claude", "daemon.sock"), logLevel: "info", logMaxSizeMB: 10, logRetentionDays: 7 },
+  daemon: { port: 3737, socketPath: join(homedir(), ".lossless-claude", "daemon.sock"), logLevel: "info", logMaxSizeMB: 10, logRetentionDays: 7, idleTimeoutMs: 1800000 },
   compaction: {
     leafTokens: 1000, maxDepth: 5,
     promotionThresholds: {

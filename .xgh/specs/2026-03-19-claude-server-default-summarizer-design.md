@@ -65,7 +65,7 @@ interface ProxyManager {
    - If alive: skip spawn, reuse existing process
    - If stale PID: delete file, proceed to spawn
    - If port is occupied by a foreign process (health check returns wrong or no `{"service":"claude-server"}`): treat as startup failure — log port conflict warning, mark unavailable, proceed without summarization
-2. Spawn `claude-server` as child process (`stdio: 'pipe'`), write PID to `~/.claude/lcm-proxy.pid`
+2. Spawn `claude-server` as child process (`stdio: 'pipe'`), write PID to `~/.lossless-claude/lcm-proxy.pid`
 3. Poll `GET /health` every 500ms up to `startupTimeoutMs` — validate response contains `{"service":"claude-server"}` to confirm identity (not just any HTTP server on the port)
 4. If timeout or wrong service: kill child, mark unavailable, log actionable error, proceed without summarization
 5. Write PID to `~/.lossless-claude/lcm-proxy.pid` (same directory as daemon socket for consistency)
@@ -140,7 +140,24 @@ When `LCM_SUMMARY_PROVIDER=anthropic` (or any non-`claude-cli` value), also set 
 
 ### Contradictory config (`provider: "claude-cli"` + `claudeCliProxy.enabled: false`)
 
-If a user explicitly sets `provider: "claude-cli"` but `claudeCliProxy.enabled: false`, `loadDaemonConfig` should treat this as summarization disabled: log a warning and set `provider` to `undefined` (or a sentinel that causes `compact.ts` to skip summarization). The proxy is never started, and no localhost baseURL is written.
+If a user explicitly sets `provider: "claude-cli"` but `claudeCliProxy.enabled: false`, `loadDaemonConfig` should treat this as summarization disabled: log a warning and set `provider` to `"disabled"` (a sentinel value in the union type that causes `compact.ts` to skip summarization entirely). The proxy is never started, no localhost baseURL is written.
+
+Add `"disabled"` to the `llm.provider` union: `"claude-cli" | "anthropic" | "openai" | "disabled"`.
+
+### `apiKey` validation in `loadDaemonConfig`
+
+When `provider` resolves to `"anthropic"` (after all env-var and config merging), validate that `apiKey` is a non-empty string and throw a descriptive startup error if not:
+
+```typescript
+if (resolvedProvider === "anthropic" && !config.llm.apiKey) {
+  throw new Error(
+    "[lcm] LCM_SUMMARY_API_KEY is required when using the Anthropic provider. " +
+    "Set it in your environment or switch to 'claude-cli' provider."
+  );
+}
+```
+
+This prevents the Anthropic SDK constructor from receiving an empty key and producing an opaque error at summarization time.
 
 ### `llm.apiKey` optionality
 

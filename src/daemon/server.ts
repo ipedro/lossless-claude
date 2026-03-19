@@ -1,6 +1,7 @@
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { DaemonConfig } from "./config.js";
+import type { ProxyManager } from "./proxy-manager.js";
 import { createCompactHandler } from "./routes/compact.js";
 import { createRestoreHandler } from "./routes/restore.js";
 import { createGrepHandler } from "./routes/grep.js";
@@ -12,6 +13,7 @@ import { createRecentHandler } from "./routes/recent.js";
 
 export type RouteHandler = (req: IncomingMessage, res: ServerResponse, body: string) => Promise<void>;
 export type DaemonInstance = { address: () => AddressInfo; stop: () => Promise<void>; registerRoute: (method: string, path: string, handler: RouteHandler) => void };
+export type DaemonOptions = { proxyManager?: ProxyManager };
 
 export async function readBody(req: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
@@ -25,8 +27,9 @@ export function sendJson(res: ServerResponse, status: number, data: unknown): vo
   res.end(body);
 }
 
-export async function createDaemon(config: DaemonConfig): Promise<DaemonInstance> {
+export async function createDaemon(config: DaemonConfig, options?: DaemonOptions): Promise<DaemonInstance> {
   const startTime = Date.now();
+  const proxyManager = options?.proxyManager;
   const routes = new Map<string, RouteHandler>();
 
   routes.set("GET /health", async (_req, res) =>
@@ -51,11 +54,25 @@ export async function createDaemon(config: DaemonConfig): Promise<DaemonInstance
     }
   });
 
+  // Start proxy manager if provided (non-fatal on failure)
+  if (proxyManager) {
+    try {
+      await proxyManager.start();
+    } catch (err) {
+      console.warn(`[lcm] claude-server proxy failed to start: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
   return new Promise((resolve) => {
     server.listen(config.daemon.port, "127.0.0.1", () => {
       resolve({
         address: () => server.address() as AddressInfo,
-        stop: () => new Promise<void>((r) => server.close(() => r())),
+        stop: async () => {
+          if (proxyManager) {
+            try { await proxyManager.stop(); } catch { /* non-fatal */ }
+          }
+          return new Promise<void>((r) => server.close(() => r()));
+        },
         registerRoute: (method, path, handler) => routes.set(`${method} ${path}`, handler),
       });
     });

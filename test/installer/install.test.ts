@@ -187,7 +187,7 @@ describe("install", () => {
     process.env.ANTHROPIC_API_KEY = originalApiKey;
   });
 
-it("writes config.json with llm.apiKey set to env placeholder when ANTHROPIC_API_KEY is set", async () => {
+it("writes config.json with provider=claude-cli and empty apiKey in non-TTY mode", async () => {
     const originalApiKey = process.env.ANTHROPIC_API_KEY;
     process.env.ANTHROPIC_API_KEY = "test-key";
     const writeFileMock = vi.fn();
@@ -199,8 +199,9 @@ it("writes config.json with llm.apiKey set to env placeholder when ANTHROPIC_API
     const configWriteCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
     expect(configWriteCall).toBeDefined();
     const written = JSON.parse(configWriteCall![1]);
-    // Non-TTY path: uses env placeholder literal
-    expect(written.llm.apiKey).toBe("${ANTHROPIC_API_KEY}");
+    // Non-TTY path: defaults to claude-cli with empty apiKey
+    expect(written.llm.provider).toBe("claude-cli");
+    expect(written.llm.apiKey).toBe("");
     process.env.ANTHROPIC_API_KEY = originalApiKey;
   });
 
@@ -266,7 +267,25 @@ describe("summarizer picker", () => {
     Object.defineProperty(process.stdin, "isTTY", { value: originalIsTTY, writable: true });
   });
 
-  it("option 1 (Anthropic): writes provider=anthropic and apiKey literal to config.json", async () => {
+  it("option 1 (Claude Max / Pro): writes provider=claude-cli to config.json", async () => {
+    Object.defineProperty(process.stdin, "isTTY", { value: true, writable: true });
+    const writeFileMock = vi.fn();
+    const deps = makeDeps({
+      existsSync: vi.fn().mockReturnValue(false),
+      writeFileSync: writeFileMock,
+      promptUser: vi.fn().mockResolvedValueOnce("1"), // picker: option 1 (Claude Max/Pro)
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await install(deps);
+    warnSpy.mockRestore();
+    const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
+    expect(configCall).toBeDefined();
+    const written = JSON.parse(configCall![1]);
+    expect(written.llm.provider).toBe("claude-cli");
+    expect(written.llm.apiKey).toBeFalsy();
+  });
+
+  it("option 2 (Anthropic API): writes provider=anthropic and apiKey literal to config.json", async () => {
     process.env.ANTHROPIC_API_KEY = "sk-test";
     Object.defineProperty(process.stdin, "isTTY", { value: true, writable: true });
     const writeFileMock = vi.fn();
@@ -274,7 +293,7 @@ describe("summarizer picker", () => {
       existsSync: vi.fn().mockReturnValue(false),
       writeFileSync: writeFileMock,
       promptUser: vi.fn()
-        .mockResolvedValueOnce("1"),  // picker: option 1
+        .mockResolvedValueOnce("2"),  // picker: option 2
     });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     await install(deps);
@@ -287,7 +306,7 @@ describe("summarizer picker", () => {
     expect(written.llm.model).toBe("claude-haiku-4-5-20251001");
   });
 
-  it("option 2 (local model): reads cipher.yml and writes provider=openai", async () => {
+  it("option 3 (local model): reads cipher.yml and writes provider=openai", async () => {
     Object.defineProperty(process.stdin, "isTTY", { value: true, writable: true });
     const cipherContent = `
 llm:
@@ -304,7 +323,7 @@ llm:
         p.endsWith("cipher.yml") ? cipherContent : "{}"
       ),
       writeFileSync: writeFileMock,
-      promptUser: vi.fn().mockResolvedValueOnce("2"),
+      promptUser: vi.fn().mockResolvedValueOnce("3"),
     });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     await install(deps);
@@ -318,14 +337,14 @@ llm:
     expect(written.llm.apiKey).toBe("");
   });
 
-  it("option 3 (custom server): prompts for URL and model, writes provider=openai", async () => {
+  it("option 4 (custom server): prompts for URL and model, writes provider=openai", async () => {
     Object.defineProperty(process.stdin, "isTTY", { value: true, writable: true });
     const writeFileMock = vi.fn();
     const deps = makeDeps({
       existsSync: vi.fn().mockReturnValue(false),
       writeFileSync: writeFileMock,
       promptUser: vi.fn()
-        .mockResolvedValueOnce("3")                           // picker: option 3
+        .mockResolvedValueOnce("4")                           // picker: option 4
         .mockResolvedValueOnce("http://192.168.1.5:8080/v1") // URL prompt
         .mockResolvedValueOnce("my-model"),                   // model prompt
     });
@@ -340,8 +359,7 @@ llm:
     expect(written.llm.model).toBe("my-model");
   });
 
-  it("invalid input re-prompts once then defaults to option 1", async () => {
-    process.env.ANTHROPIC_API_KEY = "sk-test";
+  it("invalid input re-prompts once then defaults to option 1 (claude-cli)", async () => {
     Object.defineProperty(process.stdin, "isTTY", { value: true, writable: true });
     const writeFileMock = vi.fn();
     const deps = makeDeps({
@@ -356,11 +374,10 @@ llm:
     warnSpy.mockRestore();
     const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
     const written = JSON.parse(configCall![1]);
-    expect(written.llm.provider).toBe("anthropic");
+    expect(written.llm.provider).toBe("claude-cli");
   });
 
-  it("non-TTY (process.stdin.isTTY is false): skips picker and defaults to Anthropic", async () => {
-    process.env.ANTHROPIC_API_KEY = "sk-env";
+  it("non-TTY (process.stdin.isTTY is false): skips picker and defaults to claude-cli", async () => {
     Object.defineProperty(process.stdin, "isTTY", { value: false, writable: true });
     const writeFileMock = vi.fn();
     const promptUserMock = vi.fn();
@@ -375,7 +392,8 @@ llm:
     expect(promptUserMock).not.toHaveBeenCalled(); // picker was skipped
     const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
     const written = JSON.parse(configCall![1]);
-    expect(written.llm.provider).toBe("anthropic");
+    expect(written.llm.provider).toBe("claude-cli");
+    expect(written.llm.apiKey).toBe("");
   });
 });
 

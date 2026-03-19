@@ -10,7 +10,8 @@ export type DaemonConfig = {
     promotionThresholds: { minDepth: number; compressionRatio: number; keywords: Record<string, string[]>; architecturePatterns: string[] };
   };
   restoration: { recentSummaries: number; semanticTopK: number; semanticThreshold: number };
-  llm: { provider: "anthropic" | "openai"; model: string; apiKey: string; baseURL: string };
+  llm: { provider: "claude-cli" | "anthropic" | "openai" | "disabled"; model: string; apiKey?: string; baseURL: string };
+  claudeCliProxy: { enabled: boolean; port: number; startupTimeoutMs: number; model: string };
   cipher: { configPath: string; collection: string };
 };
 
@@ -26,7 +27,8 @@ const DEFAULTS: DaemonConfig = {
     },
   },
   restoration: { recentSummaries: 3, semanticTopK: 5, semanticThreshold: 0.35 },
-  llm: { provider: "anthropic", model: "claude-haiku-4-5-20251001", apiKey: "", baseURL: "" },
+  llm: { provider: "claude-cli", model: "claude-haiku-4-5", apiKey: "", baseURL: "" },
+  claudeCliProxy: { enabled: true, port: 3456, startupTimeoutMs: 10000, model: "claude-haiku-4-5" },
   cipher: { configPath: join(homedir(), ".cipher", "cipher.yml"), collection: "lossless_memory" },
 };
 
@@ -48,8 +50,50 @@ export function loadDaemonConfig(configPath: string, overrides?: any, env?: Reco
   try { fileConfig = JSON.parse(readFileSync(configPath, "utf-8")); } catch {}
   const merged = deepMerge(structuredClone(DEFAULTS), deepMerge(fileConfig, overrides));
   if (merged.llm.apiKey) merged.llm.apiKey = merged.llm.apiKey.replace(/\$\{(\w+)\}/g, (_: string, k: string) => e[k] ?? "");
+
+  // Env var override: LCM_SUMMARY_PROVIDER takes precedence over config
+  const VALID_PROVIDERS = new Set(["claude-cli", "anthropic", "openai", "disabled"]);
+  if (e.LCM_SUMMARY_PROVIDER) {
+    if (!VALID_PROVIDERS.has(e.LCM_SUMMARY_PROVIDER)) {
+      throw new Error(
+        `[lcm] Invalid LCM_SUMMARY_PROVIDER="${e.LCM_SUMMARY_PROVIDER}". ` +
+        `Valid values: ${[...VALID_PROVIDERS].join(", ")}`
+      );
+    }
+    merged.llm.provider = e.LCM_SUMMARY_PROVIDER;
+    // When overriding away from claude-cli, disable the proxy
+    if (merged.llm.provider !== "claude-cli") {
+      merged.claudeCliProxy.enabled = false;
+    }
+  }
+
+  // Disable proxy when provider is not claude-cli
+  if (merged.llm.provider !== "claude-cli") {
+    merged.claudeCliProxy.enabled = false;
+  }
+
+  // Anthropic API key fallback from env
   if (!merged.llm.apiKey && merged.llm.provider === "anthropic" && e.ANTHROPIC_API_KEY) {
     merged.llm.apiKey = e.ANTHROPIC_API_KEY;
   }
+
+  // Resolve "claude-cli" provider
+  if (merged.llm.provider === "claude-cli") {
+    if (merged.claudeCliProxy.enabled) {
+      merged.llm.provider = "openai";
+      merged.llm.baseURL = `http://localhost:${merged.claudeCliProxy.port}/v1`;
+    } else {
+      merged.llm.provider = "disabled";
+    }
+  }
+
+  // Validate: anthropic provider requires an API key
+  if (merged.llm.provider === "anthropic" && !merged.llm.apiKey) {
+    throw new Error(
+      "[lcm] LCM_SUMMARY_API_KEY is required when using the Anthropic provider. " +
+      "Set it in your environment or switch to 'claude-cli' provider."
+    );
+  }
+
   return merged;
 }

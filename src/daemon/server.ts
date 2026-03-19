@@ -1,5 +1,8 @@
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { DaemonConfig } from "./config.js";
 import type { ProxyManager } from "./proxy-manager.js";
 import { createCompactHandler } from "./routes/compact.js";
@@ -10,6 +13,14 @@ import { createExpandHandler } from "./routes/expand.js";
 import { createDescribeHandler } from "./routes/describe.js";
 import { createStoreHandler } from "./routes/store.js";
 import { createRecentHandler } from "./routes/recent.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+export const PKG_VERSION = (() => {
+  try {
+    const pkg = JSON.parse(readFileSync(join(__dirname, "..", "..", "package.json"), "utf-8"));
+    return pkg.version;
+  } catch { return "0.0.0"; }
+})();
 
 export type RouteHandler = (req: IncomingMessage, res: ServerResponse, body: string) => Promise<void>;
 export type DaemonInstance = { address: () => AddressInfo; stop: () => Promise<void>; registerRoute: (method: string, path: string, handler: RouteHandler) => void };
@@ -33,7 +44,7 @@ export async function createDaemon(config: DaemonConfig, options?: DaemonOptions
   const routes = new Map<string, RouteHandler>();
 
   routes.set("GET /health", async (_req, res) =>
-    sendJson(res, 200, { status: "ok", uptime: Math.floor((Date.now() - startTime) / 1000) }));
+    sendJson(res, 200, { status: "ok", version: PKG_VERSION, uptime: Math.floor((Date.now() - startTime) / 1000) }));
   routes.set("POST /compact", createCompactHandler(config));
   routes.set("POST /restore", createRestoreHandler(config));
   routes.set("POST /grep", createGrepHandler(config));

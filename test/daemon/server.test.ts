@@ -16,6 +16,21 @@ describe("daemon server", () => {
     expect(typeof body.uptime).toBe("number");
   });
 
+  it("health endpoint returns version", async () => {
+    const config = loadDaemonConfig("/nonexistent");
+    config.daemon.port = 0;
+    const daemon = await createDaemon(config);
+    const port = daemon.address().port;
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/health`);
+      const data = await res.json() as { status: string; version: string; uptime: number };
+      expect(data.version).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(data.status).toBe("ok");
+    } finally {
+      await daemon.stop();
+    }
+  });
+
   it("returns 404 for unknown routes", async () => {
     daemon = await createDaemon(loadDaemonConfig("/x", { daemon: { port: 0 } }));
     const res = await fetch(`http://127.0.0.1:${daemon.address().port}/nope`);

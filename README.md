@@ -15,7 +15,7 @@ Replaces Claude Code's built-in sliding-window compaction with a DAG-based summa
 
 ## What it does
 
-Two ways to learn: read the below, or [check out this super cool animated visualization](https://losslesscontext.ai).
+For a visual explanation, check out [this animated visualization](https://losslesscontext.ai) by [Martian Engineering](https://martian.engineering) (the original lossless-claw authors).
 
 When a conversation grows beyond the model's context window, Claude Code (just like all of the other agents) normally truncates older messages. LCM instead:
 
@@ -53,27 +53,11 @@ The result: the context window never "fills up and dumps". It stays within `LCM_
 
 ### Install the plugin
 
-Use Claude Code's plugin installer (recommended):
-
 ```bash
-claude plugins install @ipedro/lossless-claude
+curl -fsSL https://raw.githubusercontent.com/ipedro/lossless-claude/main/install.sh | bash
 ```
 
-If you're running from a local Claude Code checkout, use:
-
-```bash
-pnpm claude plugins install @ipedro/lossless-claude
-```
-
-For local plugin development, link your working copy instead of copying files:
-
-```bash
-claude plugins install --link /path/to/lossless-claude
-# or from a local Claude Code checkout:
-# pnpm claude plugins install --link /path/to/lossless-claude
-```
-
-The install command records the plugin, enables it, and applies compatible slot selection (including `contextEngine` when applicable).
+This clones the repo to `~/.lossless-claude/plugin`, builds it, and registers it with Claude Code. To use a custom install directory, set `LOSSLESS_CLAUDE_DIR` before running.
 
 ### Configure Claude Code
 

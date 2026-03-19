@@ -2,25 +2,17 @@
 
 ## Quick start
 
-Install the plugin with Claude Code's plugin installer:
+Clone the repo and link it with Claude Code's plugin installer:
 
 ```bash
-claude plugins install @ipedro/lossless-claude
-```
-
-If you're running from a local Claude Code checkout:
-
-```bash
-pnpm claude plugins install @ipedro/lossless-claude
-```
-
-For local development of this plugin, link your working copy:
-
-```bash
+git clone https://github.com/ipedro/lossless-claude.git
+cd lossless-claude
+npm install
+npm run build
 claude plugins install --link /path/to/lossless-claude
 ```
 
-`claude plugins install` handles plugin registration/enabling and slot selection automatically.
+`claude plugins install --link` handles plugin registration/enabling and slot selection automatically.
 
 Set recommended environment variables:
 

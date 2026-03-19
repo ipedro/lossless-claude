@@ -52,13 +52,22 @@ The result: the context window never "fills up and dumps". It stays within `LCM_
 
 ### Install
 
+**Via marketplace (recommended):**
+
+```bash
+claude plugin marketplace add ipedro/xgh-marketplace
+claude plugin install lossless-claude
+```
+
+**Standalone:**
+
 ```bash
 claude plugin add github:ipedro/lossless-claude
 ```
 
-This registers the plugin's hooks (PreCompact, SessionStart) and MCP server automatically.
+Both methods register the plugin's hooks (PreCompact, SessionStart) and MCP server automatically.
 
-Then run the setup wizard to configure your summarizer and verify the install:
+Then run the setup wizard to configure your summarizer:
 
 ```bash
 lossless-claude install

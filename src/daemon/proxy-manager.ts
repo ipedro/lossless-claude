@@ -163,7 +163,7 @@ export function createClaudeCliProxyManager(opts: ProxyManagerOptions): ProxyMan
 
     // Step 2: Spawn new process
     child = spawnChild();
-    child.on("error", (err) => {
+    child.on("error", (err: Error) => {
       console.warn(`[lcm] claude-server spawn error: ${err.message}`);
       _available = false;
       deletePidFile();

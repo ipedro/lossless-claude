@@ -90,24 +90,26 @@ describe("resolveBinaryPath", () => {
 // ─── install ────────────────────────────────────────────────────────────────
 
 describe("install", () => {
-  it("accepts deps parameter and warns when cipher.yml is missing", async () => {
+  it("core install works without semantic layer", async () => {
     const originalApiKey = process.env.ANTHROPIC_API_KEY;
     process.env.ANTHROPIC_API_KEY = "test-key";
     const deps = makeDeps({ existsSync: vi.fn().mockReturnValue(false) });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await expect(install(deps)).resolves.not.toThrow();
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("cipher.yml"));
+    await expect(install(deps, { semantic: false })).resolves.not.toThrow();
+    // setup.sh should NOT have been invoked
+    const bashCalls = deps.spawnSync.mock.calls.filter((c: any[]) => c[0] === "bash" && c[1]?.[0]?.includes("setup.sh"));
+    expect(bashCalls).toHaveLength(0);
     warnSpy.mockRestore();
     process.env.ANTHROPIC_API_KEY = originalApiKey;
   });
 
-it("writes config.json with provider=claude-cli and empty apiKey in non-TTY mode", async () => {
+  it("writes config.json with provider=claude-cli and empty apiKey in non-TTY mode", async () => {
     const originalApiKey = process.env.ANTHROPIC_API_KEY;
     process.env.ANTHROPIC_API_KEY = "test-key";
     const writeFileMock = vi.fn();
     const deps = makeDeps({ existsSync: vi.fn().mockReturnValue(false), writeFileSync: writeFileMock });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await install(deps);
+    await install(deps, { semantic: false });
     warnSpy.mockRestore();
     // Find the config.json write call
     const configWriteCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
@@ -119,30 +121,15 @@ it("writes config.json with provider=claude-cli and empty apiKey in non-TTY mode
     process.env.ANTHROPIC_API_KEY = originalApiKey;
   });
 
-  it("invokes setup.sh as step 0 before other steps", async () => {
+  it("invokes setup.sh when semantic=true", async () => {
     const originalApiKey = process.env.ANTHROPIC_API_KEY;
     process.env.ANTHROPIC_API_KEY = "test-key";
     const spawnMock = makeSpawn(0);
     const deps = makeDeps({ spawnSync: spawnMock, existsSync: vi.fn().mockReturnValue(false) });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await install(deps);
-    const firstCall = spawnMock.mock.calls[0];
-    expect(firstCall[0]).toBe("bash");
-    expect(firstCall[1][0]).toContain("setup.sh");
-    warnSpy.mockRestore();
-    process.env.ANTHROPIC_API_KEY = originalApiKey;
-  });
-
-  it("continues when setup.sh exits non-zero", async () => {
-    const originalApiKey = process.env.ANTHROPIC_API_KEY;
-    process.env.ANTHROPIC_API_KEY = "test-key";
-    const deps = makeDeps({
-      spawnSync: makeSpawn(1),
-      existsSync: vi.fn().mockReturnValue(false),
-    });
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await expect(install(deps)).resolves.not.toThrow();
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("setup.sh"));
+    await install(deps, { semantic: true });
+    const bashCalls = spawnMock.mock.calls.filter((c: any[]) => c[0] === "bash" && c[1]?.[0]?.includes("setup.sh"));
+    expect(bashCalls).toHaveLength(1);
     warnSpy.mockRestore();
     process.env.ANTHROPIC_API_KEY = originalApiKey;
   });
@@ -156,7 +143,7 @@ describe("install with DryRunServiceDeps", () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    await expect(install(new DryRunServiceDeps())).resolves.not.toThrow();
+    await expect(install(new DryRunServiceDeps(), { semantic: false })).resolves.not.toThrow();
 
     const dryRunLines = logSpy.mock.calls
       .flatMap((c: any[]) => c)
@@ -190,7 +177,7 @@ describe("summarizer picker", () => {
       promptUser: vi.fn().mockResolvedValueOnce("1"), // picker: option 1 (Claude Max/Pro)
     });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await install(deps);
+    await install(deps, { semantic: false });
     warnSpy.mockRestore();
     const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
     expect(configCall).toBeDefined();
@@ -210,7 +197,7 @@ describe("summarizer picker", () => {
         .mockResolvedValueOnce("2"),  // picker: option 2
     });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await install(deps);
+    await install(deps, { semantic: false });
     warnSpy.mockRestore();
     const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
     expect(configCall).toBeDefined();
@@ -240,7 +227,7 @@ llm:
       promptUser: vi.fn().mockResolvedValueOnce("3"),
     });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await install(deps);
+    await install(deps, { semantic: false });
     warnSpy.mockRestore();
     const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
     expect(configCall).toBeDefined();
@@ -263,7 +250,7 @@ llm:
         .mockResolvedValueOnce("my-model"),                   // model prompt
     });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await install(deps);
+    await install(deps, { semantic: false });
     warnSpy.mockRestore();
     const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
     expect(configCall).toBeDefined();
@@ -284,7 +271,7 @@ llm:
         .mockResolvedValueOnce("9"),  // invalid again → default to 1
     });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await install(deps);
+    await install(deps, { semantic: false });
     warnSpy.mockRestore();
     const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
     const written = JSON.parse(configCall![1]);
@@ -301,7 +288,7 @@ llm:
       promptUser: promptUserMock,
     });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await install(deps);
+    await install(deps, { semantic: false });
     warnSpy.mockRestore();
     expect(promptUserMock).not.toHaveBeenCalled(); // picker was skipped
     const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));

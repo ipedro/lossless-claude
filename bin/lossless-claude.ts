@@ -97,14 +97,15 @@ async function main() {
     }
     case "install": {
       const dryRun = argv.includes("--dry-run");
+      const semantic = argv.includes("--semantic");
       const { install } = await import("../installer/install.js");
       if (dryRun) {
         const { DryRunServiceDeps } = await import("../installer/dry-run-deps.js");
         console.log("\n  lossless-claude install --dry-run\n");
-        await install(new DryRunServiceDeps());
+        await install(new DryRunServiceDeps(), { semantic });
         console.log("\n  No changes written.");
       } else {
-        await install();
+        await install(undefined, { semantic });
       }
       break;
     }

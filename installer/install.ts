@@ -324,24 +324,13 @@ export async function waitForHealth(
   return false;
 }
 
-export async function install(deps: ServiceDeps = defaultDeps): Promise<void> {
-  // Step 0: infrastructure setup (backend, models, Qdrant, cipher.yml)
-  const setupScript = join(dirname(fileURLToPath(import.meta.url)), "setup.sh");
-  const setupResult = deps.spawnSync("bash", [setupScript], { stdio: "inherit", env: process.env });
-  if (setupResult.status !== 0) {
-    console.warn(`Warning: setup.sh exited with code ${setupResult.status} — continuing`);
-  }
-
+export async function install(deps: ServiceDeps = defaultDeps, options: { semantic?: boolean } = {}): Promise<void> {
   const lcDir = join(homedir(), ".lossless-claude");
   deps.mkdirSync(lcDir, { recursive: true });
 
-  // 1. Check cipher config
-  const cipherConfig = join(homedir(), ".cipher", "cipher.yml");
-  if (!deps.existsSync(cipherConfig)) {
-    console.warn("Warning: ~/.cipher/cipher.yml not found — semantic search will be unavailable until setup completes");
-  }
+  // ── Core install (zero external dependencies) ──
 
-  // 2. Create or update config.json
+  // 1. Create or update config.json
   const configPath = join(lcDir, "config.json");
   if (!deps.existsSync(configPath)) {
     const cipherConfigPath = join(homedir(), ".cipher", "cipher.yml");
@@ -353,7 +342,7 @@ export async function install(deps: ServiceDeps = defaultDeps): Promise<void> {
     console.log(`Created ${configPath}`);
   }
 
-  // 4. Merge ~/.claude/settings.json
+  // 2. Merge ~/.claude/settings.json (hooks + MCP)
   const settingsPath = join(homedir(), ".claude", "settings.json");
   let existing: any = {};
   if (deps.existsSync(settingsPath)) {
@@ -364,28 +353,12 @@ export async function install(deps: ServiceDeps = defaultDeps): Promise<void> {
   deps.writeFileSync(settingsPath, JSON.stringify(merged, null, 2));
   console.log(`Updated ${settingsPath}`);
 
-  // 5. Install cipher package and wrapper
-  const cipherYmlPath = join(homedir(), ".cipher", "cipher.yml");
-  installCipherPackage(deps);
-  installCipherWrapper(deps);
-
-  // 6. Register cipher MCP in settings.json
-  const cipherCfg = parseCipherConfig(cipherYmlPath, deps);
-  if (cipherCfg) {
-    const settingsNow = JSON.parse(deps.readFileSync(settingsPath, "utf-8"));
-    const withCipher = mergeCipherSettings(settingsNow, cipherCfg);
-    deps.writeFileSync(settingsPath, JSON.stringify(withCipher, null, 2));
-    console.log("Registered cipher MCP in settings.json");
-  } else {
-    console.warn("Warning: Could not parse cipher.yml — cipher MCP not registered");
-  }
-
-  // 7. Install claude-max-api-proxy if summarizer is claude-cli
+  // 3. Install claude-max-api-proxy if summarizer is claude-cli
   const configData = JSON.parse(deps.readFileSync(configPath, "utf-8"));
   const provider = configData?.llm?.provider ?? "disabled";
   installClaudeServer(deps, { provider });
 
-  // 8. Verify daemon can start (lazy daemon — no persistent service)
+  // 4. Start daemon (lazy daemon — no persistent service)
   console.log("Verifying daemon...");
   const { ensureDaemon } = await import("../src/daemon/lifecycle.js");
   const daemonPort = configData?.daemon?.port ?? configData?.port ?? 3737;
@@ -400,12 +373,15 @@ export async function install(deps: ServiceDeps = defaultDeps): Promise<void> {
     console.log("Daemon started successfully.");
   }
 
-  // 9. Wait for services to come up
-  console.log("Waiting for Qdrant...");
-  const qdrantOk = await waitForHealth("http://localhost:6333/healthz");
-  if (!qdrantOk) console.warn("Warning: Qdrant not responding — run: lossless-claude doctor");
+  // ── Optional: semantic layer (Qdrant + embeddings + Cipher) ──
 
-  // 10. Run doctor for final verification
+  const wantSemantic = options.semantic ?? await promptForSemantic(deps);
+  if (wantSemantic) {
+    await installSemantic(deps, settingsPath, configPath);
+  }
+
+  // ── Final verification ──
+
   console.log("\nRunning doctor...");
   const { runDoctor, printResults } = await import("../src/doctor/doctor.js");
   const results = await runDoctor();
@@ -416,6 +392,48 @@ export async function install(deps: ServiceDeps = defaultDeps): Promise<void> {
   } else {
     console.log("lossless-claude installed successfully! All checks passed.");
   }
+}
+
+async function promptForSemantic(deps: ServiceDeps): Promise<boolean> {
+  if (!process.stdin.isTTY) return false;
+  console.log("\n  ─── Semantic search (optional)\n");
+  console.log("  The core install is complete. You can optionally add semantic search");
+  console.log("  (Qdrant + embeddings + Cipher) for fuzzy/conceptual memory queries.");
+  console.log("  This requires additional dependencies (Qdrant, vllm-mlx or Ollama).\n");
+  const answer = (await deps.promptUser("  Enable semantic search? [y/N]: ")).trim().toLowerCase();
+  return answer === "y" || answer === "yes";
+}
+
+async function installSemantic(deps: ServiceDeps, settingsPath: string, configPath: string): Promise<void> {
+  console.log("\n  ─── Setting up semantic layer\n");
+
+  // Run setup.sh (backend picker, Qdrant, model selection, cipher.yml)
+  const setupScript = join(dirname(fileURLToPath(import.meta.url)), "setup.sh");
+  const setupResult = deps.spawnSync("bash", [setupScript], { stdio: "inherit", env: process.env });
+  if (setupResult.status !== 0) {
+    console.warn(`Warning: setup.sh exited with code ${setupResult.status} — continuing`);
+  }
+
+  // Install cipher package and wrapper
+  const cipherYmlPath = join(homedir(), ".cipher", "cipher.yml");
+  installCipherPackage(deps);
+  installCipherWrapper(deps);
+
+  // Register cipher MCP in settings.json
+  const cipherCfg = parseCipherConfig(cipherYmlPath, deps);
+  if (cipherCfg) {
+    const settingsNow = JSON.parse(deps.readFileSync(settingsPath, "utf-8"));
+    const withCipher = mergeCipherSettings(settingsNow, cipherCfg);
+    deps.writeFileSync(settingsPath, JSON.stringify(withCipher, null, 2));
+    console.log("Registered cipher MCP in settings.json");
+  } else {
+    console.warn("Warning: Could not parse cipher.yml — cipher MCP not registered");
+  }
+
+  // Wait for Qdrant
+  console.log("Waiting for Qdrant...");
+  const qdrantOk = await waitForHealth("http://localhost:6333/healthz");
+  if (!qdrantOk) console.warn("Warning: Qdrant not responding — run: lossless-claude doctor");
 }
 
 // Re-export rmSync so uninstall.ts can share the pattern

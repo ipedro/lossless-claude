@@ -866,11 +866,9 @@ SYNCEOF
         sed -i '' "s|__LOG_DIR__|${_LCM_LOG_DIR}|g" "$_VLLM_MLX_PLIST"
         sed -i '' "s|__HOME__|${HOME}|g" "$_VLLM_MLX_PLIST"
 
-        # If user also picked a local LLM (not claude-server), inject --model args
-        if [ -n "${XGH_LLM_MODEL:-}" ] && [ "${_LLM_PROVIDER:-claude-server}" != "claude-server" ]; then
-          /usr/libexec/PlistBuddy -c "Add :ProgramArguments: string '--model'" "$_VLLM_MLX_PLIST" 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :ProgramArguments: string '${XGH_LLM_MODEL}'" "$_VLLM_MLX_PLIST" 2>/dev/null || true
-        fi
+        # vllm-mlx serve requires a positional LLM model arg even when using claude-server.
+        # XGH_LLM_MODEL is always set (defaults to Llama-3.2-3B) at this point in the script.
+        sed -i '' "s|__LLM_MODEL__|${XGH_LLM_MODEL}|g" "$_VLLM_MLX_PLIST"
 
         launchctl load "$_VLLM_MLX_PLIST" 2>/dev/null \
           || warn "Could not load vLLM-MLX plist — start manually: launchctl load ${_VLLM_MLX_PLIST}"

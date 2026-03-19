@@ -248,42 +248,6 @@ if [ "$XGH_DRY_RUN" -eq 0 ]; then
       info "Qdrant is already running"
     fi
 
-    # ── vLLM-MLX LaunchAgent ──────────────────────────────────
-    _VLLM_MLX_BIN=$(command -v vllm-mlx 2>/dev/null || echo "")
-    _VLLM_MLX_PLIST="${HOME}/Library/LaunchAgents/com.lossless-claude.vllm-mlx.plist"
-    _LCM_LOG_DIR="${HOME}/.lossless-claude/logs"
-    mkdir -p "$_LCM_LOG_DIR"
-
-    if [ -n "$_VLLM_MLX_BIN" ]; then
-      _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-      _PLIST_TEMPLATE="${_SCRIPT_DIR}/templates/com.lossless-claude.vllm-mlx.plist"
-
-      if [ -f "$_PLIST_TEMPLATE" ]; then
-        cp "$_PLIST_TEMPLATE" "$_VLLM_MLX_PLIST"
-        sed -i '' "s|__VLLM_MLX_BIN__|${_VLLM_MLX_BIN}|g" "$_VLLM_MLX_PLIST"
-        sed -i '' "s|__EMBED_MODEL__|${XGH_EMBED_MODEL}|g" "$_VLLM_MLX_PLIST"
-        sed -i '' "s|__MODEL_PORT__|${XGH_MODEL_PORT}|g" "$_VLLM_MLX_PLIST"
-        sed -i '' "s|__LOG_DIR__|${_LCM_LOG_DIR}|g" "$_VLLM_MLX_PLIST"
-        sed -i '' "s|__HOME__|${HOME}|g" "$_VLLM_MLX_PLIST"
-
-        # If user also picked a local LLM (not claude-server), inject --model args
-        if [ -n "${XGH_LLM_MODEL:-}" ] && [ "${_LLM_PROVIDER:-claude-server}" != "claude-server" ]; then
-          /usr/libexec/PlistBuddy -c "Add :ProgramArguments: string '--model'" "$_VLLM_MLX_PLIST" 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :ProgramArguments: string '${XGH_LLM_MODEL}'" "$_VLLM_MLX_PLIST" 2>/dev/null || true
-        fi
-
-        # Unload any existing, then load
-        launchctl unload "$_VLLM_MLX_PLIST" 2>/dev/null || true
-        launchctl load "$_VLLM_MLX_PLIST" 2>/dev/null \
-          || warn "Could not load vLLM-MLX plist — start manually: launchctl load ${_VLLM_MLX_PLIST}"
-        info "vLLM-MLX LaunchAgent loaded (embedding: ${XGH_EMBED_MODEL}, port: ${XGH_MODEL_PORT})"
-      else
-        warn "vLLM-MLX plist template not found — skipping LaunchAgent setup"
-      fi
-    else
-      warn "vllm-mlx binary not found — skipping LaunchAgent setup (install with: uv tool install vllm-mlx)"
-    fi
-
   elif [ "$XGH_BACKEND" = "ollama" ]; then
     if [[ "$(uname)" == "Darwin" ]]; then
       # ── macOS: Ollama + Qdrant via Homebrew ────────
@@ -628,8 +592,8 @@ print('yes' if '${1}' in ids else 'no')
   DEFAULT_LLM_IDX=$(_default_index "$DEFAULT_LLM" "${LLM_MODELS[@]}")
   DEFAULT_EMBED_IDX=$(_default_index "$DEFAULT_EMBED" "${EMBED_MODELS[@]}")
 
-  # Interactive model picker (skip if env vars are set)
-  if [ -z "$XGH_LLM_MODEL" ]; then
+  # Interactive model picker (skip if env vars are set or claude-server chosen)
+  if [ -z "$XGH_LLM_MODEL" ] && [ "${_LLM_PROVIDER:-}" != "claude-server" ]; then
     echo ""
     echo -e "  ${BOLD}Pick an LLM${NC} ${DIM}(Cipher's reasoning brain)${NC}"
     echo ""
@@ -836,41 +800,84 @@ CIPHERYMLEOF
     # Update model names (and provider/type) in existing cipher.yml to match current selection
     info "cipher.yml exists — syncing model names and backend"
     if command -v python3 &>/dev/null; then
-      python3 - "$CIPHER_YML" "$XGH_LLM_MODEL" "$XGH_EMBED_MODEL" "$XGH_MODEL_PORT" "$XGH_BACKEND" "${XGH_REMOTE_URL:-}" <<'SYNCEOF'
+      python3 - "$CIPHER_YML" "$XGH_LLM_MODEL" "$XGH_EMBED_MODEL" "$XGH_MODEL_PORT" "$XGH_BACKEND" "${XGH_REMOTE_URL:-}" "${_LLM_PROVIDER:-}" <<'SYNCEOF'
 import sys, re
-path, llm_model, embed_model, port, backend, remote_url = sys.argv[1:]
+path, llm_model, embed_model, port, backend, remote_url, llm_provider = sys.argv[1:]
 content = open(path).read()
 # Update embedding model
 content = re.sub(r'(^embedding:.*?^\s+model:\s*)(\S+)', lambda m: m.group(1) + embed_model, content, flags=re.MULTILINE|re.DOTALL, count=1)
-# Update LLM model (only under llm: section, not embedding:)
-content = re.sub(r'(^llm:.*?^\s+model:\s*)(\S+)', lambda m: m.group(1) + llm_model, content, flags=re.MULTILINE|re.DOTALL, count=1)
 # Update baseURLs based on backend — write literal full URL to avoid /v1 doubling
 if backend == 'remote':
     full_url = remote_url.rstrip('/') + '/v1'
-    # Replace ALL baseURL values with the literal remote URL
     content = re.sub(r'(baseURL:\s*)(\S+)', lambda m: m.group(1) + full_url, content)
-    # Update provider and type to openai
-    content = re.sub(r'(^llm:.*?^\s+provider:\s*)(\S+)', lambda m: m.group(1) + 'openai', content, flags=re.MULTILINE|re.DOTALL, count=1)
     content = re.sub(r'(^embedding:.*?^\s+type:\s*)(\S+)', lambda m: m.group(1) + 'openai', content, flags=re.MULTILINE|re.DOTALL, count=1)
 elif backend == 'vllm-mlx':
     full_url = 'http://localhost:' + port + '/v1'
-    # Replace ALL baseURL values with the literal local URL
-    content = re.sub(r'(baseURL:\s*)(\S+)', lambda m: m.group(1) + full_url, content)
-    # Update provider and type to openai
-    content = re.sub(r'(^llm:.*?^\s+provider:\s*)(\S+)', lambda m: m.group(1) + 'openai', content, flags=re.MULTILINE|re.DOTALL, count=1)
+    # Only update embedding baseURL — LLM may use claude-server (no baseURL needed)
+    content = re.sub(r'(^embedding:.*?^\s+baseURL:\s*)(\S+)', lambda m: m.group(1) + full_url, content, flags=re.MULTILINE|re.DOTALL, count=1)
     content = re.sub(r'(^embedding:.*?^\s+type:\s*)(\S+)', lambda m: m.group(1) + 'openai', content, flags=re.MULTILINE|re.DOTALL, count=1)
 else:
     full_url = 'http://localhost:' + port
-    # Replace ALL baseURL values with the literal local URL (no /v1 for ollama)
     content = re.sub(r'(baseURL:\s*)(\S+)', lambda m: m.group(1) + full_url, content)
-    # Update provider and type to ollama
-    content = re.sub(r'(^llm:.*?^\s+provider:\s*)(\S+)', lambda m: m.group(1) + 'ollama', content, flags=re.MULTILINE|re.DOTALL, count=1)
     content = re.sub(r'(^embedding:.*?^\s+type:\s*)(\S+)', lambda m: m.group(1) + 'ollama', content, flags=re.MULTILINE|re.DOTALL, count=1)
+# Handle LLM provider: claude-server vs local
+if llm_provider == 'claude-server':
+    # Set provider to claude-server, model to haiku, remove baseURL+apiKey from llm section
+    content = re.sub(r'(^llm:.*?^\s+provider:\s*)(\S+)', lambda m: m.group(1) + 'claude-server', content, flags=re.MULTILINE|re.DOTALL, count=1)
+    content = re.sub(r'(^llm:.*?^\s+model:\s*)(\S+)', lambda m: m.group(1) + 'claude-haiku-4-5', content, flags=re.MULTILINE|re.DOTALL, count=1)
+    # Remove baseURL and apiKey from llm section (claude-server doesn't need them)
+    content = re.sub(r'^(llm:.*?)(^\s+baseURL:\s*\S+\n)', lambda m: m.group(1), content, flags=re.MULTILINE|re.DOTALL, count=1)
+    content = re.sub(r'^(llm:.*?)(^\s+apiKey:\s*\S+\n)', lambda m: m.group(1), content, flags=re.MULTILINE|re.DOTALL, count=1)
+else:
+    # Update LLM model and provider for local/remote
+    content = re.sub(r'(^llm:.*?^\s+model:\s*)(\S+)', lambda m: m.group(1) + llm_model, content, flags=re.MULTILINE|re.DOTALL, count=1)
+    provider = 'ollama' if backend == 'ollama' else 'openai'
+    content = re.sub(r'(^llm:.*?^\s+provider:\s*)(\S+)', lambda m: m.group(1) + provider, content, flags=re.MULTILINE|re.DOTALL, count=1)
+    if backend != 'ollama':
+        content = re.sub(r'(^llm:.*?^\s+baseURL:\s*)(\S+)', lambda m: m.group(1) + full_url, content, flags=re.MULTILINE|re.DOTALL, count=1)
 open(path, 'w').write(content)
-print(f'  synced: llm={llm_model} embed={embed_model} backend={backend}' + (f' remote={remote_url}' if remote_url else f' port={port}'))
+msg = f'  synced: llm={"claude-haiku-4-5 (claude-server)" if llm_provider == "claude-server" else llm_model} embed={embed_model} backend={backend}'
+print(msg + (f' remote={remote_url}' if remote_url else f' port={port}'))
 SYNCEOF
     else
       warn "python3 not found — cipher.yml model sync skipped (models may be stale in existing config)"
+    fi
+  fi
+
+  # ── vLLM-MLX LaunchAgent (after model selection, so XGH_EMBED_MODEL is set) ──
+  if [ "$XGH_BACKEND" = "vllm-mlx" ]; then
+    _VLLM_MLX_BIN=$(command -v vllm-mlx 2>/dev/null || echo "")
+    _VLLM_MLX_PLIST="${HOME}/Library/LaunchAgents/com.lossless-claude.vllm-mlx.plist"
+    _LCM_LOG_DIR="${HOME}/.lossless-claude/logs"
+    mkdir -p "$_LCM_LOG_DIR"
+
+    if [ -n "$_VLLM_MLX_BIN" ]; then
+      _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+      _PLIST_TEMPLATE="${_SCRIPT_DIR}/templates/com.lossless-claude.vllm-mlx.plist"
+
+      if [ -f "$_PLIST_TEMPLATE" ]; then
+        # Unload first (may already be registered from a previous install)
+        launchctl bootout "gui/$(id -u)/com.lossless-claude.vllm-mlx" 2>/dev/null || true
+
+        cp "$_PLIST_TEMPLATE" "$_VLLM_MLX_PLIST"
+        sed -i '' "s|__VLLM_MLX_BIN__|${_VLLM_MLX_BIN}|g" "$_VLLM_MLX_PLIST"
+        sed -i '' "s|__EMBED_MODEL__|${XGH_EMBED_MODEL}|g" "$_VLLM_MLX_PLIST"
+        sed -i '' "s|__MODEL_PORT__|${XGH_MODEL_PORT}|g" "$_VLLM_MLX_PLIST"
+        sed -i '' "s|__LOG_DIR__|${_LCM_LOG_DIR}|g" "$_VLLM_MLX_PLIST"
+        sed -i '' "s|__HOME__|${HOME}|g" "$_VLLM_MLX_PLIST"
+
+        # vllm-mlx serve requires a positional LLM model arg even when using claude-server.
+        # XGH_LLM_MODEL is always set (defaults to Llama-3.2-3B) at this point in the script.
+        sed -i '' "s|__LLM_MODEL__|${XGH_LLM_MODEL}|g" "$_VLLM_MLX_PLIST"
+
+        launchctl load "$_VLLM_MLX_PLIST" 2>/dev/null \
+          || warn "Could not load vLLM-MLX plist — start manually: launchctl load ${_VLLM_MLX_PLIST}"
+        info "vLLM-MLX LaunchAgent loaded (embedding: ${XGH_EMBED_MODEL}, port: ${XGH_MODEL_PORT})"
+      else
+        warn "vLLM-MLX plist template not found — skipping LaunchAgent setup"
+      fi
+    else
+      warn "vllm-mlx binary not found — skipping LaunchAgent setup (install with: uv tool install vllm-mlx)"
     fi
   fi
 

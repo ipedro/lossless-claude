@@ -9,6 +9,7 @@
   <array>
     <string>__VLLM_MLX_BIN__</string>
     <string>serve</string>
+    <string>__LLM_MODEL__</string>
     <string>--embedding-model</string>
     <string>__EMBED_MODEL__</string>
     <string>--port</string>

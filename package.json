@@ -33,6 +33,7 @@
     "changeset": "changeset",
     "release:verify": "npm test && npm pack --dry-run",
     "test": "vitest run --dir test",
+    "typecheck": "tsc --noEmit",
     "version-packages": "changeset version"
   },
   "dependencies": {

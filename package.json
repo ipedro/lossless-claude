@@ -28,7 +28,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc && cp installer/setup.sh dist/installer/setup.sh",
+    "build": "npx tsc && cp installer/setup.sh dist/installer/setup.sh",
     "prepare": "npm run build",
     "changeset": "changeset",
     "release:verify": "npm test && npm pack --dry-run",

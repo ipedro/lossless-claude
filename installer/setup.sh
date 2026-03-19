@@ -628,8 +628,8 @@ print('yes' if '${1}' in ids else 'no')
   DEFAULT_LLM_IDX=$(_default_index "$DEFAULT_LLM" "${LLM_MODELS[@]}")
   DEFAULT_EMBED_IDX=$(_default_index "$DEFAULT_EMBED" "${EMBED_MODELS[@]}")
 
-  # Interactive model picker (skip if env vars are set)
-  if [ -z "$XGH_LLM_MODEL" ]; then
+  # Interactive model picker (skip if env vars are set or claude-server chosen)
+  if [ -z "$XGH_LLM_MODEL" ] && [ "${_LLM_PROVIDER:-}" != "claude-server" ]; then
     echo ""
     echo -e "  ${BOLD}Pick an LLM${NC} ${DIM}(Cipher's reasoning brain)${NC}"
     echo ""
@@ -836,38 +836,44 @@ CIPHERYMLEOF
     # Update model names (and provider/type) in existing cipher.yml to match current selection
     info "cipher.yml exists — syncing model names and backend"
     if command -v python3 &>/dev/null; then
-      python3 - "$CIPHER_YML" "$XGH_LLM_MODEL" "$XGH_EMBED_MODEL" "$XGH_MODEL_PORT" "$XGH_BACKEND" "${XGH_REMOTE_URL:-}" <<'SYNCEOF'
+      python3 - "$CIPHER_YML" "$XGH_LLM_MODEL" "$XGH_EMBED_MODEL" "$XGH_MODEL_PORT" "$XGH_BACKEND" "${XGH_REMOTE_URL:-}" "${_LLM_PROVIDER:-}" <<'SYNCEOF'
 import sys, re
-path, llm_model, embed_model, port, backend, remote_url = sys.argv[1:]
+path, llm_model, embed_model, port, backend, remote_url, llm_provider = sys.argv[1:]
 content = open(path).read()
 # Update embedding model
 content = re.sub(r'(^embedding:.*?^\s+model:\s*)(\S+)', lambda m: m.group(1) + embed_model, content, flags=re.MULTILINE|re.DOTALL, count=1)
-# Update LLM model (only under llm: section, not embedding:)
-content = re.sub(r'(^llm:.*?^\s+model:\s*)(\S+)', lambda m: m.group(1) + llm_model, content, flags=re.MULTILINE|re.DOTALL, count=1)
 # Update baseURLs based on backend — write literal full URL to avoid /v1 doubling
 if backend == 'remote':
     full_url = remote_url.rstrip('/') + '/v1'
-    # Replace ALL baseURL values with the literal remote URL
     content = re.sub(r'(baseURL:\s*)(\S+)', lambda m: m.group(1) + full_url, content)
-    # Update provider and type to openai
-    content = re.sub(r'(^llm:.*?^\s+provider:\s*)(\S+)', lambda m: m.group(1) + 'openai', content, flags=re.MULTILINE|re.DOTALL, count=1)
     content = re.sub(r'(^embedding:.*?^\s+type:\s*)(\S+)', lambda m: m.group(1) + 'openai', content, flags=re.MULTILINE|re.DOTALL, count=1)
 elif backend == 'vllm-mlx':
     full_url = 'http://localhost:' + port + '/v1'
-    # Replace ALL baseURL values with the literal local URL
-    content = re.sub(r'(baseURL:\s*)(\S+)', lambda m: m.group(1) + full_url, content)
-    # Update provider and type to openai
-    content = re.sub(r'(^llm:.*?^\s+provider:\s*)(\S+)', lambda m: m.group(1) + 'openai', content, flags=re.MULTILINE|re.DOTALL, count=1)
+    # Only update embedding baseURL — LLM may use claude-server (no baseURL needed)
+    content = re.sub(r'(^embedding:.*?^\s+baseURL:\s*)(\S+)', lambda m: m.group(1) + full_url, content, flags=re.MULTILINE|re.DOTALL, count=1)
     content = re.sub(r'(^embedding:.*?^\s+type:\s*)(\S+)', lambda m: m.group(1) + 'openai', content, flags=re.MULTILINE|re.DOTALL, count=1)
 else:
     full_url = 'http://localhost:' + port
-    # Replace ALL baseURL values with the literal local URL (no /v1 for ollama)
     content = re.sub(r'(baseURL:\s*)(\S+)', lambda m: m.group(1) + full_url, content)
-    # Update provider and type to ollama
-    content = re.sub(r'(^llm:.*?^\s+provider:\s*)(\S+)', lambda m: m.group(1) + 'ollama', content, flags=re.MULTILINE|re.DOTALL, count=1)
     content = re.sub(r'(^embedding:.*?^\s+type:\s*)(\S+)', lambda m: m.group(1) + 'ollama', content, flags=re.MULTILINE|re.DOTALL, count=1)
+# Handle LLM provider: claude-server vs local
+if llm_provider == 'claude-server':
+    # Set provider to claude-server, model to haiku, remove baseURL+apiKey from llm section
+    content = re.sub(r'(^llm:.*?^\s+provider:\s*)(\S+)', lambda m: m.group(1) + 'claude-server', content, flags=re.MULTILINE|re.DOTALL, count=1)
+    content = re.sub(r'(^llm:.*?^\s+model:\s*)(\S+)', lambda m: m.group(1) + 'claude-haiku-4-5', content, flags=re.MULTILINE|re.DOTALL, count=1)
+    # Remove baseURL and apiKey from llm section (claude-server doesn't need them)
+    content = re.sub(r'^(llm:.*?)(^\s+baseURL:\s*\S+\n)', lambda m: m.group(1), content, flags=re.MULTILINE|re.DOTALL, count=1)
+    content = re.sub(r'^(llm:.*?)(^\s+apiKey:\s*\S+\n)', lambda m: m.group(1), content, flags=re.MULTILINE|re.DOTALL, count=1)
+else:
+    # Update LLM model and provider for local/remote
+    content = re.sub(r'(^llm:.*?^\s+model:\s*)(\S+)', lambda m: m.group(1) + llm_model, content, flags=re.MULTILINE|re.DOTALL, count=1)
+    provider = 'ollama' if backend == 'ollama' else 'openai'
+    content = re.sub(r'(^llm:.*?^\s+provider:\s*)(\S+)', lambda m: m.group(1) + provider, content, flags=re.MULTILINE|re.DOTALL, count=1)
+    if backend != 'ollama':
+        content = re.sub(r'(^llm:.*?^\s+baseURL:\s*)(\S+)', lambda m: m.group(1) + full_url, content, flags=re.MULTILINE|re.DOTALL, count=1)
 open(path, 'w').write(content)
-print(f'  synced: llm={llm_model} embed={embed_model} backend={backend}' + (f' remote={remote_url}' if remote_url else f' port={port}'))
+msg = f'  synced: llm={"claude-haiku-4-5 (claude-server)" if llm_provider == "claude-server" else llm_model} embed={embed_model} backend={backend}'
+print(msg + (f' remote={remote_url}' if remote_url else f' port={port}'))
 SYNCEOF
     else
       warn "python3 not found — cipher.yml model sync skipped (models may be stale in existing config)"

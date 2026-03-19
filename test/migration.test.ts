@@ -225,3 +225,58 @@ describe("runLcmMigrations summary depth backfill", () => {
     expect(ftsTables).toEqual([]);
   });
 });
+
+describe("promoted table migration", () => {
+  it("creates promoted table and FTS5 index", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "lossless-claude-promoted-"));
+    tempDirs.push(tempDir);
+    const dbPath = join(tempDir, "test.db");
+    const db = getLcmConnection(dbPath);
+
+    runLcmMigrations(db);
+
+    const tables = db.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='promoted'"
+    ).all() as Array<{ name: string }>;
+    expect(tables).toHaveLength(1);
+
+    const fts = db.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='promoted_fts'"
+    ).all() as Array<{ name: string }>;
+    expect(fts).toHaveLength(1);
+
+    // Can insert and search
+    db.prepare(
+      "INSERT INTO promoted (id, content, tags, project_id) VALUES (?, ?, ?, ?)"
+    ).run("p1", "We decided to use React for the frontend", '["decision"]', "proj-1");
+
+    db.prepare(
+      "INSERT INTO promoted_fts (rowid, content, tags) SELECT rowid, content, tags FROM promoted WHERE id = ?"
+    ).run("p1");
+
+    const results = db.prepare(
+      "SELECT content FROM promoted_fts WHERE promoted_fts MATCH ?"
+    ).all("React") as Array<{ content: string }>;
+    expect(results).toHaveLength(1);
+    expect(results[0].content).toContain("React");
+
+    db.close();
+  });
+
+  it("is idempotent — running migration twice does not error", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "lossless-claude-promoted-idem-"));
+    tempDirs.push(tempDir);
+    const dbPath = join(tempDir, "test.db");
+    const db = getLcmConnection(dbPath);
+
+    runLcmMigrations(db);
+    runLcmMigrations(db);
+
+    const tables = db.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='promoted'"
+    ).all() as Array<{ name: string }>;
+    expect(tables).toHaveLength(1);
+
+    db.close();
+  });
+});

@@ -496,9 +496,41 @@ export function runLcmMigrations(
   backfillSummaryDepths(db);
   backfillSummaryMetadata(db);
 
+  // Promoted memories (cross-session, agent-stored)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS promoted (
+      id TEXT PRIMARY KEY,
+      content TEXT NOT NULL,
+      tags TEXT NOT NULL DEFAULT '[]',
+      source_summary_id TEXT,
+      project_id TEXT NOT NULL,
+      session_id TEXT,
+      depth INTEGER NOT NULL DEFAULT 0,
+      confidence REAL NOT NULL DEFAULT 1.0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS promoted_project_idx ON promoted (project_id, created_at);
+  `);
+
   const fts5Available = options?.fts5Available ?? getLcmDbFeatures(db).fts5Available;
   if (!fts5Available) {
     return;
+  }
+
+  // Promoted FTS5
+  const hasPromotedFts = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='promoted_fts'")
+    .get();
+
+  if (!hasPromotedFts) {
+    db.exec(`
+      CREATE VIRTUAL TABLE promoted_fts USING fts5(
+        content,
+        tags,
+        tokenize='porter unicode61'
+      );
+    `);
   }
 
   // FTS5 virtual tables for full-text search (cannot use IF NOT EXISTS, so check manually)

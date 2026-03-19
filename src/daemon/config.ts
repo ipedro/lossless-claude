@@ -52,7 +52,14 @@ export function loadDaemonConfig(configPath: string, overrides?: any, env?: Reco
   if (merged.llm.apiKey) merged.llm.apiKey = merged.llm.apiKey.replace(/\$\{(\w+)\}/g, (_: string, k: string) => e[k] ?? "");
 
   // Env var override: LCM_SUMMARY_PROVIDER takes precedence over config
+  const VALID_PROVIDERS = new Set(["claude-cli", "anthropic", "openai", "disabled"]);
   if (e.LCM_SUMMARY_PROVIDER) {
+    if (!VALID_PROVIDERS.has(e.LCM_SUMMARY_PROVIDER)) {
+      throw new Error(
+        `[lcm] Invalid LCM_SUMMARY_PROVIDER="${e.LCM_SUMMARY_PROVIDER}". ` +
+        `Valid values: ${[...VALID_PROVIDERS].join(", ")}`
+      );
+    }
     merged.llm.provider = e.LCM_SUMMARY_PROVIDER;
     // When overriding away from claude-cli, disable the proxy
     if (merged.llm.provider !== "claude-cli") {

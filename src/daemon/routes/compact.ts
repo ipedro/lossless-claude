@@ -30,7 +30,7 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
           })
         : createAnthropicSummarizer({
             model: config.llm.model,
-            apiKey: config.llm.apiKey ?? "",
+            apiKey: config.llm.apiKey!,
           });
 
   return async (_req, res, body) => {

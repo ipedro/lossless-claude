@@ -131,4 +131,10 @@ describe("loadDaemonConfig", () => {
     expect(c.llm.provider).toBe("openai");
     expect(c.llm.baseURL).toBe("http://localhost:3456/v1");
   });
+
+  it("throws when LCM_SUMMARY_PROVIDER is set to an invalid value", () => {
+    expect(() =>
+      loadDaemonConfig("/nonexistent", {}, { LCM_SUMMARY_PROVIDER: "ollama" })
+    ).toThrow('Invalid LCM_SUMMARY_PROVIDER="ollama"');
+  });
 });

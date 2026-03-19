@@ -140,6 +140,12 @@ async function main() {
             console.log(`daemon: ${daemonStatus} · provider: ${config.llm?.provider ?? "unknown"}`);
             break;
         }
+        case "stats": {
+            const verbose = argv.includes("--verbose") || argv.includes("-v");
+            const { collectStats, printStats } = await import("../src/stats.js");
+            printStats(collectStats(), verbose);
+            break;
+        }
         case "doctor": {
             const { runDoctor, printResults } = await import("../src/doctor/doctor.js");
             const results = await runDoctor();
@@ -149,7 +155,7 @@ async function main() {
             break;
         }
         default:
-            console.error("Usage: lossless-claude <daemon|compact|restore|mcp|install|uninstall|doctor|status> [--dry-run|-v]");
+            console.error("Usage: lossless-claude <daemon|compact|restore|mcp|install|uninstall|doctor|status|stats> [--dry-run|-v]");
             exit(1);
     }
 }

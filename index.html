@@ -3,77 +3,109 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🧠🤖 lossless-claude — permanent memory for Claude Code</title>
-  <meta name="description" content="DAG-based summarization that preserves every message. Built natively for Claude Code. Nothing is ever lost.">
+  <title>lossless-claude — permanent memory for Claude Code</title>
+  <meta name="description" content="DAG-based summarization that preserves every message. Zero external dependencies. Installs as a native Claude Code plugin.">
   <link rel="canonical" href="https://lossless-claude.com">
 
-  <!-- Open Graph -->
   <meta property="og:type" content="website">
-  <meta property="og:title" content="🧠🤖 lossless-claude — permanent memory for Claude Code">
-  <meta property="og:description" content="DAG-based summarization that preserves every message. Built natively for Claude Code. Nothing is ever lost.">
+  <meta property="og:title" content="lossless-claude — permanent memory for Claude Code">
+  <meta property="og:description" content="DAG-based summarization that preserves every message. Zero external dependencies. Installs as a native Claude Code plugin.">
   <meta property="og:url" content="https://lossless-claude.com">
   <meta property="og:image" content="https://lossless-claude.com/og-image.svg">
 
-  <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="🧠🤖 lossless-claude — permanent memory for Claude Code">
-  <meta name="twitter:description" content="DAG-based summarization that preserves every message. Built natively for Claude Code. Nothing is ever lost.">
+  <meta name="twitter:title" content="lossless-claude — permanent memory for Claude Code">
+  <meta name="twitter:description" content="DAG-based summarization that preserves every message. Zero external dependencies. Installs as a native Claude Code plugin.">
   <meta name="twitter:image" content="https://lossless-claude.com/og-image.svg">
 
-  <!-- Favicon -->
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <span class="site-logo">🧠 lossless-claude</span>
+      <a href="https://github.com/ipedro/lossless-claude" class="header-github" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </header>
+
   <main>
+
     <!-- Hero -->
     <section class="hero">
-      <div class="container">
-        <h1><span class="hero-emoji">🧠🤖</span>Claude Code has a memory problem.<br>lossless-claude fixes it — nothing is ever lost.</h1>
-        <p class="subhead">Every message, forever. Built natively for Claude Code.</p>
-        <p class="install-label">Install with one command</p>
-        <div class="install-block">
-          <code>claude plugin add github:ipedro/lossless-claude</code>
-          <button class="copy-btn" data-copy="claude plugin add github:ipedro/lossless-claude" aria-label="Copy install command">Copy</button>
+      <div class="hero-glow"></div>
+      <div class="container hero-content">
+        <div class="hero-badge">Native Claude Code plugin</div>
+        <h1>Claude Code forgets.<br><span class="gradient-text">lossless-claude</span> doesn't.</h1>
+        <p class="hero-sub">Every message, every session — persisted in SQLite, summarized into a DAG, recalled on demand. Zero external dependencies.</p>
+        <div class="terminal-block">
+          <div class="terminal-dots"><span></span><span></span><span></span></div>
+          <div class="terminal-body">
+            <span class="terminal-prompt">$</span>
+            <code>claude plugin add github:ipedro/lossless-claude</code>
+            <button class="copy-btn" data-copy="claude plugin add github:ipedro/lossless-claude" aria-label="Copy command">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>Copy</span>
+            </button>
+          </div>
+        </div>
+        <p class="hero-hint">Then run <code class="inline-code">lossless-claude install</code> to configure your summarizer.</p>
+      </div>
+    </section>
+
+    <!-- Stats bar -->
+    <section class="stats-bar">
+      <div class="container stats-inner">
+        <div class="stat">
+          <span class="stat-value">60–90%</span>
+          <span class="stat-label">token reduction</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <span class="stat-value">0</span>
+          <span class="stat-label">external deps</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <span class="stat-value">SQLite</span>
+          <span class="stat-label">only storage</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <span class="stat-value">7</span>
+          <span class="stat-label">MCP tools</span>
         </div>
       </div>
     </section>
 
-    <!-- Value Bullets -->
-    <section class="values">
+    <!-- Problem / Solution -->
+    <section class="problem-solution">
       <div class="container">
-        <div class="values-grid">
-          <div class="value-card">
-            <div class="icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
-                <path d="M12 8v8M8 12h8"/>
-              </svg>
-            </div>
-            <h3>Lossless by design</h3>
-            <p>Every message persists in SQLite. Summaries link back to raw source. Agents can always drill in.</p>
+        <div class="ps-grid">
+          <div class="ps-card ps-before">
+            <div class="ps-label">Without lossless-claude</div>
+            <ul class="ps-list">
+              <li>Context fills up &rarr; oldest messages truncated</li>
+              <li>Re-explain architecture every few sessions</li>
+              <li>Agent loses track of past decisions and bugs</li>
+              <li>Long conversations become unreliable</li>
+            </ul>
           </div>
-          <div class="value-card">
-            <div class="icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
-                <line x1="12" y1="22.08" x2="12" y2="12"/>
-              </svg>
-            </div>
-            <h3>Cross-session knowledge</h3>
-            <p>High-signal moments — decisions, fixes, architecture — promoted to a local SQLite knowledge store, recalled across sessions.</p>
+          <div class="ps-arrow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
           </div>
-          <div class="value-card">
-            <div class="icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="4" y="4" width="16" height="16" rx="2"/>
-                <path d="M9 9h6v6H9z"/>
-              </svg>
-            </div>
-            <h3>Claude Code native</h3>
-            <p>Plugin manifest, lifecycle hooks, MCP tools. Not a bolt-on — built from the ground up for Claude Code.</p>
+          <div class="ps-card ps-after">
+            <div class="ps-label">With lossless-claude</div>
+            <ul class="ps-list">
+              <li>Every message stored verbatim in SQLite forever</li>
+              <li>DAG summaries keep context window lean</li>
+              <li>Decisions and architecture recalled across sessions</li>
+              <li>Sessions run indefinitely without degradation</li>
+            </ul>
           </div>
         </div>
       </div>
@@ -83,144 +115,164 @@
     <section class="how-it-works">
       <div class="container">
         <h2>How it works</h2>
-        <div class="dag-steps">
-          <div class="dag-step" data-step="1">
-            <div class="dag-step-number">1</div>
-            <div class="dag-step-content">
+        <p class="section-sub">Compaction runs automatically in the background after each turn — your session is never blocked.</p>
+        <div class="steps">
+          <div class="step" data-step="1">
+            <div class="step-num">1</div>
+            <div class="step-content">
               <h4>Messages arrive</h4>
-              <p>Every message is stored verbatim in a local SQLite database. Nothing is discarded.</p>
+              <p>Every message stored verbatim in a local SQLite database. Nothing discarded.</p>
             </div>
           </div>
-          <div class="dag-connector"></div>
-          <div class="dag-step" data-step="2">
-            <div class="dag-step-number">2</div>
-            <div class="dag-step-content">
-              <h4>Compaction</h4>
-              <p>Older messages are grouped into leaf summaries by a background daemon — your session is never blocked.</p>
+          <div class="step-connector"></div>
+          <div class="step" data-step="2">
+            <div class="step-num">2</div>
+            <div class="step-content">
+              <h4>Leaf compaction</h4>
+              <p>Once enough messages accumulate, a background daemon groups them into a leaf summary using your configured LLM.</p>
             </div>
           </div>
-          <div class="dag-connector"></div>
-          <div class="dag-step" data-step="3">
-            <div class="dag-step-number">3</div>
-            <div class="dag-step-content">
-              <h4>DAG nodes</h4>
-              <p>Leaf summaries condense further into higher-level nodes, forming a directed acyclic graph of your project history.</p>
+          <div class="step-connector"></div>
+          <div class="step" data-step="3">
+            <div class="step-num">3</div>
+            <div class="step-content">
+              <h4>DAG condensation</h4>
+              <p>Leaf summaries condense into higher-level nodes, forming a directed acyclic graph of your full project history.</p>
             </div>
           </div>
-          <div class="dag-connector"></div>
-          <div class="dag-step" data-step="4">
-            <div class="dag-step-number">4</div>
-            <div class="dag-step-content">
+          <div class="step-connector"></div>
+          <div class="step" data-step="4">
+            <div class="step-num">4</div>
+            <div class="step-content">
               <h4>Knowledge promotion</h4>
-              <p>High-signal nodes — architectural decisions, bug fixes, design rationale — are promoted to a persistent SQLite knowledge store, searchable across sessions.</p>
+              <p>High-signal nodes — decisions, bug fixes, architecture — promoted to a persistent FTS5 knowledge store, searchable across sessions.</p>
             </div>
           </div>
-          <div class="dag-connector"></div>
-          <div class="dag-step" data-step="5">
-            <div class="dag-step-number">5</div>
-            <div class="dag-step-content">
+          <div class="step-connector"></div>
+          <div class="step" data-step="5">
+            <div class="step-num">5</div>
+            <div class="step-content">
               <h4>Context assembly</h4>
-              <p>Each new session is assembled from recent raw messages + DAG summaries + promoted knowledge. Full fidelity, minimal tokens.</p>
+              <p>Each turn assembled fresh from recent messages + DAG summaries + promoted knowledge. Full fidelity, minimal tokens.</p>
             </div>
           </div>
         </div>
-        <p class="how-it-works-note">Context is never truncated. Each turn, it's assembled fresh — recent raw messages, DAG summaries, and promoted knowledge — always within the model's window. Compaction runs automatically in the background after each turn, triggered once enough messages accumulate.</p>
       </div>
     </section>
 
-    <!-- Built on lossless-claw -->
+    <!-- MCP Tools -->
+    <section class="tools-section">
+      <div class="container">
+        <h2>7 MCP tools, available in every session</h2>
+        <p class="section-sub">Claude calls these directly — no slash commands, no manual invocation required.</p>
+        <div class="tools-grid">
+          <div class="tool-card">
+            <span class="tool-name">lcm_grep</span>
+            <span class="tool-desc">Search conversation history by keyword or regex</span>
+          </div>
+          <div class="tool-card">
+            <span class="tool-name">lcm_expand</span>
+            <span class="tool-desc">Drill into a summary to recover original messages</span>
+          </div>
+          <div class="tool-card">
+            <span class="tool-name">lcm_describe</span>
+            <span class="tool-desc">Describe the current DAG structure</span>
+          </div>
+          <div class="tool-card">
+            <span class="tool-name">lcm_search</span>
+            <span class="tool-desc">Search episodic and promoted knowledge</span>
+          </div>
+          <div class="tool-card">
+            <span class="tool-name">lcm_store</span>
+            <span class="tool-desc">Write to the promoted knowledge store</span>
+          </div>
+          <div class="tool-card">
+            <span class="tool-name">lcm_stats</span>
+            <span class="tool-desc">Token savings and compression ratios</span>
+          </div>
+          <div class="tool-card">
+            <span class="tool-name">lcm_doctor</span>
+            <span class="tool-desc">Diagnostics — daemon, hooks, MCP, summarizer</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Lineage -->
     <section class="lineage">
       <div class="container">
         <h2>Built on lossless-claw</h2>
         <div class="lineage-blocks">
           <div class="lineage-block">
             <h3>What we inherited</h3>
-            <p>The DAG-based compaction architecture, lossless message retention, and the LCM memory model — all from <a href="https://github.com/Martian-Engineering/lossless-claude">lossless-claw</a> by <a href="https://martian.engineering">Martian Engineering</a>. We're grateful for their foundational work.</p>
+            <p>The DAG-based compaction architecture, lossless message retention, and the LCM memory model — all from <a href="https://github.com/Martian-Engineering/lossless-claude" target="_blank" rel="noopener">lossless-claw</a> by <a href="https://martian.engineering" target="_blank" rel="noopener">Martian Engineering</a>. The underlying theory comes from the <a href="https://papers.voltropy.com/LCM" target="_blank" rel="noopener">LCM paper</a> by <a href="https://x.com/Voltropy" target="_blank" rel="noopener">Voltropy</a>.</p>
           </div>
           <div class="lineage-block">
-            <h3>What we added</h3>
-            <ul>
-              <li><strong>Cross-session knowledge store</strong> — high-signal summaries promoted to persistent SQLite storage, recalled across sessions via FTS5</li>
-              <li><strong>Smart promotion engine</strong> — automatically detects architectural decisions, bug fixes, and design rationale worth keeping forever</li>
-              <li><strong>Background daemon</strong> — compaction never blocks your session</li>
-              <li><strong>Anthropic-native + OpenAI-compatible</strong> — use any summarization model</li>
-              <li><strong>Claude Code native</strong> — plugin manifest, lifecycle hooks, MCP tools</li>
+            <h3>What this fork adds</h3>
+            <ul class="lineage-list">
+              <li>Cross-session knowledge store — FTS5 SQLite, zero external deps</li>
+              <li>Smart promotion engine — detects decisions, bugs, architecture</li>
+              <li>Background daemon with lazy auto-spawning</li>
+              <li>Native Claude Code plugin — hooks, MCP, one install command</li>
+              <li>Anthropic-native + OpenAI-compatible summarizers</li>
             </ul>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Install CTA -->
+    <!-- CTA -->
     <section class="cta-section">
-      <div class="container">
-        <h2>Get started</h2>
-        <p class="subtext">Install in one command. No config required.</p>
-        <div class="install-block">
-          <code>claude plugin add github:ipedro/lossless-claude</code>
-          <button class="copy-btn" data-copy="claude plugin add github:ipedro/lossless-claude" aria-label="Copy install command">Copy</button>
+      <div class="cta-glow"></div>
+      <div class="container cta-content">
+        <h2>Start remembering everything</h2>
+        <p class="cta-sub">One command. No servers. No API keys required to get started.</p>
+        <div class="terminal-block">
+          <div class="terminal-dots"><span></span><span></span><span></span></div>
+          <div class="terminal-body">
+            <span class="terminal-prompt">$</span>
+            <code>claude plugin add github:ipedro/lossless-claude</code>
+            <button class="copy-btn" data-copy="claude plugin add github:ipedro/lossless-claude" aria-label="Copy command">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>Copy</span>
+            </button>
+          </div>
         </div>
-        <br>
-        <a href="https://github.com/ipedro/lossless-claude" class="btn-github">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
-          </svg>
+        <a href="https://github.com/ipedro/lossless-claude" class="btn-github" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
           View on GitHub
         </a>
       </div>
     </section>
+
   </main>
 
   <footer class="site-footer">
     <div class="container">
-      <p>
-        Built on the DAG architecture from
-        <a href="https://github.com/Martian-Engineering/lossless-claude">lossless-claw</a>
-        by <a href="https://martian.engineering">Martian Engineering</a>.
-      </p>
-      <p>
-        Informed by the <a href="https://papers.voltropy.com/LCM">LCM paper</a>
-        by <a href="https://x.com/Voltropy">Voltropy</a>.
-      </p>
-      <p>
-        <a href="https://github.com/ipedro/lossless-claude">GitHub</a> &middot;
-        MIT License
-      </p>
+      <p>Built on <a href="https://github.com/Martian-Engineering/lossless-claude" target="_blank" rel="noopener">lossless-claw</a> by <a href="https://martian.engineering" target="_blank" rel="noopener">Martian Engineering</a> &middot; <a href="https://papers.voltropy.com/LCM" target="_blank" rel="noopener">LCM paper</a> by <a href="https://x.com/Voltropy" target="_blank" rel="noopener">Voltropy</a> &middot; MIT License</p>
     </div>
   </footer>
 
   <script>
-  // Copy-to-clipboard
+  document.documentElement.classList.remove('no-js');
   document.querySelectorAll('.copy-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var text = btn.getAttribute('data-copy');
       if (navigator.clipboard) {
         navigator.clipboard.writeText(text).then(function() {
-          btn.textContent = 'Copied!';
-          setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+          btn.querySelector('span').textContent = 'Copied!';
+          setTimeout(function() { btn.querySelector('span').textContent = 'Copy'; }, 1500);
         });
       }
     });
   });
-
-  // Remove no-js class
-  document.documentElement.classList.remove('no-js');
-
-  // Scroll-triggered DAG step animation
   if ('IntersectionObserver' in window) {
-    var dagSteps = document.querySelectorAll('.dag-step');
-    var observer = new IntersectionObserver(function(entries) {
-      entries.forEach(function(entry) {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('active');
-        }
-      });
-    }, { threshold: 0.5 });
-    dagSteps.forEach(function(step) { observer.observe(step); });
+    var obs = new IntersectionObserver(function(entries) {
+      entries.forEach(function(e) { if (e.isIntersecting) e.target.classList.add('active'); });
+    }, { threshold: 0.35 });
+    document.querySelectorAll('.step').forEach(function(s) { obs.observe(s); });
   } else {
-    document.querySelectorAll('.dag-step').forEach(function(s) {
-      s.classList.add('active');
-    });
+    document.querySelectorAll('.step').forEach(function(s) { s.classList.add('active'); });
   }
   </script>
 </body>

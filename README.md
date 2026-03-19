@@ -47,35 +47,22 @@ The result: the context window never "fills up and dumps". It stays within `LCM_
 
 ### Prerequisites
 
-- Claude Code with plugin context engine support
+- Claude Code
 - Node.js 22+
-- An LLM provider configured in Claude Code (used for summarization)
 
-### Install the plugin
+### Install
 
 ```bash
-npx lossless-claude install
+claude plugin add github:ipedro/lossless-claude
 ```
 
-This configures Claude Code hooks, starts the daemon, and runs doctor to verify the setup.
+This registers the plugin's hooks (PreCompact, SessionStart) and MCP server automatically.
 
-### Configure Claude Code
+Then run the setup wizard to configure your summarizer and verify the install:
 
-In most cases, no manual JSON edits are needed after `claude plugins install`.
-
-If you need to set it manually, ensure the context engine slot points at lossless-claude:
-
-```json
-{
-  "plugins": {
-    "slots": {
-      "contextEngine": "lossless-claude"
-    }
-  }
-}
+```bash
+lossless-claude install
 ```
-
-Restart Claude Code after configuration changes.
 
 ## Configuration
 

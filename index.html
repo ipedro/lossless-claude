@@ -34,8 +34,8 @@
         <p class="subhead">Every message, forever. Built natively for Claude Code.</p>
         <p class="install-label">Install with one command</p>
         <div class="install-block">
-          <code>bash <(curl -fsSL https://raw.githubusercontent.com/ipedro/lossless-claude/main/install.sh)</code>
-          <button class="copy-btn" data-copy="bash <(curl -fsSL https://raw.githubusercontent.com/ipedro/lossless-claude/main/install.sh)" aria-label="Copy install command">Copy</button>
+          <code>claude plugin add github:ipedro/lossless-claude</code>
+          <button class="copy-btn" data-copy="claude plugin add github:ipedro/lossless-claude" aria-label="Copy install command">Copy</button>
         </div>
       </div>
     </section>
@@ -62,8 +62,8 @@
                 <line x1="12" y1="22.08" x2="12" y2="12"/>
               </svg>
             </div>
-            <h3>Long-term memory via Cipher</h3>
-            <p>High-signal moments — decisions, fixes, architecture — promoted to persistent storage, recalled across sessions.</p>
+            <h3>Cross-session knowledge</h3>
+            <p>High-signal moments — decisions, fixes, architecture — promoted to a local SQLite knowledge store, recalled across sessions.</p>
           </div>
           <div class="value-card">
             <div class="icon">
@@ -111,8 +111,8 @@
           <div class="dag-step" data-step="4">
             <div class="dag-step-number">4</div>
             <div class="dag-step-content">
-              <h4>Cipher promotion</h4>
-              <p>High-signal nodes — architectural decisions, bug fixes, design rationale — are promoted to Cipher, the long-term semantic memory store.</p>
+              <h4>Knowledge promotion</h4>
+              <p>High-signal nodes — architectural decisions, bug fixes, design rationale — are promoted to a persistent SQLite knowledge store, searchable across sessions.</p>
             </div>
           </div>
           <div class="dag-connector"></div>
@@ -120,11 +120,11 @@
             <div class="dag-step-number">5</div>
             <div class="dag-step-content">
               <h4>Context assembly</h4>
-              <p>Each new session is assembled from recent raw messages + DAG summaries + Cipher recall. Full fidelity, minimal tokens.</p>
+              <p>Each new session is assembled from recent raw messages + DAG summaries + promoted knowledge. Full fidelity, minimal tokens.</p>
             </div>
           </div>
         </div>
-        <p class="how-it-works-note">Context is never truncated. Each turn, it's assembled fresh — recent raw messages, DAG summaries, and Cipher recall — always within the model's window. Compaction runs automatically in the background after each turn, triggered once enough messages accumulate.</p>
+        <p class="how-it-works-note">Context is never truncated. Each turn, it's assembled fresh — recent raw messages, DAG summaries, and promoted knowledge — always within the model's window. Compaction runs automatically in the background after each turn, triggered once enough messages accumulate.</p>
       </div>
     </section>
 
@@ -140,7 +140,7 @@
           <div class="lineage-block">
             <h3>What we added</h3>
             <ul>
-              <li><strong>Long-term memory via Cipher</strong> — high-signal summaries promoted to persistent semantic storage, recalled across sessions</li>
+              <li><strong>Cross-session knowledge store</strong> — high-signal summaries promoted to persistent SQLite storage, recalled across sessions via FTS5</li>
               <li><strong>Smart promotion engine</strong> — automatically detects architectural decisions, bug fixes, and design rationale worth keeping forever</li>
               <li><strong>Background daemon</strong> — compaction never blocks your session</li>
               <li><strong>Anthropic-native + OpenAI-compatible</strong> — use any summarization model</li>
@@ -157,8 +157,8 @@
         <h2>Get started</h2>
         <p class="subtext">Install in one command. No config required.</p>
         <div class="install-block">
-          <code>bash <(curl -fsSL https://raw.githubusercontent.com/ipedro/lossless-claude/main/install.sh)</code>
-          <button class="copy-btn" data-copy="bash <(curl -fsSL https://raw.githubusercontent.com/ipedro/lossless-claude/main/install.sh)" aria-label="Copy install command">Copy</button>
+          <code>claude plugin add github:ipedro/lossless-claude</code>
+          <button class="copy-btn" data-copy="claude plugin add github:ipedro/lossless-claude" aria-label="Copy install command">Copy</button>
         </div>
         <br>
         <a href="https://github.com/ipedro/lossless-claude" class="btn-github">

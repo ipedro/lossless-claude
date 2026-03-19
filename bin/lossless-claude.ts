@@ -97,15 +97,14 @@ async function main() {
     }
     case "install": {
       const dryRun = argv.includes("--dry-run");
-      const semantic = argv.includes("--semantic");
       const { install } = await import("../installer/install.js");
       if (dryRun) {
         const { DryRunServiceDeps } = await import("../installer/dry-run-deps.js");
         console.log("\n  lossless-claude install --dry-run\n");
-        await install(new DryRunServiceDeps(), { semantic });
+        await install(new DryRunServiceDeps());
         console.log("\n  No changes written.");
       } else {
-        await install(undefined, { semantic });
+        await install();
       }
       break;
     }
@@ -135,13 +134,7 @@ async function main() {
         if (res.ok) daemonStatus = "up";
       } catch {}
 
-      let qdrantStatus = "down";
-      try {
-        const res = await fetch("http://localhost:6333/healthz");
-        if (res.ok) qdrantStatus = "up";
-      } catch {}
-
-      console.log(`daemon: ${daemonStatus} · qdrant: ${qdrantStatus} · provider: ${config.llm?.provider ?? "unknown"}`);
+      console.log(`daemon: ${daemonStatus} · provider: ${config.llm?.provider ?? "unknown"}`);
       break;
     }
     case "doctor": {

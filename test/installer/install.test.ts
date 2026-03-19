@@ -7,7 +7,6 @@ import {
 } from "../../installer/install.js";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { existsSync } from "node:fs";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -29,7 +28,7 @@ function makeDeps(overrides: Partial<ServiceDeps> = {}): ServiceDeps & {
     writeFileSync: vi.fn(),
     mkdirSync: vi.fn(),
     existsSync: vi.fn().mockReturnValue(false),
-    promptUser: vi.fn().mockResolvedValue("1"), // default: option 1 (Anthropic)
+    promptUser: vi.fn().mockResolvedValue("1"), // default: option 1
     ...overrides,
   };
 }
@@ -90,14 +89,14 @@ describe("resolveBinaryPath", () => {
 // ─── install ────────────────────────────────────────────────────────────────
 
 describe("install", () => {
-  it("core install works without semantic layer", async () => {
+  it("core install works with zero external dependencies", async () => {
     const originalApiKey = process.env.ANTHROPIC_API_KEY;
     process.env.ANTHROPIC_API_KEY = "test-key";
     const deps = makeDeps({ existsSync: vi.fn().mockReturnValue(false) });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await expect(install(deps, { semantic: false })).resolves.not.toThrow();
-    // setup.sh should NOT have been invoked
-    const bashCalls = deps.spawnSync.mock.calls.filter((c: any[]) => c[0] === "bash" && c[1]?.[0]?.includes("setup.sh"));
+    await expect(install(deps)).resolves.not.toThrow();
+    // No setup.sh, no cipher, no qdrant
+    const bashCalls = deps.spawnSync.mock.calls.filter((c: any[]) => c[0] === "bash");
     expect(bashCalls).toHaveLength(0);
     warnSpy.mockRestore();
     process.env.ANTHROPIC_API_KEY = originalApiKey;
@@ -109,28 +108,13 @@ describe("install", () => {
     const writeFileMock = vi.fn();
     const deps = makeDeps({ existsSync: vi.fn().mockReturnValue(false), writeFileSync: writeFileMock });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await install(deps, { semantic: false });
+    await install(deps);
     warnSpy.mockRestore();
-    // Find the config.json write call
     const configWriteCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
     expect(configWriteCall).toBeDefined();
     const written = JSON.parse(configWriteCall![1]);
-    // Non-TTY path: defaults to claude-cli with empty apiKey
     expect(written.llm.provider).toBe("claude-cli");
     expect(written.llm.apiKey).toBe("");
-    process.env.ANTHROPIC_API_KEY = originalApiKey;
-  });
-
-  it("invokes setup.sh when semantic=true", async () => {
-    const originalApiKey = process.env.ANTHROPIC_API_KEY;
-    process.env.ANTHROPIC_API_KEY = "test-key";
-    const spawnMock = makeSpawn(0);
-    const deps = makeDeps({ spawnSync: spawnMock, existsSync: vi.fn().mockReturnValue(false) });
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await install(deps, { semantic: true });
-    const bashCalls = spawnMock.mock.calls.filter((c: any[]) => c[0] === "bash" && c[1]?.[0]?.includes("setup.sh"));
-    expect(bashCalls).toHaveLength(1);
-    warnSpy.mockRestore();
     process.env.ANTHROPIC_API_KEY = originalApiKey;
   });
 });
@@ -143,7 +127,7 @@ describe("install with DryRunServiceDeps", () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    await expect(install(new DryRunServiceDeps(), { semantic: false })).resolves.not.toThrow();
+    await expect(install(new DryRunServiceDeps())).resolves.not.toThrow();
 
     const dryRunLines = logSpy.mock.calls
       .flatMap((c: any[]) => c)
@@ -174,10 +158,10 @@ describe("summarizer picker", () => {
     const deps = makeDeps({
       existsSync: vi.fn().mockReturnValue(false),
       writeFileSync: writeFileMock,
-      promptUser: vi.fn().mockResolvedValueOnce("1"), // picker: option 1 (Claude Max/Pro)
+      promptUser: vi.fn().mockResolvedValueOnce("1"),
     });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await install(deps, { semantic: false });
+    await install(deps);
     warnSpy.mockRestore();
     const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
     expect(configCall).toBeDefined();
@@ -193,11 +177,10 @@ describe("summarizer picker", () => {
     const deps = makeDeps({
       existsSync: vi.fn().mockReturnValue(false),
       writeFileSync: writeFileMock,
-      promptUser: vi.fn()
-        .mockResolvedValueOnce("2"),  // picker: option 2
+      promptUser: vi.fn().mockResolvedValueOnce("2"),
     });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await install(deps, { semantic: false });
+    await install(deps);
     warnSpy.mockRestore();
     const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
     expect(configCall).toBeDefined();
@@ -207,50 +190,19 @@ describe("summarizer picker", () => {
     expect(written.llm.model).toBe("claude-haiku-4-5-20251001");
   });
 
-  it("option 3 (local model): reads cipher.yml and writes provider=openai", async () => {
-    Object.defineProperty(process.stdin, "isTTY", { value: true, writable: true });
-    const cipherContent = `
-llm:
-  provider: openai
-  model: mlx-community/Qwen2.5-14B-Instruct-4bit
-  baseURL: http://localhost:11435/v1
-`;
-    const writeFileMock = vi.fn();
-    const deps = makeDeps({
-      existsSync: vi.fn().mockImplementation((p: string) =>
-        p.endsWith("cipher.yml") ? true : false
-      ),
-      readFileSync: vi.fn().mockImplementation((p: string) =>
-        p.endsWith("cipher.yml") ? cipherContent : "{}"
-      ),
-      writeFileSync: writeFileMock,
-      promptUser: vi.fn().mockResolvedValueOnce("3"),
-    });
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await install(deps, { semantic: false });
-    warnSpy.mockRestore();
-    const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
-    expect(configCall).toBeDefined();
-    const written = JSON.parse(configCall![1]);
-    expect(written.llm.provider).toBe("openai");
-    expect(written.llm.baseURL).toBe("http://localhost:11435/v1");
-    expect(written.llm.model).toBe("mlx-community/Qwen2.5-14B-Instruct-4bit");
-    expect(written.llm.apiKey).toBe("");
-  });
-
-  it("option 4 (custom server): prompts for URL and model, writes provider=openai", async () => {
+  it("option 3 (custom server): prompts for URL and model, writes provider=openai", async () => {
     Object.defineProperty(process.stdin, "isTTY", { value: true, writable: true });
     const writeFileMock = vi.fn();
     const deps = makeDeps({
       existsSync: vi.fn().mockReturnValue(false),
       writeFileSync: writeFileMock,
       promptUser: vi.fn()
-        .mockResolvedValueOnce("4")                           // picker: option 4
+        .mockResolvedValueOnce("3")                           // picker: option 3
         .mockResolvedValueOnce("http://192.168.1.5:8080/v1") // URL prompt
         .mockResolvedValueOnce("my-model"),                   // model prompt
     });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await install(deps, { semantic: false });
+    await install(deps);
     warnSpy.mockRestore();
     const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
     expect(configCall).toBeDefined();
@@ -271,7 +223,7 @@ llm:
         .mockResolvedValueOnce("9"),  // invalid again → default to 1
     });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await install(deps, { semantic: false });
+    await install(deps);
     warnSpy.mockRestore();
     const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
     const written = JSON.parse(configCall![1]);
@@ -288,30 +240,12 @@ llm:
       promptUser: promptUserMock,
     });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await install(deps, { semantic: false });
+    await install(deps);
     warnSpy.mockRestore();
     expect(promptUserMock).not.toHaveBeenCalled(); // picker was skipped
     const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
     const written = JSON.parse(configCall![1]);
     expect(written.llm.provider).toBe("claude-cli");
     expect(written.llm.apiKey).toBe("");
-  });
-});
-
-// ─── setup.sh dry-run preview ────────────────────────────────────────────────
-
-describe("setup.sh XGH_DRY_RUN=1 preview", () => {
-  it.skipIf(!existsSync("/bin/bash"))("prints [dry-run] lines and exits 0 without writing files", async () => {
-    const { spawnSync } = await import("node:child_process");
-    const { join, dirname } = await import("node:path");
-    const { fileURLToPath } = await import("node:url");
-    const setupScript = join(dirname(fileURLToPath(import.meta.url)), "../../installer/setup.sh");
-    const result = spawnSync("bash", [setupScript], {
-      encoding: "utf-8",
-      env: { ...process.env, XGH_DRY_RUN: "1", XGH_BACKEND: "ollama" },
-    });
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain("[dry-run] backend:");
-    expect(result.stdout).toContain("[dry-run] would write: ~/.cipher/cipher.yml");
   });
 });

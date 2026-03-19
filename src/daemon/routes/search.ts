@@ -1,10 +1,6 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { createRequire } from "node:module";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import type { DaemonConfig } from "../config.js";
 import { projectDbPath } from "../project.js";
 import { sendJson } from "../server.js";
 import type { RouteHandler } from "../server.js";
@@ -14,11 +10,11 @@ import { SummaryStore } from "../../store/summary-store.js";
 import { RetrievalEngine } from "../../retrieval.js";
 import { PromotedStore } from "../../db/promoted.js";
 
-export function createSearchHandler(config: DaemonConfig): RouteHandler {
+export function createSearchHandler(): RouteHandler {
   return async (_req, res, body) => {
     const input = JSON.parse(body || "{}");
     const { query, limit = 5, layers, tags, cwd } = input;
-    const activeLayers: string[] = layers ?? ["episodic", "semantic", "promoted"];
+    const activeLayers: string[] = layers ?? ["episodic", "promoted"];
     const filterTags: string[] | undefined = Array.isArray(tags) && tags.length > 0 ? tags : undefined;
 
     if (!query) {
@@ -27,7 +23,6 @@ export function createSearchHandler(config: DaemonConfig): RouteHandler {
     }
 
     let episodic: unknown[] = [];
-    let semantic: unknown[] = [];
     let promoted: unknown[] = [];
 
     if (cwd) {
@@ -70,18 +65,6 @@ export function createSearchHandler(config: DaemonConfig): RouteHandler {
       }
     }
 
-    // Semantic: Qdrant search (optional, non-fatal)
-    if (activeLayers.includes("semantic")) {
-      try {
-        const require = createRequire(import.meta.url);
-        const store = require(join(homedir(), ".local", "lib", "qdrant-store.js"));
-        const results = await store.search(query, config.cipher.collection, limit, config.restoration.semanticThreshold);
-        semantic = filterTags
-          ? results.filter((r: any) => filterTags.every(t => r.payload?.tags?.includes(t)))
-          : results;
-      } catch { /* non-fatal — Qdrant may not be running */ }
-    }
-
-    sendJson(res, 200, { episodic, semantic, promoted });
+    sendJson(res, 200, { episodic, promoted });
   };
 }

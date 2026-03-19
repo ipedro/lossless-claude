@@ -67,7 +67,6 @@ describe("POST /search", () => {
       });
       const data = await res.json() as Record<string, unknown>;
       expect(data).toHaveProperty("episodic");
-      expect(data).toHaveProperty("semantic");
       expect(data).toHaveProperty("promoted");
     } finally {
       await daemon.stop();

@@ -6,6 +6,7 @@ export type DaemonConfig = {
         logLevel: string;
         logMaxSizeMB: number;
         logRetentionDays: number;
+        idleTimeoutMs: number;
     };
     compaction: {
         leafTokens: number;
@@ -19,8 +20,6 @@ export type DaemonConfig = {
     };
     restoration: {
         recentSummaries: number;
-        semanticTopK: number;
-        semanticThreshold: number;
     };
     llm: {
         provider: "claude-cli" | "anthropic" | "openai" | "disabled";
@@ -34,10 +33,5 @@ export type DaemonConfig = {
         startupTimeoutMs: number;
         model: string;
     };
-    cipher: {
-        configPath: string;
-        collection: string;
-    };
-    backend: "vllm-mlx" | "ollama" | "remote" | "unknown";
 };
 export declare function loadDaemonConfig(configPath: string, overrides?: any, env?: Record<string, string | undefined>): DaemonConfig;

@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 const DEFAULTS = {
     version: 1,
-    daemon: { port: 3737, socketPath: join(homedir(), ".lossless-claude", "daemon.sock"), logLevel: "info", logMaxSizeMB: 10, logRetentionDays: 7 },
+    daemon: { port: 3737, socketPath: join(homedir(), ".lossless-claude", "daemon.sock"), logLevel: "info", logMaxSizeMB: 10, logRetentionDays: 7, idleTimeoutMs: 1800000 },
     compaction: {
         leafTokens: 1000, maxDepth: 5,
         promotionThresholds: {
@@ -12,11 +12,9 @@ const DEFAULTS = {
             architecturePatterns: ["src/[\\w/]+\\.ts", "[A-Z][a-zA-Z]+(Engine|Store|Service|Manager|Handler|Client)", "interface [A-Z]", "class [A-Z]"],
         },
     },
-    restoration: { recentSummaries: 3, semanticTopK: 5, semanticThreshold: 0.35 },
+    restoration: { recentSummaries: 3 },
     llm: { provider: "claude-cli", model: "claude-haiku-4-5", apiKey: "", baseURL: "" },
     claudeCliProxy: { enabled: true, port: 3456, startupTimeoutMs: 10000, model: "claude-haiku-4-5" },
-    cipher: { configPath: join(homedir(), ".cipher", "cipher.yml"), collection: "lossless_memory" },
-    backend: "unknown",
 };
 function deepMerge(target, source) {
     if (!source || typeof source !== "object")
@@ -40,20 +38,6 @@ export function loadDaemonConfig(configPath, overrides, env) {
     const merged = deepMerge(structuredClone(DEFAULTS), deepMerge(fileConfig, overrides));
     if (merged.llm.apiKey)
         merged.llm.apiKey = merged.llm.apiKey.replace(/\$\{(\w+)\}/g, (_, k) => e[k] ?? "");
-    // Detect backend from cipher.yml baseURL
-    try {
-        const cipherYml = join(homedir(), ".cipher", "cipher.yml");
-        const content = readFileSync(cipherYml, "utf-8");
-        const urlMatch = content.match(/baseURL:\s*http:\/\/localhost:(\d+)/);
-        if (urlMatch) {
-            const port = parseInt(urlMatch[1], 10);
-            merged.backend = port === 11435 ? "vllm-mlx" : port === 11434 ? "ollama" : "unknown";
-        }
-        const remoteMatch = content.match(/baseURL:\s*(http:\/\/(?!localhost)\S+)/);
-        if (remoteMatch)
-            merged.backend = "remote";
-    }
-    catch { }
     // Env var override: LCM_SUMMARY_PROVIDER takes precedence over config
     const VALID_PROVIDERS = new Set(["claude-cli", "anthropic", "openai", "disabled"]);
     if (e.LCM_SUMMARY_PROVIDER) {

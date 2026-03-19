@@ -28,7 +28,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc && cp installer/setup.sh dist/installer/setup.sh && rm -rf dist/installer/templates && cp -r installer/templates dist/installer/templates",
+    "build": "tsc",
     "prepublishOnly": "npm run build",
     "changeset": "changeset",
     "release:verify": "npm test && npm pack --dry-run",

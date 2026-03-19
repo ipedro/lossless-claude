@@ -12,7 +12,7 @@ import { CompactionEngine } from "../../compaction.js";
 import { createAnthropicSummarizer } from "../../llm/anthropic.js";
 import { createOpenAISummarizer } from "../../llm/openai.js";
 import { shouldPromote } from "../../promotion/detector.js";
-import { promoteSummary } from "../../promotion/promoter.js";
+import { PromotedStore } from "../../db/promoted.js";
 
 // In-memory justCompacted map (session_id -> timestamp)
 export const justCompactedMap = new Map<string, number>();
@@ -86,7 +86,7 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
       force: true,
     });
 
-    // Promote new summaries to Qdrant
+    // Promote worthy summaries to cross-session memory (SQLite promoted table)
     let promotedCount = 0;
     if (result.actionTaken && result.createdSummaryId) {
       try {
@@ -104,20 +104,20 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
             config.compaction.promotionThresholds,
           );
           if (promotionResult.promote) {
-            await promoteSummary({
-              text: newSummary.content,
+            const promotedStore = new PromotedStore(db);
+            promotedStore.insert({
+              content: newSummary.content,
               tags: promotionResult.tags,
               projectId: pid,
-              projectPath: cwd,
-              depth: newSummary.depth,
               sessionId: session_id,
+              depth: newSummary.depth,
               confidence: promotionResult.confidence,
-              collection: config.cipher.collection,
+              sourceSummaryId: newSummary.summaryId,
             });
             promotedCount = 1;
           }
         }
-      } catch { /* non-fatal — Qdrant may not be running */ }
+      } catch { /* non-fatal */ }
     }
 
     // Update meta.json

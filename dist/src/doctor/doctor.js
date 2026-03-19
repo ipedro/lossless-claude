@@ -35,57 +35,10 @@ function loadConfig(deps) {
         config = JSON.parse(deps.readFileSync(configPath, "utf-8"));
     }
     catch { }
-    // Also read cipher.yml for model info
-    let backend = "unknown";
-    let embeddingModel = "";
-    let llmModel = "";
-    let modelPort = 11435;
-    let remoteUrl = "";
-    const cipherYml = join(deps.homedir, ".cipher", "cipher.yml");
-    try {
-        const content = deps.readFileSync(cipherYml, "utf-8");
-        // Parse backend from provider
-        // Detect backend from embedding baseURL port, not LLM provider
-        // LLM provider (claude-server, openai, ollama) is independent of embedding backend
-        const embedUrlMatch = content.match(/^embedding:[\s\S]*?baseURL:\s*http:\/\/localhost:(\d+)/m);
-        if (embedUrlMatch) {
-            const port = parseInt(embedUrlMatch[1], 10);
-            if (port === 11435)
-                backend = "vllm-mlx";
-            else if (port === 11434)
-                backend = "ollama";
-        }
-        const embedRemoteMatch = content.match(/^embedding:[\s\S]*?baseURL:\s*(http:\/\/(?!localhost)\S+)/m);
-        if (embedRemoteMatch)
-            backend = "remote";
-        // Parse models
-        const llmModelMatch = content.match(/^llm:[\s\S]*?^\s+model:\s*(\S+)/m);
-        if (llmModelMatch)
-            llmModel = llmModelMatch[1];
-        const embedMatch = content.match(/^embedding:[\s\S]*?^\s+model:\s*(\S+)/m);
-        if (embedMatch)
-            embeddingModel = embedMatch[1];
-        // Parse port from baseURL
-        const urlMatch = content.match(/baseURL:\s*http:\/\/localhost:(\d+)/);
-        if (urlMatch)
-            modelPort = parseInt(urlMatch[1], 10);
-        // Check for remote URL
-        const remoteMatch = content.match(/baseURL:\s*(http:\/\/(?!localhost)\S+)/);
-        if (remoteMatch) {
-            backend = "remote";
-            remoteUrl = remoteMatch[1].replace(/\/v1$/, "");
-        }
-    }
-    catch { }
     const llm = config.llm;
     return {
         port: config.daemon?.port ?? config.port ?? 3737,
-        backend,
         summarizer: llm?.provider ?? "disabled",
-        remoteUrl,
-        modelPort,
-        embeddingModel,
-        llmModel,
     };
 }
 async function checkUrl(url, deps) {
@@ -141,7 +94,7 @@ export async function runDoctor(overrides) {
         name: "stack",
         category: "Stack",
         status: "pass",
-        message: `Backend: ${config.backend} · Summarizer: ${config.summarizer}`,
+        message: `Summarizer: ${config.summarizer}`,
     });
     // ── 1. Binary version ──
     const pkgPath = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "package.json");
@@ -160,133 +113,29 @@ export async function runDoctor(overrides) {
     else {
         results.push({ name: "config", category: "Stack", status: "fail", message: `Missing — run: lossless-claude install` });
     }
-    // ── 3. cipher.yml ──
-    const cipherYml = join(deps.homedir, ".cipher", "cipher.yml");
-    if (deps.existsSync(cipherYml)) {
-        results.push({ name: "cipher.yml", category: "Stack", status: "pass", message: `${cipherYml} (${config.backend}, ${config.llmModel || "unknown"})` });
-    }
-    else {
-        results.push({ name: "cipher.yml", category: "Stack", status: "fail", message: "Missing — run: lossless-claude install" });
-    }
-    // ── Infrastructure (conditional on backend) ──
-    // Qdrant (always needed)
-    const qdrantHealthy = await checkUrl("http://localhost:6333/healthz", deps);
-    if (qdrantHealthy) {
-        results.push({ name: "qdrant", category: "Infrastructure", status: "pass", message: "localhost:6333 (healthy)" });
-    }
-    else {
-        // Try to auto-fix: start Qdrant
-        let fixed = false;
-        if (deps.platform === "darwin") {
-            const r = deps.spawnSync("brew", ["services", "start", "qdrant"], {});
-            if (r.status === 0) {
-                // Wait a moment then recheck
-                await new Promise(r => setTimeout(r, 2000));
-                fixed = await checkUrl("http://localhost:6333/healthz", deps);
-            }
-        }
-        else {
-            const r = deps.spawnSync("systemctl", ["--user", "start", "lossless-claude-qdrant"], {});
-            if (r.status === 0) {
-                await new Promise(r => setTimeout(r, 2000));
-                fixed = await checkUrl("http://localhost:6333/healthz", deps);
-            }
-        }
-        if (fixed) {
-            results.push({ name: "qdrant", category: "Infrastructure", status: "warn", message: "localhost:6333 — restarted", fixApplied: true });
-        }
-        else {
-            const fix = deps.platform === "darwin" ? "brew services start qdrant" : "systemctl --user start lossless-claude-qdrant";
-            results.push({ name: "qdrant", category: "Infrastructure", status: "fail", message: `localhost:6333 unreachable\n     Fix: ${fix}` });
-        }
-    }
-    // Backend-specific checks
-    if (config.backend === "vllm-mlx") {
-        const vllmOk = await checkUrl(`http://localhost:${config.modelPort}/v1/models`, deps);
-        if (vllmOk) {
-            results.push({ name: "vllm-mlx", category: "Infrastructure", status: "pass", message: `localhost:${config.modelPort} (responding)` });
-        }
-        else {
-            results.push({ name: "vllm-mlx", category: "Infrastructure", status: "warn", message: `localhost:${config.modelPort} not responding\n     Fix: vllm-mlx serve` });
-        }
-    }
-    else if (config.backend === "ollama") {
-        const ollamaOk = await checkUrl(`http://localhost:${config.modelPort}`, deps);
-        if (ollamaOk) {
-            results.push({ name: "ollama", category: "Infrastructure", status: "pass", message: `localhost:${config.modelPort} (responding)` });
-        }
-        else {
-            let fixed = false;
-            if (deps.platform === "darwin") {
-                const r = deps.spawnSync("brew", ["services", "start", "ollama"], {});
-                if (r.status === 0) {
-                    await new Promise(r => setTimeout(r, 2000));
-                    fixed = await checkUrl(`http://localhost:${config.modelPort}`, deps);
-                }
-            }
-            if (fixed) {
-                results.push({ name: "ollama", category: "Infrastructure", status: "warn", message: `localhost:${config.modelPort} — restarted`, fixApplied: true });
-            }
-            else {
-                results.push({ name: "ollama", category: "Infrastructure", status: "fail", message: `localhost:${config.modelPort} not responding\n     Fix: brew services start ollama` });
-            }
-        }
-    }
-    else if (config.backend === "remote" && config.remoteUrl) {
-        const remoteOk = await checkUrl(`${config.remoteUrl}/v1/models`, deps);
-        if (remoteOk) {
-            results.push({ name: "remote", category: "Infrastructure", status: "pass", message: `${config.remoteUrl} (reachable)` });
-        }
-        else {
-            results.push({ name: "remote", category: "Infrastructure", status: "warn", message: `${config.remoteUrl} unreachable` });
-        }
-    }
     // ── Daemon ──
     const daemonHealthy = await checkUrl(`http://localhost:${config.port}/health`, deps);
     if (daemonHealthy) {
         results.push({ name: "daemon", category: "Daemon", status: "pass", message: `localhost:${config.port} (up)` });
     }
     else {
-        // Auto-fix: restart daemon service
-        let fixed = false;
-        if (deps.platform === "darwin") {
-            const plistPath = join(deps.homedir, "Library", "LaunchAgents", "com.lossless-claude.daemon.plist");
-            if (deps.existsSync(plistPath)) {
-                deps.spawnSync("launchctl", ["unload", plistPath], {});
-                deps.spawnSync("launchctl", ["load", plistPath], {});
-                await new Promise(r => setTimeout(r, 3000));
-                fixed = await checkUrl(`http://localhost:${config.port}/health`, deps);
+        // Auto-fix: try ensureDaemon
+        try {
+            const { ensureDaemon } = await import("../daemon/lifecycle.js");
+            const { connected } = await ensureDaemon({
+                port: config.port,
+                pidFilePath: join(deps.homedir, ".lossless-claude", "daemon.pid"),
+                spawnTimeoutMs: 10000,
+            });
+            if (connected) {
+                results.push({ name: "daemon", category: "Daemon", status: "warn", message: `localhost:${config.port} — started`, fixApplied: true });
+            }
+            else {
+                results.push({ name: "daemon", category: "Daemon", status: "fail", message: `localhost:${config.port} not responding\n     Fix: lossless-claude daemon start` });
             }
         }
-        else {
-            deps.spawnSync("systemctl", ["--user", "restart", "lossless-claude"], {});
-            await new Promise(r => setTimeout(r, 3000));
-            fixed = await checkUrl(`http://localhost:${config.port}/health`, deps);
-        }
-        if (fixed) {
-            results.push({ name: "daemon", category: "Daemon", status: "warn", message: `localhost:${config.port} — restarted`, fixApplied: true });
-        }
-        else {
+        catch {
             results.push({ name: "daemon", category: "Daemon", status: "fail", message: `localhost:${config.port} not responding\n     Fix: lossless-claude daemon start` });
-        }
-    }
-    // Daemon service registered
-    if (deps.platform === "darwin") {
-        const plistPath = join(deps.homedir, "Library", "LaunchAgents", "com.lossless-claude.daemon.plist");
-        if (deps.existsSync(plistPath)) {
-            results.push({ name: "daemon-service", category: "Daemon", status: "pass", message: "com.lossless-claude.daemon (registered)" });
-        }
-        else {
-            results.push({ name: "daemon-service", category: "Daemon", status: "fail", message: "Plist missing — run: lossless-claude install" });
-        }
-    }
-    else {
-        const unitPath = join(deps.homedir, ".config", "systemd", "user", "lossless-claude.service");
-        if (deps.existsSync(unitPath)) {
-            results.push({ name: "daemon-service", category: "Daemon", status: "pass", message: "lossless-claude.service (registered)" });
-        }
-        else {
-            results.push({ name: "daemon-service", category: "Daemon", status: "fail", message: "Unit file missing — run: lossless-claude install" });
         }
     }
     // ── Settings ──
@@ -328,34 +177,6 @@ export async function runDoctor(overrides) {
             results.push({ name: "mcp-lossless-claude", category: "Settings", status: "fail", message: "MCP entry missing — run: lossless-claude install" });
         }
     }
-    // ── Cipher ──
-    const hasCipher = deps.spawnSync("sh", ["-c", "command -v cipher"], {}).status === 0;
-    if (hasCipher) {
-        results.push({ name: "cipher-binary", category: "MCP Servers", status: "pass", message: "cipher binary found" });
-    }
-    else {
-        // Auto-fix
-        const r = deps.spawnSync("npm", ["install", "-g", "@byterover/cipher"], { stdio: "pipe" });
-        if (r.status === 0) {
-            results.push({ name: "cipher-binary", category: "MCP Servers", status: "warn", message: "cipher installed", fixApplied: true });
-        }
-        else {
-            results.push({ name: "cipher-binary", category: "MCP Servers", status: "fail", message: "cipher not found\n     Fix: npm install -g @byterover/cipher" });
-        }
-    }
-    const cipherMcpPath = join(deps.homedir, ".local", "bin", "cipher-mcp");
-    if (deps.existsSync(cipherMcpPath)) {
-        results.push({ name: "cipher-mcp-wrapper", category: "MCP Servers", status: "pass", message: "~/.local/bin/cipher-mcp" });
-    }
-    else {
-        results.push({ name: "cipher-mcp-wrapper", category: "MCP Servers", status: "fail", message: "Wrapper missing — run: lossless-claude install" });
-    }
-    if (mcpServers?.cipher) {
-        results.push({ name: "cipher-mcp-entry", category: "MCP Servers", status: "pass", message: "cipher MCP \u2713" });
-    }
-    else {
-        results.push({ name: "cipher-mcp-entry", category: "MCP Servers", status: "warn", message: "cipher MCP not in settings.json — run: lossless-claude install" });
-    }
     // ── Summarizer (conditional) ──
     if (config.summarizer === "claude-cli") {
         const hasClaude = deps.spawnSync("sh", ["-c", "command -v claude"], {}).status === 0;
@@ -386,95 +207,6 @@ export async function runDoctor(overrides) {
         else {
             results.push({ name: "anthropic-key", category: "Summarizer", status: "warn", message: "ANTHROPIC_API_KEY not set in environment" });
         }
-    }
-    // ── cipher.yml baseURL validation ──
-    const cipherPath = join(deps.homedir, ".cipher", "cipher.yml");
-    try {
-        const cipherContent = deps.readFileSync(cipherPath, "utf-8");
-        const baseUrlMatches = [...cipherContent.matchAll(/baseURL:\s*(\S+)/g)];
-        if (baseUrlMatches.length > 0) {
-            const url = baseUrlMatches[0][1];
-            // Check for doubled /v1 (e.g. /v15/v15/v1 or /v1/v1)
-            if (/\/v1.*\/v1/.test(url) || (!/\/v1$/.test(url) && /localhost/.test(url) && !/ollama/.test(cipherContent))) {
-                const portMatch = url.match(/:(\d+)/);
-                const port = portMatch ? portMatch[1] : String(config.modelPort);
-                const fixed = `http://localhost:${port}/v1`;
-                const fixedContent = cipherContent.replace(url, fixed);
-                deps.writeFileSync(cipherPath, fixedContent);
-                results.push({ name: "cipher-baseurl", category: "Config", status: "warn", message: `baseURL corrupted (${url}) → fixed to ${fixed}`, fixApplied: true });
-            }
-            else {
-                results.push({ name: "cipher-baseurl", category: "Config", status: "pass", message: `baseURL: ${url}` });
-            }
-        }
-    }
-    catch { }
-    // ── vLLM-MLX service ──
-    if (config.backend === "vllm-mlx") {
-        const vllmPlist = join(deps.homedir, "Library", "LaunchAgents", "com.lossless-claude.vllm-mlx.plist");
-        if (deps.platform === "darwin") {
-            if (deps.existsSync(vllmPlist)) {
-                results.push({ name: "vllm-mlx-service", category: "Backend", status: "pass", message: "com.lossless-claude.vllm-mlx (registered)" });
-            }
-            else {
-                results.push({ name: "vllm-mlx-service", category: "Backend", status: "fail", message: "vLLM-MLX plist missing — run: lossless-claude install" });
-            }
-        }
-        // Check if vLLM-MLX process is responding
-        const modelUrl = `http://localhost:${config.modelPort}/v1/models`;
-        if (await checkUrl(modelUrl, deps)) {
-            results.push({ name: "vllm-mlx-process", category: "Backend", status: "pass", message: `localhost:${config.modelPort} (up)` });
-        }
-        else {
-            // Auto-fix: restart via launchctl
-            let fixed = false;
-            if (deps.platform === "darwin" && deps.existsSync(vllmPlist)) {
-                deps.spawnSync("launchctl", ["unload", vllmPlist], {});
-                deps.spawnSync("launchctl", ["load", vllmPlist], {});
-                await new Promise(r => setTimeout(r, 5000));
-                fixed = await checkUrl(modelUrl, deps);
-            }
-            if (fixed) {
-                results.push({ name: "vllm-mlx-process", category: "Backend", status: "warn", message: `localhost:${config.modelPort} — restarted`, fixApplied: true });
-            }
-            else {
-                results.push({ name: "vllm-mlx-process", category: "Backend", status: "fail", message: `localhost:${config.modelPort} not responding\n     Fix: launchctl load ~/Library/LaunchAgents/com.lossless-claude.vllm-mlx.plist` });
-            }
-        }
-        // Embedding test
-        try {
-            const res = await deps.fetch(`http://localhost:${config.modelPort}/v1/embeddings`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ model: config.embeddingModel, input: "health check" }),
-            });
-            if (res.ok) {
-                const data = await res.json();
-                const dims = data?.data?.[0]?.embedding?.length;
-                results.push({ name: "embedding-test", category: "Backend", status: "pass", message: `${config.embeddingModel || "embedding model"} → ${dims} dims` });
-            }
-            else {
-                results.push({ name: "embedding-test", category: "Backend", status: "fail", message: `Embedding API returned ${res.status}` });
-            }
-        }
-        catch {
-            results.push({ name: "embedding-test", category: "Backend", status: "warn", message: "Embedding endpoint not reachable (vLLM-MLX may be loading)" });
-        }
-    }
-    // ── claude-server check ──
-    if (config.backend === "vllm-mlx" || config.backend === "unknown") {
-        try {
-            const cipherContent2 = deps.readFileSync(cipherPath, "utf-8");
-            if (cipherContent2.includes("provider: claude-server")) {
-                if (await checkUrl("http://localhost:3456/health", deps)) {
-                    results.push({ name: "claude-server", category: "Backend", status: "pass", message: "claude-server (up on :3456)" });
-                }
-                else {
-                    results.push({ name: "claude-server", category: "Backend", status: "warn", message: "claude-server not responding — starts on demand, may be idle" });
-                }
-            }
-        }
-        catch { }
     }
     // ── MCP handshake ──
     if (daemonHealthy) {

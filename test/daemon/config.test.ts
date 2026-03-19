@@ -9,7 +9,6 @@ describe("loadDaemonConfig", () => {
     expect(c.llm.model).toBe("claude-haiku-4-5");
     expect(c.compaction.leafTokens).toBe(1000);
     expect(c.restoration.recentSummaries).toBe(3);
-    expect(c.restoration.semanticTopK).toBe(5);
     expect(c.version).toBe(1);
   });
 

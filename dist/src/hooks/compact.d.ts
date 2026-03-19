@@ -1,5 +1,5 @@
 import type { DaemonClient } from "../daemon/client.js";
-export declare function handlePreCompact(stdin: string, client: DaemonClient): Promise<{
+export declare function handlePreCompact(stdin: string, client: DaemonClient, port?: number): Promise<{
     exitCode: number;
     stdout: string;
 }>;

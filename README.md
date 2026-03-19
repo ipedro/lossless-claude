@@ -54,10 +54,10 @@ The result: the context window never "fills up and dumps". It stays within `LCM_
 ### Install the plugin
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/ipedro/lossless-claude/main/install.sh)
+npx lossless-claude install
 ```
 
-This clones the repo to `~/.lossless-claude/plugin`, installs the `lossless-claude` binary globally, and runs the full setup (hooks, daemon, Cipher, doctor). To use a custom install directory, set `LOSSLESS_CLAUDE_DIR` before running.
+This configures Claude Code hooks, starts the daemon, and runs doctor to verify the setup.
 
 ### Configure Claude Code
 

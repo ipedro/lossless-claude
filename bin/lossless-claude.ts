@@ -13,6 +13,17 @@ function readStdin(): Promise<string> {
 }
 
 async function main() {
+  // Handle flags before switch
+  if (command === "--version" || command === "-v") {
+    const { readFileSync } = await import("node:fs");
+    const { join, dirname } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const pkgPath = join(dirname(fileURLToPath(import.meta.url)), "..", "package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+    stdout.write(pkg.version + "\n");
+    exit(0);
+  }
+
   switch (command) {
     case "daemon": {
       if (argv[3] === "start") {
@@ -91,8 +102,38 @@ async function main() {
       }
       break;
     }
+    case "status": {
+      const { loadDaemonConfig } = await import("../src/daemon/config.js");
+      const { join } = await import("node:path");
+      const { homedir } = await import("node:os");
+      const config = loadDaemonConfig(join(homedir(), ".lossless-claude", "config.json"));
+      const port = config.daemon?.port ?? 3737;
+
+      let daemonStatus = "down";
+      try {
+        const res = await fetch(`http://localhost:${port}/health`);
+        if (res.ok) daemonStatus = "up";
+      } catch {}
+
+      let qdrantStatus = "down";
+      try {
+        const res = await fetch("http://localhost:6333/healthz");
+        if (res.ok) qdrantStatus = "up";
+      } catch {}
+
+      console.log(`daemon: ${daemonStatus} · qdrant: ${qdrantStatus} · provider: ${config.llm?.provider ?? "unknown"}`);
+      break;
+    }
+    case "doctor": {
+      const { runDoctor, printResults } = await import("../src/doctor/doctor.js");
+      const results = await runDoctor();
+      printResults(results);
+      const failures = results.filter((r: { status: string }) => r.status === "fail");
+      exit(failures.length > 0 ? 1 : 0);
+      break;
+    }
     default:
-      console.error("Usage: lossless-claude <daemon|compact|restore|mcp|install|uninstall> [--dry-run]");
+      console.error("Usage: lossless-claude <daemon|compact|restore|mcp|install|uninstall|doctor|status> [--dry-run|-v]");
       exit(1);
   }
 }

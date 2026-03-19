@@ -12,12 +12,13 @@ import { runLcmMigrations } from "../../db/migration.js";
 import { ConversationStore } from "../../store/conversation-store.js";
 import { SummaryStore } from "../../store/summary-store.js";
 import { RetrievalEngine } from "../../retrieval.js";
+import { PromotedStore } from "../../db/promoted.js";
 
 export function createSearchHandler(config: DaemonConfig): RouteHandler {
   return async (_req, res, body) => {
     const input = JSON.parse(body || "{}");
     const { query, limit = 5, layers, tags, cwd } = input;
-    const activeLayers: string[] = layers ?? ["episodic", "semantic"];
+    const activeLayers: string[] = layers ?? ["episodic", "semantic", "promoted"];
     const filterTags: string[] | undefined = Array.isArray(tags) && tags.length > 0 ? tags : undefined;
 
     if (!query) {
@@ -27,33 +28,48 @@ export function createSearchHandler(config: DaemonConfig): RouteHandler {
 
     let episodic: unknown[] = [];
     let semantic: unknown[] = [];
+    let promoted: unknown[] = [];
 
-    // Episodic: FTS5 search from SQLite
-    if (activeLayers.includes("episodic") && cwd) {
-      try {
-        const dbPath = projectDbPath(cwd);
-        if (existsSync(dbPath)) {
+    if (cwd) {
+      const dbPath = projectDbPath(cwd);
+      if (existsSync(dbPath)) {
+        try {
           mkdirSync(dirname(dbPath), { recursive: true });
           const db = new DatabaseSync(dbPath);
           runLcmMigrations(db);
-          const convStore = new ConversationStore(db);
-          const summStore = new SummaryStore(db);
-          const engine = new RetrievalEngine(convStore, summStore);
-          const result = await engine.grep({ query, mode: "full_text", scope: "both" });
-          const allMatches = [...result.messages, ...result.summaries];
-          const episodicMatches = filterTags
-            ? allMatches.filter((m) => {
-                const tags = (m as Record<string, unknown>).tags;
-                return Array.isArray(tags) && filterTags.every(t => tags.includes(t));
-              })
-            : allMatches;
-          episodic = episodicMatches.slice(0, limit);
+
+          // Episodic: FTS5 search across messages + summaries
+          if (activeLayers.includes("episodic")) {
+            try {
+              const convStore = new ConversationStore(db);
+              const summStore = new SummaryStore(db);
+              const engine = new RetrievalEngine(convStore, summStore);
+              const result = await engine.grep({ query, mode: "full_text", scope: "both" });
+              const allMatches = [...result.messages, ...result.summaries];
+              const episodicMatches = filterTags
+                ? allMatches.filter((m) => {
+                    const t = (m as Record<string, unknown>).tags;
+                    return Array.isArray(t) && filterTags.every(ft => t.includes(ft));
+                  })
+                : allMatches;
+              episodic = episodicMatches.slice(0, limit);
+            } catch { /* non-fatal */ }
+          }
+
+          // Promoted: FTS5 search across promoted memories
+          if (activeLayers.includes("promoted")) {
+            try {
+              const promotedStore = new PromotedStore(db);
+              promoted = promotedStore.search(query, limit, filterTags);
+            } catch { /* non-fatal */ }
+          }
+
           db.close();
-        }
-      } catch { /* non-fatal */ }
+        } catch { /* non-fatal */ }
+      }
     }
 
-    // Semantic: Qdrant search
+    // Semantic: Qdrant search (optional, non-fatal)
     if (activeLayers.includes("semantic")) {
       try {
         const require = createRequire(import.meta.url);
@@ -65,6 +81,6 @@ export function createSearchHandler(config: DaemonConfig): RouteHandler {
       } catch { /* non-fatal — Qdrant may not be running */ }
     }
 
-    sendJson(res, 200, { episodic, semantic });
+    sendJson(res, 200, { episodic, semantic, promoted });
   };
 }

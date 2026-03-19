@@ -23,24 +23,37 @@ cd "$INSTALL_DIR"
 npm install --silent
 npm run build --silent
 
-# Install binary to ~/.npm-global (no sudo, no Homebrew permission issues)
+# Install binary as a wrapper script (avoids npm prefix/permission issues)
 echo "  ▸ Installing lossless-claude binary to ${NPM_PREFIX}/bin"
-mkdir -p "$NPM_PREFIX"
-npm install -g . --prefix "$NPM_PREFIX" --silent
+mkdir -p "${NPM_PREFIX}/bin"
+cat > "${NPM_PREFIX}/bin/lossless-claude" << WRAPEOF
+#!/bin/sh
+exec node "${INSTALL_DIR}/dist/bin/lossless-claude.js" "\$@"
+WRAPEOF
+chmod +x "${NPM_PREFIX}/bin/lossless-claude"
 
 # Make binary available for the rest of this script
 export PATH="${NPM_PREFIX}/bin:${PATH}"
 
-# Persist to shell profile if not already there
-for rc in "${HOME}/.zshrc" "${HOME}/.bashrc" "${HOME}/.bash_profile"; do
-  if [ -f "$rc" ] && ! grep -q 'npm-global/bin' "$rc"; then
-    echo "" >> "$rc"
-    echo '# lossless-claude' >> "$rc"
-    echo 'export PATH="${HOME}/.npm-global/bin:${PATH}"' >> "$rc"
-    echo "  ▸ Added ~/.npm-global/bin to PATH in ${rc}"
-    break
-  fi
-done
+# Persist to the active shell's profile if not already there
+if [[ "${SHELL}" == */zsh ]]; then
+  _RC="${HOME}/.zshrc"
+elif [[ "${SHELL}" == */bash ]]; then
+  _RC="${HOME}/.bash_profile"
+else
+  _RC="${HOME}/.profile"
+fi
+if ! grep -q 'lossless-claude' "${_RC}" 2>/dev/null; then
+  echo "" >> "${_RC}"
+  echo '# lossless-claude' >> "${_RC}"
+  printf 'export PATH="%s/bin:${PATH}"\n' "${NPM_PREFIX}" >> "${_RC}"
+  echo "  ▸ Added ${NPM_PREFIX}/bin to PATH in ${_RC}"
+fi
 
 # Run the full installer (wires up hooks, daemon, Cipher, runs doctor)
 lossless-claude install
+
+echo ""
+echo "  Reload your shell to use lossless-claude in new terminals:"
+echo "    source ${_RC}"
+echo ""

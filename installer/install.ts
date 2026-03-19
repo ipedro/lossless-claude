@@ -488,7 +488,7 @@ export async function install(deps: ServiceDeps = defaultDeps): Promise<void> {
   // 9. Wait for services to come up
   console.log("Waiting for daemon...");
   const daemonPort = configData?.daemon?.port ?? configData?.port ?? 3737;
-  const daemonOk = await waitForHealth(`http://localhost:${daemonPort}/health`);
+  const daemonOk = await waitForHealth(`http://localhost:${daemonPort}/health`, 30000);
   if (!daemonOk) console.warn("Warning: daemon not responding — run: lossless-claude doctor");
 
   console.log("Waiting for Qdrant...");

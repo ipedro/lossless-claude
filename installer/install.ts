@@ -181,7 +181,7 @@ export function setupDaemonService(deps: ServiceDeps = defaultDeps): void {
 }
 
 type SummarizerConfig = {
-  provider: "anthropic" | "openai";
+  provider: "claude-cli" | "anthropic" | "openai";
   model: string;
   apiKey: string;
   baseURL: string;
@@ -212,28 +212,37 @@ function parseCipherYml(content: string): { model: string; baseURL: string } | n
 }
 
 async function pickSummarizer(deps: ServiceDeps, cipherConfigPath: string): Promise<SummarizerConfig> {
-  // Non-TTY (CI, piped stdin): skip interactive picker, default to Anthropic
+  // Non-TTY (CI, piped stdin): skip interactive picker, default to claude-cli
   if (!process.stdin.isTTY) {
+    return { provider: "claude-cli", model: "claude-haiku-4-5", apiKey: "", baseURL: "" };
+  }
+
+  console.log("\n  ─── Summarizer (for conversation compaction)\n");
+  console.log("  1) Claude Max / Pro  (recommended — uses your subscription, no API key needed)");
+  console.log("  2) Anthropic API     (direct API access — requires API key)");
+  console.log("  3) Local model       (reuse your vllm-mlx / ollama endpoint)");
+  console.log("  4) Custom server     (any OpenAI-compatible URL)");
+  console.log("");
+
+  let choice = (await deps.promptUser("  Pick [1]: ")).trim();
+  if (!["1", "2", "3", "4"].includes(choice)) {
+    console.log("  Invalid choice — please enter 1, 2, 3, or 4.");
+    choice = (await deps.promptUser("  Pick [1]: ")).trim();
+  }
+  if (!["1", "2", "3", "4"].includes(choice)) {
+    choice = "1"; // default after two invalid attempts
+  }
+
+  if (choice === "1") {
+    return { provider: "claude-cli", model: "claude-haiku-4-5", apiKey: "", baseURL: "" };
+  }
+
+  if (choice === "2") {
     const apiKey = process.env.ANTHROPIC_API_KEY ? "${ANTHROPIC_API_KEY}" : "";
     return { provider: "anthropic", model: "claude-haiku-4-5-20251001", apiKey, baseURL: "" };
   }
 
-  console.log("\n  ─── Summarizer (for conversation compaction)\n");
-  console.log("  1) Anthropic API     (best quality — requires API key)");
-  console.log("  2) Local model       (reuse your vllm-mlx / ollama endpoint)");
-  console.log("  3) Custom server     (any OpenAI-compatible URL)");
-  console.log("");
-
-  let choice = (await deps.promptUser("  Pick [1]: ")).trim();
-  if (!["1", "2", "3"].includes(choice)) {
-    console.log("  Invalid choice — please enter 1, 2, or 3.");
-    choice = (await deps.promptUser("  Pick [1]: ")).trim();
-  }
-  if (!["1", "2", "3"].includes(choice)) {
-    choice = "1"; // default after two invalid attempts
-  }
-
-  if (choice === "2") {
+  if (choice === "3") {
     // Read from cipher.yml
     try {
       const cipherContent = deps.readFileSync(cipherConfigPath, "utf-8");
@@ -243,23 +252,17 @@ async function pickSummarizer(deps: ServiceDeps, cipherConfigPath: string): Prom
       }
     } catch {}
     console.warn("  Warning: Could not read local model config from cipher.yml — falling back to manual entry.");
-    choice = "3";
+    choice = "4";
   }
 
-  if (choice === "3") {
+  if (choice === "4") {
     const baseURL = (await deps.promptUser("  Server URL (e.g. http://192.168.1.x:8080/v1): ")).trim();
     const model = (await deps.promptUser("  Model name: ")).trim();
     return { provider: "openai", model, apiKey: "", baseURL };
   }
 
-  // Option 1: Anthropic
-  const apiKey = process.env.ANTHROPIC_API_KEY ? "${ANTHROPIC_API_KEY}" : "";
-  return {
-    provider: "anthropic",
-    model: "claude-haiku-4-5-20251001",
-    apiKey,
-    baseURL: "",
-  };
+  // Fallback (should not reach here)
+  return { provider: "claude-cli", model: "claude-haiku-4-5", apiKey: "", baseURL: "" };
 }
 
 export async function install(deps: ServiceDeps = defaultDeps): Promise<void> {

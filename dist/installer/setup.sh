@@ -30,6 +30,31 @@ warn()  { echo -e "  ${YELLOW}▸${NC} $*"; }
 error() { echo -e "  ${RED}▸${NC} $*" >&2; }
 lane()  { echo ""; echo -e "  ${CYAN}━━━${NC} ${BOLD}$*${NC}"; echo ""; }
 
+# Wait for an HTTP endpoint to become available
+_wait_for_endpoint() {
+  local url="$1" max_wait="${2:-15}" label="${3:-endpoint}"
+  local elapsed=0
+  while [ "$elapsed" -lt "$max_wait" ]; do
+    if curl -sf --max-time 2 "$url" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+  return 1
+}
+
+# Test embedding endpoint: POST a trivial input and verify expected dimensions
+_test_embedding() {
+  local base_url="$1" model="$2" expected_dims="${3:-768}"
+  local response dims
+  response=$(curl -sf --max-time 10 "${base_url}/embeddings" \
+    -H "Content-Type: application/json" \
+    -d "{\"model\": \"${model}\", \"input\": \"health check\"}" 2>&1) || return 1
+  dims=$(echo "$response" | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d['data'][0]['embedding']))" 2>/dev/null) || return 1
+  [ "$dims" -eq "$expected_dims" ]
+}
+
 echo ""
 echo -e "  ${BOLD}lossless-claude${NC} ${DIM}memory stack setup${NC}"
 echo ""
@@ -223,6 +248,42 @@ if [ "$XGH_DRY_RUN" -eq 0 ]; then
       info "Qdrant is already running"
     fi
 
+    # ── vLLM-MLX LaunchAgent ──────────────────────────────────
+    _VLLM_MLX_BIN=$(command -v vllm-mlx 2>/dev/null || echo "")
+    _VLLM_MLX_PLIST="${HOME}/Library/LaunchAgents/com.lossless-claude.vllm-mlx.plist"
+    _LCM_LOG_DIR="${HOME}/.lossless-claude/logs"
+    mkdir -p "$_LCM_LOG_DIR"
+
+    if [ -n "$_VLLM_MLX_BIN" ]; then
+      _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+      _PLIST_TEMPLATE="${_SCRIPT_DIR}/templates/com.lossless-claude.vllm-mlx.plist"
+
+      if [ -f "$_PLIST_TEMPLATE" ]; then
+        cp "$_PLIST_TEMPLATE" "$_VLLM_MLX_PLIST"
+        sed -i '' "s|__VLLM_MLX_BIN__|${_VLLM_MLX_BIN}|g" "$_VLLM_MLX_PLIST"
+        sed -i '' "s|__EMBED_MODEL__|${XGH_EMBED_MODEL}|g" "$_VLLM_MLX_PLIST"
+        sed -i '' "s|__MODEL_PORT__|${XGH_MODEL_PORT}|g" "$_VLLM_MLX_PLIST"
+        sed -i '' "s|__LOG_DIR__|${_LCM_LOG_DIR}|g" "$_VLLM_MLX_PLIST"
+        sed -i '' "s|__HOME__|${HOME}|g" "$_VLLM_MLX_PLIST"
+
+        # If user also picked a local LLM (not claude-server), inject --model args
+        if [ -n "${XGH_LLM_MODEL:-}" ] && [ "${_LLM_PROVIDER:-claude-server}" != "claude-server" ]; then
+          /usr/libexec/PlistBuddy -c "Add :ProgramArguments: string '--model'" "$_VLLM_MLX_PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :ProgramArguments: string '${XGH_LLM_MODEL}'" "$_VLLM_MLX_PLIST" 2>/dev/null || true
+        fi
+
+        # Unload any existing, then load
+        launchctl unload "$_VLLM_MLX_PLIST" 2>/dev/null || true
+        launchctl load "$_VLLM_MLX_PLIST" 2>/dev/null \
+          || warn "Could not load vLLM-MLX plist — start manually: launchctl load ${_VLLM_MLX_PLIST}"
+        info "vLLM-MLX LaunchAgent loaded (embedding: ${XGH_EMBED_MODEL}, port: ${XGH_MODEL_PORT})"
+      else
+        warn "vLLM-MLX plist template not found — skipping LaunchAgent setup"
+      fi
+    else
+      warn "vllm-mlx binary not found — skipping LaunchAgent setup (install with: uv tool install vllm-mlx)"
+    fi
+
   elif [ "$XGH_BACKEND" = "ollama" ]; then
     if [[ "$(uname)" == "Darwin" ]]; then
       # ── macOS: Ollama + Qdrant via Homebrew ────────
@@ -341,6 +402,48 @@ QDRANTSVCEOF
     else
       info "Qdrant already installed"
     fi
+  fi
+
+  # ── Claude-server provider detection ─────────────────────────────────────────
+  _CLAUDE_SERVER_AVAILABLE=0
+  if command -v claude-server &>/dev/null || command -v claude-max-api &>/dev/null; then
+    _CLAUDE_SERVER_AVAILABLE=1
+  fi
+  _LLM_PROVIDER=""
+
+  if [ "$XGH_DRY_RUN" -eq 0 ] && [ -z "${XGH_LLM_MODEL:-}" ]; then
+    echo ""
+    echo -e "  ${BOLD}Pick a Cipher LLM provider${NC} ${DIM}(reasoning brain)${NC}"
+    echo ""
+    echo -e "    ${GREEN}1)${NC} claude-server — Claude Haiku via your Claude subscription ${DIM}(recommended)${NC}"
+    echo -e "    2) Local model via ${XGH_BACKEND}"
+    echo -e "    3) Remote OpenAI-compatible endpoint"
+    echo ""
+    if [ -t 0 ]; then
+      read -r -p "  Choice [1]: " _llm_choice
+    fi
+    _llm_choice="${_llm_choice:-1}"
+    case "$_llm_choice" in
+      1)
+        _LLM_PROVIDER="claude-server"
+        if [ "$_CLAUDE_SERVER_AVAILABLE" -eq 0 ]; then
+          info "Installing claude-server..."
+          npm install -g claude-max-api-proxy &>/dev/null || {
+            warn "Could not install claude-max-api-proxy — install manually: npm install -g claude-max-api-proxy"
+            _LLM_PROVIDER=""
+          }
+        fi
+        ;;
+      2)
+        _LLM_PROVIDER="local"
+        ;;
+      3)
+        _LLM_PROVIDER="remote"
+        ;;
+      *)
+        _LLM_PROVIDER="claude-server"
+        ;;
+    esac
   fi
 
   # ── 2. Model selection ────────────────────────────────────────────────────────
@@ -626,7 +729,25 @@ print('yes' if '${1}' in ids else 'no')
     info "Generating cipher.yml"
     mkdir -p "${HOME}/.cipher"
     if [ "$XGH_BACKEND" = "vllm-mlx" ]; then
-      cat > "$CIPHER_YML" <<CIPHERYMLEOF
+      if [ "${_LLM_PROVIDER:-}" = "claude-server" ]; then
+        cat > "$CIPHER_YML" <<CIPHERYMLEOF
+mcpServers: {}
+
+llm:
+  provider: claude-server
+  model: claude-haiku-4-5
+  maxIterations: 50
+
+embedding:
+  type: openai
+  model: ${XGH_EMBED_MODEL}
+  apiKey: placeholder
+  baseURL: http://localhost:${XGH_MODEL_PORT}/v1
+  dimensions: 768
+CIPHERYMLEOF
+        info "LLM provider: claude-server (Haiku via Claude subscription)"
+      else
+        cat > "$CIPHER_YML" <<CIPHERYMLEOF
 mcpServers: {}
 
 llm:
@@ -653,6 +774,7 @@ systemPrompt:
     - Explaining complex technical concepts
     - Reasoning through programming challenges
 CIPHERYMLEOF
+      fi  # end claude-server vs local LLM
     elif [ "$XGH_BACKEND" = "remote" ]; then
       cat > "$CIPHER_YML" <<CIPHERYMLEOF
 mcpServers: {}
@@ -722,21 +844,25 @@ content = open(path).read()
 content = re.sub(r'(^embedding:.*?^\s+model:\s*)(\S+)', lambda m: m.group(1) + embed_model, content, flags=re.MULTILINE|re.DOTALL, count=1)
 # Update LLM model (only under llm: section, not embedding:)
 content = re.sub(r'(^llm:.*?^\s+model:\s*)(\S+)', lambda m: m.group(1) + llm_model, content, flags=re.MULTILINE|re.DOTALL, count=1)
-# Update baseURLs based on backend
+# Update baseURLs based on backend — write literal full URL to avoid /v1 doubling
 if backend == 'remote':
-    # Replace any existing baseURL (localhost or otherwise) with remote URL
-    content = re.sub(r'(baseURL:\s*)(\S+)', lambda m: m.group(1) + remote_url + '/v1', content)
+    full_url = remote_url.rstrip('/') + '/v1'
+    # Replace ALL baseURL values with the literal remote URL
+    content = re.sub(r'(baseURL:\s*)(\S+)', lambda m: m.group(1) + full_url, content)
     # Update provider and type to openai
     content = re.sub(r'(^llm:.*?^\s+provider:\s*)(\S+)', lambda m: m.group(1) + 'openai', content, flags=re.MULTILINE|re.DOTALL, count=1)
     content = re.sub(r'(^embedding:.*?^\s+type:\s*)(\S+)', lambda m: m.group(1) + 'openai', content, flags=re.MULTILINE|re.DOTALL, count=1)
 elif backend == 'vllm-mlx':
-    content = re.sub(r'(baseURL:\s*http://localhost:)\d+(/v1)', lambda m: m.group(1) + port + m.group(2), content)
-    content = re.sub(r'(baseURL:\s*http://localhost:)\d+(?!/v1)', lambda m: m.group(1) + port + '/v1', content)
+    full_url = 'http://localhost:' + port + '/v1'
+    # Replace ALL baseURL values with the literal local URL
+    content = re.sub(r'(baseURL:\s*)(\S+)', lambda m: m.group(1) + full_url, content)
     # Update provider and type to openai
     content = re.sub(r'(^llm:.*?^\s+provider:\s*)(\S+)', lambda m: m.group(1) + 'openai', content, flags=re.MULTILINE|re.DOTALL, count=1)
     content = re.sub(r'(^embedding:.*?^\s+type:\s*)(\S+)', lambda m: m.group(1) + 'openai', content, flags=re.MULTILINE|re.DOTALL, count=1)
 else:
-    content = re.sub(r'(baseURL:\s*http://localhost:)\d+(?:/v1)?', lambda m: m.group(1) + port, content)
+    full_url = 'http://localhost:' + port
+    # Replace ALL baseURL values with the literal local URL (no /v1 for ollama)
+    content = re.sub(r'(baseURL:\s*)(\S+)', lambda m: m.group(1) + full_url, content)
     # Update provider and type to ollama
     content = re.sub(r'(^llm:.*?^\s+provider:\s*)(\S+)', lambda m: m.group(1) + 'ollama', content, flags=re.MULTILINE|re.DOTALL, count=1)
     content = re.sub(r'(^embedding:.*?^\s+type:\s*)(\S+)', lambda m: m.group(1) + 'ollama', content, flags=re.MULTILINE|re.DOTALL, count=1)
@@ -745,6 +871,35 @@ print(f'  synced: llm={llm_model} embed={embed_model} backend={backend}' + (f' r
 SYNCEOF
     else
       warn "python3 not found — cipher.yml model sync skipped (models may be stale in existing config)"
+    fi
+  fi
+
+  # ── Post-install health checks ────────────────────────────
+  lane "Verifying the stack"
+
+  _all_passed=1
+
+  # Qdrant
+  if _wait_for_endpoint "http://localhost:6333/healthz" 10 "Qdrant"; then
+    info "Qdrant: healthy ✓"
+  else
+    warn "Qdrant: not responding on :6333 — check: launchctl list | grep qdrant"
+    _all_passed=0
+  fi
+
+  # vLLM-MLX embeddings (only for local backends)
+  if [ "$XGH_BACKEND" = "vllm-mlx" ] || [ "$XGH_BACKEND" = "ollama" ]; then
+    if _wait_for_endpoint "http://localhost:${XGH_MODEL_PORT}/v1/models" 15 "Model server"; then
+      info "Model server: reachable on :${XGH_MODEL_PORT} ✓"
+      if _test_embedding "http://localhost:${XGH_MODEL_PORT}/v1" "$XGH_EMBED_MODEL" 768; then
+        info "Embedding test: ${XGH_EMBED_MODEL} → 768 dims ✓"
+      else
+        warn "Embedding test failed — model may still be loading. Retry: curl -X POST http://localhost:${XGH_MODEL_PORT}/v1/embeddings -H 'Content-Type: application/json' -d '{\"model\": \"${XGH_EMBED_MODEL}\", \"input\": \"test\"}'"
+        _all_passed=0
+      fi
+    else
+      warn "Model server: not responding on :${XGH_MODEL_PORT} — check: launchctl list | grep vllm-mlx"
+      _all_passed=0
     fi
   fi
 

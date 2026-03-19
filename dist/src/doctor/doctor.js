@@ -39,20 +39,25 @@ function loadConfig(deps) {
     let backend = "unknown";
     let embeddingModel = "";
     let llmModel = "";
-    let modelPort = 11434;
+    let modelPort = 11435;
     let remoteUrl = "";
     const cipherYml = join(deps.homedir, ".cipher", "cipher.yml");
     try {
         const content = deps.readFileSync(cipherYml, "utf-8");
         // Parse backend from provider
-        const providerMatch = content.match(/^llm:\s*\n\s+provider:\s*(\S+)/m);
-        if (providerMatch) {
-            const provider = providerMatch[1];
-            if (provider === "ollama")
+        // Detect backend from embedding baseURL port, not LLM provider
+        // LLM provider (claude-server, openai, ollama) is independent of embedding backend
+        const embedUrlMatch = content.match(/^embedding:[\s\S]*?baseURL:\s*http:\/\/localhost:(\d+)/m);
+        if (embedUrlMatch) {
+            const port = parseInt(embedUrlMatch[1], 10);
+            if (port === 11435)
+                backend = "vllm-mlx";
+            else if (port === 11434)
                 backend = "ollama";
-            else
-                backend = "vllm-mlx"; // openai provider = vllm-mlx or remote
         }
+        const embedRemoteMatch = content.match(/^embedding:[\s\S]*?baseURL:\s*(http:\/\/(?!localhost)\S+)/m);
+        if (embedRemoteMatch)
+            backend = "remote";
         // Parse models
         const llmModelMatch = content.match(/^llm:[\s\S]*?^\s+model:\s*(\S+)/m);
         if (llmModelMatch)
@@ -381,6 +386,95 @@ export async function runDoctor(overrides) {
         else {
             results.push({ name: "anthropic-key", category: "Summarizer", status: "warn", message: "ANTHROPIC_API_KEY not set in environment" });
         }
+    }
+    // ── cipher.yml baseURL validation ──
+    const cipherPath = join(deps.homedir, ".cipher", "cipher.yml");
+    try {
+        const cipherContent = deps.readFileSync(cipherPath, "utf-8");
+        const baseUrlMatches = [...cipherContent.matchAll(/baseURL:\s*(\S+)/g)];
+        if (baseUrlMatches.length > 0) {
+            const url = baseUrlMatches[0][1];
+            // Check for doubled /v1 (e.g. /v15/v15/v1 or /v1/v1)
+            if (/\/v1.*\/v1/.test(url) || (!/\/v1$/.test(url) && /localhost/.test(url) && !/ollama/.test(cipherContent))) {
+                const portMatch = url.match(/:(\d+)/);
+                const port = portMatch ? portMatch[1] : String(config.modelPort);
+                const fixed = `http://localhost:${port}/v1`;
+                const fixedContent = cipherContent.replace(url, fixed);
+                deps.writeFileSync(cipherPath, fixedContent);
+                results.push({ name: "cipher-baseurl", category: "Config", status: "warn", message: `baseURL corrupted (${url}) → fixed to ${fixed}`, fixApplied: true });
+            }
+            else {
+                results.push({ name: "cipher-baseurl", category: "Config", status: "pass", message: `baseURL: ${url}` });
+            }
+        }
+    }
+    catch { }
+    // ── vLLM-MLX service ──
+    if (config.backend === "vllm-mlx") {
+        const vllmPlist = join(deps.homedir, "Library", "LaunchAgents", "com.lossless-claude.vllm-mlx.plist");
+        if (deps.platform === "darwin") {
+            if (deps.existsSync(vllmPlist)) {
+                results.push({ name: "vllm-mlx-service", category: "Backend", status: "pass", message: "com.lossless-claude.vllm-mlx (registered)" });
+            }
+            else {
+                results.push({ name: "vllm-mlx-service", category: "Backend", status: "fail", message: "vLLM-MLX plist missing — run: lossless-claude install" });
+            }
+        }
+        // Check if vLLM-MLX process is responding
+        const modelUrl = `http://localhost:${config.modelPort}/v1/models`;
+        if (await checkUrl(modelUrl, deps)) {
+            results.push({ name: "vllm-mlx-process", category: "Backend", status: "pass", message: `localhost:${config.modelPort} (up)` });
+        }
+        else {
+            // Auto-fix: restart via launchctl
+            let fixed = false;
+            if (deps.platform === "darwin" && deps.existsSync(vllmPlist)) {
+                deps.spawnSync("launchctl", ["unload", vllmPlist], {});
+                deps.spawnSync("launchctl", ["load", vllmPlist], {});
+                await new Promise(r => setTimeout(r, 5000));
+                fixed = await checkUrl(modelUrl, deps);
+            }
+            if (fixed) {
+                results.push({ name: "vllm-mlx-process", category: "Backend", status: "warn", message: `localhost:${config.modelPort} — restarted`, fixApplied: true });
+            }
+            else {
+                results.push({ name: "vllm-mlx-process", category: "Backend", status: "fail", message: `localhost:${config.modelPort} not responding\n     Fix: launchctl load ~/Library/LaunchAgents/com.lossless-claude.vllm-mlx.plist` });
+            }
+        }
+        // Embedding test
+        try {
+            const res = await deps.fetch(`http://localhost:${config.modelPort}/v1/embeddings`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ model: config.embeddingModel, input: "health check" }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                const dims = data?.data?.[0]?.embedding?.length;
+                results.push({ name: "embedding-test", category: "Backend", status: "pass", message: `${config.embeddingModel || "embedding model"} → ${dims} dims` });
+            }
+            else {
+                results.push({ name: "embedding-test", category: "Backend", status: "fail", message: `Embedding API returned ${res.status}` });
+            }
+        }
+        catch {
+            results.push({ name: "embedding-test", category: "Backend", status: "warn", message: "Embedding endpoint not reachable (vLLM-MLX may be loading)" });
+        }
+    }
+    // ── claude-server check ──
+    if (config.backend === "vllm-mlx" || config.backend === "unknown") {
+        try {
+            const cipherContent2 = deps.readFileSync(cipherPath, "utf-8");
+            if (cipherContent2.includes("provider: claude-server")) {
+                if (await checkUrl("http://localhost:3456/health", deps)) {
+                    results.push({ name: "claude-server", category: "Backend", status: "pass", message: "claude-server (up on :3456)" });
+                }
+                else {
+                    results.push({ name: "claude-server", category: "Backend", status: "warn", message: "claude-server not responding — starts on demand, may be idle" });
+                }
+            }
+        }
+        catch { }
     }
     // ── MCP handshake ──
     if (daemonHealthy) {

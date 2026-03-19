@@ -13,6 +13,7 @@ export type DaemonConfig = {
   llm: { provider: "claude-cli" | "anthropic" | "openai" | "disabled"; model: string; apiKey?: string; baseURL: string };
   claudeCliProxy: { enabled: boolean; port: number; startupTimeoutMs: number; model: string };
   cipher: { configPath: string; collection: string };
+  backend: "vllm-mlx" | "ollama" | "remote" | "unknown";
 };
 
 const DEFAULTS: DaemonConfig = {
@@ -30,6 +31,7 @@ const DEFAULTS: DaemonConfig = {
   llm: { provider: "claude-cli", model: "claude-haiku-4-5", apiKey: "", baseURL: "" },
   claudeCliProxy: { enabled: true, port: 3456, startupTimeoutMs: 10000, model: "claude-haiku-4-5" },
   cipher: { configPath: join(homedir(), ".cipher", "cipher.yml"), collection: "lossless_memory" },
+  backend: "unknown",
 };
 
 function deepMerge(target: any, source: any): any {
@@ -50,6 +52,19 @@ export function loadDaemonConfig(configPath: string, overrides?: any, env?: Reco
   try { fileConfig = JSON.parse(readFileSync(configPath, "utf-8")); } catch {}
   const merged = deepMerge(structuredClone(DEFAULTS), deepMerge(fileConfig, overrides));
   if (merged.llm.apiKey) merged.llm.apiKey = merged.llm.apiKey.replace(/\$\{(\w+)\}/g, (_: string, k: string) => e[k] ?? "");
+
+  // Detect backend from cipher.yml baseURL
+  try {
+    const cipherYml = join(homedir(), ".cipher", "cipher.yml");
+    const content = readFileSync(cipherYml, "utf-8");
+    const urlMatch = content.match(/baseURL:\s*http:\/\/localhost:(\d+)/);
+    if (urlMatch) {
+      const port = parseInt(urlMatch[1], 10);
+      merged.backend = port === 11435 ? "vllm-mlx" : port === 11434 ? "ollama" : "unknown";
+    }
+    const remoteMatch = content.match(/baseURL:\s*(http:\/\/(?!localhost)\S+)/);
+    if (remoteMatch) merged.backend = "remote";
+  } catch {}
 
   // Env var override: LCM_SUMMARY_PROVIDER takes precedence over config
   const VALID_PROVIDERS = new Set(["claude-cli", "anthropic", "openai", "disabled"]);

@@ -38,5 +38,6 @@ export type DaemonConfig = {
         configPath: string;
         collection: string;
     };
+    backend: "vllm-mlx" | "ollama" | "remote" | "unknown";
 };
 export declare function loadDaemonConfig(configPath: string, overrides?: any, env?: Record<string, string | undefined>): DaemonConfig;

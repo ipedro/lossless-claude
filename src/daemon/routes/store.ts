@@ -24,11 +24,11 @@ export function createStoreHandler(config: DaemonConfig): RouteHandler {
       return;
     }
 
+    const dbPath = projectDbPath(projectPath);
+    mkdirSync(dirname(dbPath), { recursive: true });
+    const db = new DatabaseSync(dbPath);
     try {
       // Core: write to SQLite promoted table
-      const dbPath = projectDbPath(projectPath);
-      mkdirSync(dirname(dbPath), { recursive: true });
-      const db = new DatabaseSync(dbPath);
       runLcmMigrations(db);
       const store = new PromotedStore(db);
 
@@ -40,7 +40,6 @@ export function createStoreHandler(config: DaemonConfig): RouteHandler {
         depth: metadata.depth ?? 0,
         confidence: 1.0,
       });
-      db.close();
 
       // Optional: also promote to Qdrant (non-fatal)
       try {
@@ -62,6 +61,8 @@ export function createStoreHandler(config: DaemonConfig): RouteHandler {
       sendJson(res, 200, { stored: true, id });
     } catch (err) {
       sendJson(res, 500, { error: err instanceof Error ? err.message : "store failed" });
+    } finally {
+      db.close();
     }
   };
 }

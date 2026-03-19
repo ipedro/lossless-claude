@@ -33,9 +33,9 @@ export function createSearchHandler(config: DaemonConfig): RouteHandler {
     if (cwd) {
       const dbPath = projectDbPath(cwd);
       if (existsSync(dbPath)) {
+        mkdirSync(dirname(dbPath), { recursive: true });
+        const db = new DatabaseSync(dbPath);
         try {
-          mkdirSync(dirname(dbPath), { recursive: true });
-          const db = new DatabaseSync(dbPath);
           runLcmMigrations(db);
 
           // Episodic: FTS5 search across messages + summaries
@@ -63,9 +63,10 @@ export function createSearchHandler(config: DaemonConfig): RouteHandler {
               promoted = promotedStore.search(query, limit, filterTags);
             } catch { /* non-fatal */ }
           }
-
-          db.close();
         } catch { /* non-fatal */ }
+        finally {
+          db.close();
+        }
       }
     }
 

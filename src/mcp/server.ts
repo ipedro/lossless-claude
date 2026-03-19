@@ -1,7 +1,11 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import { DaemonClient } from "../daemon/client.js";
+import { loadDaemonConfig } from "../daemon/config.js";
+import { ensureDaemon } from "../daemon/lifecycle.js";
 import { lcmGrepTool } from "./tools/lcm-grep.js";
 import { lcmExpandTool } from "./tools/lcm-expand.js";
 import { lcmDescribeTool } from "./tools/lcm-describe.js";
@@ -21,7 +25,13 @@ const TOOL_ROUTES: Record<string, string> = {
 export function getMcpToolDefinitions() { return TOOLS; }
 
 export async function startMcpServer(): Promise<void> {
-  const client = new DaemonClient("http://127.0.0.1:3737");
+  const config = loadDaemonConfig(join(homedir(), ".lossless-claude", "config.json"));
+  const port = config.daemon.port;
+  const pidFilePath = join(homedir(), ".lossless-claude", "daemon.pid");
+
+  await ensureDaemon({ port, pidFilePath, spawnTimeoutMs: 10000 });
+
+  const client = new DaemonClient(`http://127.0.0.1:${port}`);
   const server = new Server({ name: "lossless-claude", version: "1.0.0" }, { capabilities: { tools: {} } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));

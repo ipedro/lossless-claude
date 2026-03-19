@@ -27,6 +27,25 @@ async function main() {
   switch (command) {
     case "daemon": {
       if (argv[3] === "start") {
+        if (argv.includes("--detach")) {
+          const { spawn } = await import("node:child_process");
+          const child = spawn(process.execPath, [process.argv[1], "daemon", "start"], {
+            detached: true,
+            stdio: "ignore",
+            env: process.env,
+          });
+          child.unref();
+          if (child.pid) {
+            const { writeFileSync, mkdirSync } = await import("node:fs");
+            const { join } = await import("node:path");
+            const { homedir } = await import("node:os");
+            const lcDir = join(homedir(), ".lossless-claude");
+            mkdirSync(lcDir, { recursive: true });
+            writeFileSync(join(lcDir, "daemon.pid"), String(child.pid));
+            console.log(`lossless-claude daemon started in background (PID ${child.pid})`);
+          }
+          exit(0);
+        }
         const { createDaemon } = await import("../src/daemon/server.js");
         const { loadDaemonConfig } = await import("../src/daemon/config.js");
         const { createClaudeCliProxyManager } = await import("../src/daemon/proxy-manager.js");

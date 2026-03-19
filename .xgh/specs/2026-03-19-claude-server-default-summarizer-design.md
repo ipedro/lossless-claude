@@ -24,13 +24,26 @@ The lossless-claude daemon manages `claude-server` as a child process:
 Plugin initializes
   └─ LcmDaemon.start()
        ├─ ClaudeCliProxyManager.start()   ← new
-       │    ├─ spawns claude-server on port 3456
+       │    ├─ spawns claude-server on port {claudeCliProxy.port}
        │    ├─ waits for /health to respond OK (10s timeout)
        │    └─ monitors: restarts on failure (3 consecutive misses → give up)
        └─ configures LlmSummarizer
-            └─ createOpenAISummarizer({ baseURL: "http://localhost:3456/v1" })
-                 (existing, unchanged)
+            └─ createOpenAISummarizer({ baseURL: "http://localhost:{port}/v1", apiKey: "local" })
+                 (existing, unchanged — apiKey: "local" already defaulted in openai.ts)
 ```
+
+### Provider dispatch in `compact.ts`
+
+`"claude-cli"` is resolved to `"openai"` + localhost baseURL before the existing binary branch runs. The compact handler never sees `"claude-cli"` as a provider value:
+
+```typescript
+// loadDaemonConfig resolves "claude-cli" → effectively openai with localhost baseURL
+// compact.ts existing dispatch remains unchanged:
+if (provider === "openai") → createOpenAISummarizer(baseURL, apiKey)
+else                       → createAnthropicSummarizer(apiKey)
+```
+
+Resolution happens in `loadDaemonConfig`: if `provider === "claude-cli"`, set `provider = "openai"` and `baseURL = http://localhost:{port}/v1` before returning config.
 
 ---
 
@@ -48,16 +61,18 @@ interface ProxyManager {
 ```
 
 **Startup sequence:**
-1. Check if port 3456 is already in use (skip spawn if so — proxy already running)
-2. Spawn `claude-server` as child process (`stdio: 'pipe'`)
-3. Poll `GET /health` every 500ms up to 10s
-4. If timeout: mark unavailable, log actionable error, proceed without summarization
-5. Register `process.on('exit')` cleanup to kill child process
+1. Check if the PID file (`~/.claude/lcm-proxy.pid`) exists and the recorded process is alive:
+   - If alive: skip spawn, reuse existing process
+   - If stale PID: delete file, proceed to spawn
+2. Spawn `claude-server` as child process (`stdio: 'pipe'`), write PID to `~/.claude/lcm-proxy.pid`
+3. Poll `GET /health` every 500ms up to `startupTimeoutMs` — validate response contains `{"service":"claude-server"}` to confirm identity (not just any HTTP server on the port)
+4. If timeout or wrong service: kill child, mark unavailable, log actionable error, proceed without summarization
+5. Register `process.on('SIGTERM')`, `process.on('SIGINT')` to send SIGTERM to child and await graceful shutdown; register `process.on('exit')` as final synchronous kill fallback
 
 **Health monitoring (after startup):**
-- Ping `/health` every 30s
-- 3 consecutive failures → attempt one restart
-- One restart attempt; if restart fails → log and disable proxy (no further retries)
+- Ping `/health` every 30s, validate `{"service":"claude-server"}` identity
+- 3 consecutive failures → attempt one restart (re-run startup sequence)
+- If restart fails → log, delete PID file, disable proxy (no further retries)
 
 **Failure message:**
 ```
@@ -86,7 +101,32 @@ llm: {
 }
 ```
 
-`"claude-cli"` maps to `baseURL: http://localhost:{claudeCliProxy.port}/v1` automatically — no `apiKey` required.
+`"claude-cli"` is resolved to `provider: "openai"` + `baseURL: http://localhost:{port}/v1` in `loadDaemonConfig` before being returned — no `apiKey` required.
+
+### Required changes to `src/daemon/config.ts`
+
+1. Add `claudeCliProxy` to the `DaemonConfig` type
+2. Add `claudeCliProxy` defaults to the `DEFAULTS` constant:
+   ```typescript
+   claudeCliProxy: {
+     enabled: true,
+     port: 3456,
+     startupTimeoutMs: 10000,
+     model: "claude-haiku-4-5",
+   }
+   ```
+3. Add `"claude-cli"` to the `llm.provider` union type
+4. In `loadDaemonConfig`, after merging config, resolve `"claude-cli"`:
+   ```typescript
+   if (config.llm.provider === "claude-cli") {
+     config.llm.provider = "openai";
+     config.llm.baseURL = `http://localhost:${config.claudeCliProxy.port}/v1`;
+   }
+   ```
+
+### Env var override
+
+`LCM_SUMMARY_PROVIDER` already maps to `config.llm.provider` in the existing env-var resolution block in `loadDaemonConfig`. Add `"claude-cli"` as a valid value there. When `LCM_SUMMARY_PROVIDER=anthropic`, `claudeCliProxy.enabled` is automatically set to `false` (proxy not started).
 
 ---
 
@@ -110,9 +150,10 @@ The summarizer picker becomes:
 
 ## Dependency
 
-Add to `package.json`:
+Add to `package.json` as an **optional dependency** — users who choose Anthropic API or a custom endpoint do not need it, and it should not block installation if unavailable:
+
 ```json
-"dependencies": {
+"optionalDependencies": {
   "claude-server": "^<version>"
 }
 ```

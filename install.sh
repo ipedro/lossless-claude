@@ -4,7 +4,7 @@ set -euo pipefail
 INSTALL_DIR="${LOSSLESS_CLAUDE_DIR:-${HOME}/.lossless-claude/plugin}"
 
 echo ""
-echo "  lossless-claude — plugin installer"
+echo "  lossless-claude — installer"
 echo ""
 
 # Clone or update
@@ -22,10 +22,9 @@ cd "$INSTALL_DIR"
 npm install --silent
 npm run build --silent
 
-# Register with Claude Code
-echo "  ▸ Installing plugin"
-claude plugins install --link "$INSTALL_DIR"
+# Install binary globally so hooks and the installer can find it
+echo "  ▸ Installing lossless-claude binary"
+npm install -g . --silent
 
-echo ""
-echo "  ✓ lossless-claude installed. Restart Claude Code to activate."
-echo ""
+# Run the full installer (sets up settings.json, daemon, cipher, doctor)
+lossless-claude install

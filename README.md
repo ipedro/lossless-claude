@@ -57,7 +57,7 @@ The result: the context window never "fills up and dumps". It stays within `LCM_
 curl -fsSL https://raw.githubusercontent.com/ipedro/lossless-claude/main/install.sh | bash
 ```
 
-This clones the repo to `~/.lossless-claude/plugin`, builds it, and registers it with Claude Code. To use a custom install directory, set `LOSSLESS_CLAUDE_DIR` before running.
+This clones the repo to `~/.lossless-claude/plugin`, installs the `lossless-claude` binary globally, and runs the full setup (hooks, daemon, Cipher, doctor). To use a custom install directory, set `LOSSLESS_CLAUDE_DIR` before running.
 
 ### Configure Claude Code
 

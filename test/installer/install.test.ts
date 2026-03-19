@@ -2,9 +2,6 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   mergeClaudeSettings,
   resolveBinaryPath,
-  buildLaunchdPlist,
-  buildSystemdUnit,
-  setupDaemonService,
   install,
   type ServiceDeps,
 } from "../../installer/install.js";
@@ -87,89 +84,6 @@ describe("resolveBinaryPath", () => {
       existsSync: vi.fn().mockReturnValue(false),
     };
     expect(resolveBinaryPath(deps)).toBe("lossless-claude");
-  });
-});
-
-// ─── buildLaunchdPlist ──────────────────────────────────────────────────────
-
-describe("buildLaunchdPlist", () => {
-  it("includes binary path and log path", () => {
-    const plist = buildLaunchdPlist("/usr/local/bin/lossless-claude", "/home/user/.lossless-claude/daemon.log");
-    expect(plist).toContain("<string>/usr/local/bin/lossless-claude</string>");
-    expect(plist).toContain("<string>/home/user/.lossless-claude/daemon.log</string>");
-    expect(plist).toContain("<string>com.lossless-claude.daemon</string>");
-    expect(plist).toContain("<string>daemon</string>");
-    expect(plist).toContain("<string>start</string>");
-    expect(plist).toContain("<true/>");
-  });
-});
-
-// ─── buildSystemdUnit ───────────────────────────────────────────────────────
-
-describe("buildSystemdUnit", () => {
-  it("includes binary path", () => {
-    const unit = buildSystemdUnit("/usr/local/bin/lossless-claude");
-    expect(unit).toContain("ExecStart=/usr/local/bin/lossless-claude daemon start");
-    expect(unit).toContain("Restart=always");
-    expect(unit).toContain("WantedBy=default.target");
-  });
-});
-
-// ─── setupDaemonService ─────────────────────────────────────────────────────
-
-describe("setupDaemonService", () => {
-  const originalPlatform = process.platform;
-
-  afterEach(() => {
-    Object.defineProperty(process, "platform", { value: originalPlatform, writable: true });
-  });
-
-  it("on macOS writes plist and calls launchctl unload+load", () => {
-    Object.defineProperty(process, "platform", { value: "darwin", writable: true });
-    const deps = makeDeps();
-    setupDaemonService(deps);
-
-    expect(deps.writeFileSync).toHaveBeenCalledWith(
-      expect.stringContaining("com.lossless-claude.daemon.plist"),
-      expect.stringContaining("com.lossless-claude.daemon")
-    );
-    const cmds = (deps.spawnSync as ReturnType<typeof vi.fn>).mock.calls.map(
-      (c: any[]) => `${c[0]} ${(c[1] as string[]).join(" ")}`
-    );
-    expect(cmds.some((c: string) => c.includes("launchctl unload"))).toBe(true);
-    expect(cmds.some((c: string) => c.includes("launchctl load"))).toBe(true);
-  });
-
-  it("on Linux writes unit file and calls systemctl enable+start", () => {
-    Object.defineProperty(process, "platform", { value: "linux", writable: true });
-    const deps = makeDeps();
-    setupDaemonService(deps);
-
-    expect(deps.writeFileSync).toHaveBeenCalledWith(
-      expect.stringContaining("lossless-claude.service"),
-      expect.stringContaining("ExecStart=")
-    );
-    const cmds = (deps.spawnSync as ReturnType<typeof vi.fn>).mock.calls.map(
-      (c: any[]) => `${c[0]} ${(c[1] as string[]).join(" ")}`
-    );
-    expect(cmds.some((c: string) => c.includes("systemctl --user daemon-reload"))).toBe(true);
-    expect(cmds.some((c: string) => c.includes("systemctl --user enable lossless-claude"))).toBe(true);
-    expect(cmds.some((c: string) => c.includes("systemctl --user start lossless-claude"))).toBe(true);
-  });
-
-  it("on unsupported platform warns and skips service writes and service commands", () => {
-    Object.defineProperty(process, "platform", { value: "win32", writable: true });
-    const deps = makeDeps();
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    setupDaemonService(deps);
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Unsupported platform"));
-    expect(deps.writeFileSync).not.toHaveBeenCalled();
-    // No launchctl or systemctl calls (only 'which' may be called for binary resolution)
-    const serviceCmds = (deps.spawnSync as ReturnType<typeof vi.fn>).mock.calls.filter(
-      (c: any[]) => c[0] === "launchctl" || c[0] === "systemctl"
-    );
-    expect(serviceCmds).toHaveLength(0);
-    warnSpy.mockRestore();
   });
 });
 

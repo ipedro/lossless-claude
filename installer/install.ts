@@ -82,103 +82,6 @@ export function resolveBinaryPath(deps: Pick<ServiceDeps, "spawnSync" | "existsS
   return "lossless-claude";
 }
 
-export function buildLaunchdPlist(binaryPath: string, logPath: string, nodeBinDir?: string): string {
-  const nodePath = nodeBinDir ?? "/opt/homebrew/bin";
-  const pathValue = `${nodePath}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin`;
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>com.lossless-claude.daemon</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>${binaryPath}</string>
-    <string>daemon</string>
-    <string>start</string>
-  </array>
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>PATH</key>
-    <string>${pathValue}</string>
-  </dict>
-  <key>RunAtLoad</key>
-  <true/>
-  <key>KeepAlive</key>
-  <true/>
-  <key>StandardOutPath</key>
-  <string>${logPath}</string>
-  <key>StandardErrorPath</key>
-  <string>${logPath}</string>
-</dict>
-</plist>
-`;
-}
-
-export function buildSystemdUnit(binaryPath: string): string {
-  return `[Unit]
-Description=lossless-claude daemon
-After=network.target
-
-[Service]
-ExecStart=${binaryPath} daemon start
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=default.target
-`;
-}
-
-export function setupDaemonService(deps: ServiceDeps = defaultDeps): void {
-  const platform = process.platform;
-  const binaryPath = resolveBinaryPath(deps);
-
-  if (platform === "darwin") {
-    console.log("Setting up daemon service (launchd)...");
-
-    const plistDir = join(homedir(), "Library", "LaunchAgents");
-    const plistPath = join(plistDir, "com.lossless-claude.daemon.plist");
-    const logPath = join(homedir(), ".lossless-claude", "daemon.log");
-
-    deps.mkdirSync(plistDir, { recursive: true });
-    const nodeBinDir = dirname(process.execPath);
-    deps.writeFileSync(plistPath, buildLaunchdPlist(binaryPath, logPath, nodeBinDir));
-
-    // Unload first (idempotent — ignore errors if not loaded)
-    deps.spawnSync("launchctl", ["unload", plistPath], { stdio: "inherit" });
-    // Load and start
-    const load = deps.spawnSync("launchctl", ["load", plistPath], { stdio: "inherit" });
-    if (load.status !== 0) {
-      console.warn(`Warning: launchctl load exited with status ${load.status}`);
-    }
-
-    console.log("Daemon service registered and started.");
-  } else if (platform === "linux") {
-    console.log("Setting up daemon service (systemd)...");
-
-    const unitDir = join(homedir(), ".config", "systemd", "user");
-    const unitPath = join(unitDir, "lossless-claude.service");
-
-    deps.mkdirSync(unitDir, { recursive: true });
-    deps.writeFileSync(unitPath, buildSystemdUnit(binaryPath));
-
-    deps.spawnSync("systemctl", ["--user", "daemon-reload"], { stdio: "inherit" });
-    const enable = deps.spawnSync("systemctl", ["--user", "enable", "lossless-claude"], { stdio: "inherit" });
-    if (enable.status !== 0) {
-      console.warn(`Warning: systemctl enable exited with status ${enable.status}`);
-    }
-    const start = deps.spawnSync("systemctl", ["--user", "start", "lossless-claude"], { stdio: "inherit" });
-    if (start.status !== 0) {
-      console.warn(`Warning: systemctl start exited with status ${start.status}`);
-    }
-
-    console.log("Daemon service registered and started.");
-  } else {
-    console.warn(`Warning: Unsupported platform "${platform}". Skipping daemon service setup.`);
-    console.log("Run: lossless-claude daemon start");
-  }
-}
 
 type SummarizerConfig = {
   provider: "claude-cli" | "anthropic" | "openai";
@@ -482,15 +385,22 @@ export async function install(deps: ServiceDeps = defaultDeps): Promise<void> {
   const provider = configData?.llm?.provider ?? "disabled";
   installClaudeServer(deps, { provider });
 
-  // 8. Set up and start the persistent daemon service
-  setupDaemonService(deps);
+  // 8. Verify daemon can start (lazy daemon — no persistent service)
+  console.log("Verifying daemon...");
+  const { ensureDaemon } = await import("../src/daemon/lifecycle.js");
+  const daemonPort = configData?.daemon?.port ?? configData?.port ?? 3737;
+  const { connected } = await ensureDaemon({
+    port: daemonPort,
+    pidFilePath: join(lcDir, "daemon.pid"),
+    spawnTimeoutMs: 30000,
+  });
+  if (!connected) {
+    console.warn("Warning: daemon not responding — run: lossless-claude doctor");
+  } else {
+    console.log("Daemon started successfully.");
+  }
 
   // 9. Wait for services to come up
-  console.log("Waiting for daemon...");
-  const daemonPort = configData?.daemon?.port ?? configData?.port ?? 3737;
-  const daemonOk = await waitForHealth(`http://localhost:${daemonPort}/health`, 30000);
-  if (!daemonOk) console.warn("Warning: daemon not responding — run: lossless-claude doctor");
-
   console.log("Waiting for Qdrant...");
   const qdrantOk = await waitForHealth("http://localhost:6333/healthz");
   if (!qdrantOk) console.warn("Warning: Qdrant not responding — run: lossless-claude doctor");

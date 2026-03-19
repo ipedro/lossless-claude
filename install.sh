@@ -21,11 +21,18 @@ fi
 echo "  ▸ Building"
 cd "$INSTALL_DIR"
 npm install --silent
-npm run build --silent
+npm run build
+if [ ! -f "${INSTALL_DIR}/dist/bin/lossless-claude.js" ]; then
+  echo "  ✘ Build failed — dist/bin/lossless-claude.js not found" >&2
+  exit 1
+fi
 
 # Install binary as a wrapper script (avoids npm prefix/permission issues)
+# rm -f first: a previous run may have left a symlink here pointing back into dist/,
+# and `cat >` follows symlinks — it would overwrite the compiled JS instead of the wrapper.
 echo "  ▸ Installing lossless-claude binary to ${NPM_PREFIX}/bin"
 mkdir -p "${NPM_PREFIX}/bin"
+rm -f "${NPM_PREFIX}/bin/lossless-claude"
 cat > "${NPM_PREFIX}/bin/lossless-claude" << WRAPEOF
 #!/bin/sh
 exec node "${INSTALL_DIR}/dist/bin/lossless-claude.js" "\$@"

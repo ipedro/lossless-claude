@@ -132,6 +132,16 @@ describe("loadDaemonConfig", () => {
     expect(c.llm.baseURL).toBe("http://localhost:3456/v1");
   });
 
+  it("disables claudeCliProxy when provider is explicitly set to 'anthropic'", () => {
+    const c = loadDaemonConfig("/nonexistent", { llm: { provider: "anthropic", apiKey: "sk-test" } }, {});
+    expect(c.claudeCliProxy.enabled).toBe(false);
+  });
+
+  it("disables claudeCliProxy when provider is explicitly set to 'openai'", () => {
+    const c = loadDaemonConfig("/nonexistent", { llm: { provider: "openai", baseURL: "http://custom/v1" } }, {});
+    expect(c.claudeCliProxy.enabled).toBe(false);
+  });
+
   it("throws when LCM_SUMMARY_PROVIDER is set to an invalid value", () => {
     expect(() =>
       loadDaemonConfig("/nonexistent", {}, { LCM_SUMMARY_PROVIDER: "ollama" })

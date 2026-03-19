@@ -67,6 +67,11 @@ export function loadDaemonConfig(configPath: string, overrides?: any, env?: Reco
     }
   }
 
+  // Disable proxy when provider is not claude-cli
+  if (merged.llm.provider !== "claude-cli") {
+    merged.claudeCliProxy.enabled = false;
+  }
+
   // Anthropic API key fallback from env
   if (!merged.llm.apiKey && merged.llm.provider === "anthropic" && e.ANTHROPIC_API_KEY) {
     merged.llm.apiKey = e.ANTHROPIC_API_KEY;

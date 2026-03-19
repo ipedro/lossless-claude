@@ -22,7 +22,7 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
   const summarize =
     config.llm.provider === "disabled"
       ? null
-      : config.llm.provider === "openai"
+      : config.llm.provider === "openai" || config.llm.provider === "claude-cli"
         ? createOpenAISummarizer({
             model: config.llm.model,
             baseURL: config.llm.baseURL,

@@ -52,7 +52,7 @@ export function createClaudeCliProxyManager(opts: ProxyManagerOptions): ProxyMan
   let _available = false;
   let monitorTimer: ReturnType<typeof setInterval> | null = null;
   let hasAttemptedRestart = false;
-  let starting = false;
+  let startPromise: Promise<void> | null = null;
 
   async function checkHealth(): Promise<{ ok: boolean; isClaudeServer: boolean }> {
     try {
@@ -78,10 +78,11 @@ export function createClaudeCliProxyManager(opts: ProxyManagerOptions): ProxyMan
   }
 
   function spawnChild(): ChildProcess {
-    const cp = spawn("claude-server", ["--port", String(port)], {
-      stdio: "pipe",
+    const cp = spawn("claude-server", ["--port", String(port), "--model", opts.model], {
+      stdio: ["ignore", "ignore", "pipe"],
       detached: false,
     });
+    cp.stderr?.on("data", () => {}); // drain stderr to prevent buffer fill
     cp.unref();
     return cp;
   }
@@ -141,10 +142,7 @@ export function createClaudeCliProxyManager(opts: ProxyManagerOptions): ProxyMan
     }
   }
 
-  async function doStart(): Promise<void> {
-    if (starting) return;
-    starting = true;
-    try {
+  async function _doStartInternal(): Promise<void> {
     // Step 1: Check existing PID file
     if (existsSync(pidFilePath)) {
       try {
@@ -165,6 +163,12 @@ export function createClaudeCliProxyManager(opts: ProxyManagerOptions): ProxyMan
 
     // Step 2: Spawn new process
     child = spawnChild();
+    child.on("error", (err) => {
+      console.warn(`[lcm] claude-server spawn error: ${err.message}`);
+      _available = false;
+      deletePidFile();
+      child = null;
+    });
     if (child.pid) writePid(child.pid);
 
     // Handle child exit
@@ -197,9 +201,12 @@ export function createClaudeCliProxyManager(opts: ProxyManagerOptions): ProxyMan
       _available = false;
       deletePidFile();
     }
-    } finally {
-      starting = false;
-    }
+  }
+
+  async function doStart(): Promise<void> {
+    if (startPromise) return startPromise;
+    startPromise = _doStartInternal().finally(() => { startPromise = null; });
+    return startPromise;
   }
 
   const manager: ProxyManager = {

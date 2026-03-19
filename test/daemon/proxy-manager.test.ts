@@ -81,8 +81,8 @@ describe("ClaudeCliProxyManager", () => {
 
       expect(spawn).toHaveBeenCalledWith(
         "claude-server",
-        expect.arrayContaining(["--port", "13456"]),
-        expect.objectContaining({ stdio: "pipe" }),
+        expect.arrayContaining(["--port", "13456", "--model", "claude-haiku-4-5"]),
+        expect.objectContaining({ stdio: ["ignore", "ignore", "pipe"] }),
       );
       expect(writeFileSync).toHaveBeenCalledWith(
         "/tmp/test-lcm-proxy.pid",

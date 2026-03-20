@@ -13,6 +13,7 @@ import { createOpenAISummarizer } from "../../llm/openai.js";
 import { createClaudeProcessSummarizer } from "../../llm/claude-process.js";
 import { shouldPromote } from "../../promotion/detector.js";
 import { PromotedStore } from "../../db/promoted.js";
+import { deduplicateAndInsert } from "../../promotion/dedup.js";
 import { parseTranscript } from "../../transcript.js";
 
 // In-memory justCompacted map (session_id -> timestamp)
@@ -136,14 +137,20 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
           );
           if (promotionResult.promote) {
             const promotedStore = new PromotedStore(db);
-            promotedStore.insert({
+            await deduplicateAndInsert({
+              store: promotedStore,
               content: newSummary.content,
               tags: promotionResult.tags,
               projectId: pid,
               sessionId: session_id,
               depth: newSummary.depth,
               confidence: promotionResult.confidence,
-              sourceSummaryId: newSummary.summaryId,
+              summarize,
+              thresholds: {
+                dedupBm25Threshold: config.compaction.promotionThresholds.dedupBm25Threshold,
+                mergeMaxEntries: config.compaction.promotionThresholds.mergeMaxEntries,
+                confidenceDecayRate: config.compaction.promotionThresholds.confidenceDecayRate,
+              },
             });
             promotedCount = 1;
           }

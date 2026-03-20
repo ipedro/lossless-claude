@@ -1,5 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import type { DaemonConfig } from "../config.js";
 import { projectDbPath } from "../project.js";
@@ -13,6 +12,7 @@ export function createPromptSearchHandler(config: DaemonConfig): RouteHandler {
     const input = JSON.parse(body || "{}");
     const { query, cwd } = input;
 
+    // Missing fields: return empty hints (not 400) — callers treat this as "no suggestions"
     if (!query || !cwd) {
       sendJson(res, 200, { hints: [] });
       return;
@@ -24,9 +24,9 @@ export function createPromptSearchHandler(config: DaemonConfig): RouteHandler {
       return;
     }
 
+    let db: InstanceType<typeof DatabaseSync> | undefined;
     try {
-      mkdirSync(dirname(dbPath), { recursive: true });
-      const db = new DatabaseSync(dbPath);
+      db = new DatabaseSync(dbPath);
       runLcmMigrations(db);
 
       const store = new PromotedStore(db);
@@ -44,10 +44,11 @@ export function createPromptSearchHandler(config: DaemonConfig): RouteHandler {
           : r.content
       );
 
-      db.close();
       sendJson(res, 200, { hints });
     } catch {
       sendJson(res, 200, { hints: [] });
+    } finally {
+      db?.close();
     }
   };
 }

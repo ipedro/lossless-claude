@@ -11,6 +11,7 @@ interface ConversationStats {
 interface OverallStats {
     projects: number;
     conversations: number;
+    compactedConversations: number;
     messages: number;
     summaries: number;
     maxDepth: number;
@@ -20,6 +21,7 @@ interface OverallStats {
     promotedCount: number;
     conversationDetails: ConversationStats[];
 }
+export declare function formatNumber(n: number): string;
 export declare function printStats(stats: OverallStats, verbose: boolean): void;
 export declare function collectStats(): OverallStats;
 export {};

@@ -16,6 +16,9 @@ export type DaemonConfig = {
             compressionRatio: number;
             keywords: Record<string, string[]>;
             architecturePatterns: string[];
+            dedupBm25Threshold: number;
+            mergeMaxEntries: number;
+            confidenceDecayRate: number;
         };
     };
     restoration: {

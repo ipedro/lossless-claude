@@ -403,6 +403,12 @@ export function runLcmMigrations(db, options) {
 
     CREATE INDEX IF NOT EXISTS promoted_project_idx ON promoted (project_id, created_at);
   `);
+    // Add archived_at to promoted if not present
+    const promotedColumns = db.prepare(`PRAGMA table_info(promoted)`).all();
+    const hasArchivedAt = promotedColumns.some((col) => col.name === "archived_at");
+    if (!hasArchivedAt) {
+        db.exec(`ALTER TABLE promoted ADD COLUMN archived_at TEXT DEFAULT NULL`);
+    }
     const fts5Available = options?.fts5Available ?? getLcmDbFeatures(db).fts5Available;
     if (!fts5Available) {
         return;

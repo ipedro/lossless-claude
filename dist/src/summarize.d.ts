@@ -13,7 +13,7 @@ export type LcmSummarizerLegacyParams = {
     authProfileId?: unknown;
 };
 type SummaryMode = "normal" | "aggressive";
-export declare const LCM_SUMMARIZER_SYSTEM_PROMPT = "You are a context-compaction summarization engine. Follow user instructions exactly and return plain text summary content only.";
+export declare const LCM_SUMMARIZER_SYSTEM_PROMPT: string;
 /**
  * Resolve a practical target token count for leaf and condensed summaries.
  * Aggressive leaf mode intentionally aims lower so compaction converges faster.

@@ -171,10 +171,9 @@ describe("POST /prompt-search", () => {
       });
       const data = await res.json() as { hints: string[] };
       expect(res.status).toBe(200);
-      if (data.hints.length > 0) {
-        expect(data.hints[0].length).toBeLessThanOrEqual(53); // 50 + "..."
-        expect(data.hints[0].endsWith("...")).toBe(true);
-      }
+      expect(data.hints.length).toBeGreaterThanOrEqual(1);
+      expect(data.hints[0].length).toBeLessThanOrEqual(53); // 50 + "..."
+      expect(data.hints[0].endsWith("...")).toBe(true);
     } finally {
       await daemon.stop();
     }

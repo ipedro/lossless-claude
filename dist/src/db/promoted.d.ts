@@ -9,6 +9,7 @@ export type PromotedRow = {
     depth: number;
     confidence: number;
     created_at: string;
+    archived_at: string | null;
 };
 export type InsertParams = {
     content: string;
@@ -34,4 +35,11 @@ export declare class PromotedStore {
     insert(params: InsertParams): string;
     getById(id: string): PromotedRow | null;
     search(query: string, limit: number, filterTags?: string[]): SearchResult[];
+    archive(id: string): void;
+    deleteById(id: string): void;
+    update(id: string, fields: {
+        content?: string;
+        confidence?: number;
+        tags?: string[];
+    }): void;
 }

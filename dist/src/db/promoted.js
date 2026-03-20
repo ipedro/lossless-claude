@@ -32,6 +32,7 @@ export class PromotedStore {
        FROM promoted_fts fts
        JOIN promoted p ON p.rowid = fts.rowid
        WHERE promoted_fts MATCH ?
+         AND p.archived_at IS NULL
        ORDER BY rank
        LIMIT ?`).all(sanitized, limit);
         let results = rows.map((r) => ({
@@ -47,6 +48,44 @@ export class PromotedStore {
             results = results.filter((r) => filterTags.every((t) => r.tags.includes(t)));
         }
         return results;
+    }
+    archive(id) {
+        const row = this.db.prepare("SELECT rowid FROM promoted WHERE id = ?").get(id);
+        this.db.prepare("UPDATE promoted SET archived_at = datetime('now') WHERE id = ?").run(id);
+        if (row) {
+            this.db.prepare("DELETE FROM promoted_fts WHERE rowid = ?").run(row.rowid);
+        }
+    }
+    deleteById(id) {
+        const row = this.db.prepare("SELECT rowid FROM promoted WHERE id = ?").get(id);
+        if (row) {
+            this.db.prepare("DELETE FROM promoted_fts WHERE rowid = ?").run(row.rowid);
+        }
+        this.db.prepare("DELETE FROM promoted WHERE id = ?").run(id);
+    }
+    update(id, fields) {
+        const row = this.db.prepare("SELECT rowid, content, tags FROM promoted WHERE id = ?").get(id);
+        if (!row)
+            return;
+        if (fields.content !== undefined) {
+            const newTags = fields.tags !== undefined ? JSON.stringify(fields.tags) : row.tags;
+            this.db.prepare("UPDATE promoted SET content = ?, confidence = COALESCE(?, confidence), tags = ? WHERE id = ?").run(fields.content, fields.confidence ?? null, newTags, id);
+            // Re-sync FTS5: delete old row and insert new one
+            this.db.prepare("DELETE FROM promoted_fts WHERE rowid = ?").run(row.rowid);
+            this.db.prepare("INSERT INTO promoted_fts (rowid, content, tags) VALUES (?, ?, ?)").run(row.rowid, fields.content, newTags);
+        }
+        else {
+            if (fields.confidence !== undefined) {
+                this.db.prepare("UPDATE promoted SET confidence = ? WHERE id = ?").run(fields.confidence, id);
+            }
+            if (fields.tags !== undefined) {
+                const newTags = JSON.stringify(fields.tags);
+                this.db.prepare("UPDATE promoted SET tags = ? WHERE id = ?").run(newTags, id);
+                // Re-sync FTS5 tags
+                this.db.prepare("DELETE FROM promoted_fts WHERE rowid = ?").run(row.rowid);
+                this.db.prepare("INSERT INTO promoted_fts (rowid, content, tags) VALUES (?, ?, ?)").run(row.rowid, row.content, newTags);
+            }
+        }
     }
 }
 //# sourceMappingURL=promoted.js.map

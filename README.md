@@ -125,7 +125,7 @@ LCM_CONTEXT_THRESHOLD=0.75
 | `lcm_describe` | Describe the current DAG structure |
 | `lcm_search` | Search across episodic and promoted knowledge |
 | `lcm_store` | Write to the promoted knowledge store |
-| `lcm_stats` | Token savings, compression ratios, and usage statistics |
+| `lcm_stats` | Memory inventory, compression ratios, and usage statistics |
 | `lcm_doctor` | Diagnostics — checks daemon, hooks, MCP, and summarizer |
 
 ## CLI
@@ -133,7 +133,7 @@ LCM_CONTEXT_THRESHOLD=0.75
 ```bash
 lossless-claude install          # Setup wizard (summarizer config + doctor)
 lossless-claude doctor           # Run diagnostics
-lossless-claude stats            # Token savings overview
+lossless-claude stats            # Memory and compression overview
 lossless-claude stats -v         # Per-conversation breakdown
 lossless-claude status           # Daemon and provider status
 lossless-claude daemon start     # Start daemon (foreground)
@@ -166,7 +166,7 @@ src/
   expansion.ts                # DAG expansion logic for lcm_expand
   large-files.ts              # File interception, storage, and exploration summaries
   integrity.ts                # DAG integrity checks and repair utilities
-  stats.ts                    # Token savings collection and display
+  stats.ts                    # Memory and compression statistics
   daemon/
     server.ts                 # HTTP daemon (routes, lifecycle)
     config.ts                 # DaemonConfig type and loader

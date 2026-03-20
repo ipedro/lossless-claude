@@ -28,7 +28,7 @@ const LOCAL_TOOLS = {
         const verbose = args.verbose === true;
         const lines = [];
         lines.push("## Overview");
-        lines.push(`- Projects: ${stats.projects}`);
+        lines.push(`- Active projects: ${stats.projects}`);
         lines.push(`- Conversations: ${stats.conversations}`);
         lines.push(`- Messages stored: ${stats.messages}`);
         lines.push(`- Summaries created: ${stats.summaries}`);

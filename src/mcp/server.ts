@@ -31,7 +31,7 @@ const LOCAL_TOOLS: Record<string, (args: Record<string, unknown>) => Promise<str
     const verbose = args.verbose === true;
     const lines: string[] = [];
     lines.push("## Overview");
-    lines.push(`- Projects: ${stats.projects}`);
+    lines.push(`- Active projects: ${stats.projects}`);
     lines.push(`- Conversations: ${stats.conversations}`);
     lines.push(`- Messages stored: ${stats.messages}`);
     lines.push(`- Summaries created: ${stats.summaries}`);

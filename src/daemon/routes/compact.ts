@@ -12,6 +12,7 @@ import { createAnthropicSummarizer } from "../../llm/anthropic.js";
 import { createOpenAISummarizer } from "../../llm/openai.js";
 import { shouldPromote } from "../../promotion/detector.js";
 import { PromotedStore } from "../../db/promoted.js";
+import { parseTranscript } from "../../transcript.js";
 
 // In-memory justCompacted map (session_id -> timestamp)
 export const justCompactedMap = new Map<string, number>();
@@ -56,6 +57,24 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
     const conversationStore = new ConversationStore(db);
     const summaryStore = new SummaryStore(db);
     const conversation = await conversationStore.getOrCreateConversation(session_id);
+
+    // Ingest new messages from the transcript into the DB.
+    if (transcript_path && existsSync(transcript_path)) {
+      const parsed = parseTranscript(transcript_path);
+      const storedCount = await conversationStore.getMessageCount(conversation.conversationId);
+      const newMessages = parsed.slice(storedCount);
+      if (newMessages.length > 0) {
+        const inputs = newMessages.map((m, i) => ({
+          conversationId: conversation.conversationId,
+          seq: storedCount + i,
+          role: m.role as "user" | "assistant" | "system",
+          content: m.content,
+          tokenCount: m.tokenCount,
+        }));
+        const records = await conversationStore.createMessagesBulk(inputs);
+        await summaryStore.appendContextMessages(conversation.conversationId, records.map((r) => r.messageId));
+      }
+    }
 
     // Check if there's anything to compact
     const tokenCount = await summaryStore.getContextTokenCount(conversation.conversationId);

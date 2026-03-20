@@ -76,7 +76,7 @@ export function printStats(stats, verbose) {
     console.log(`  ${cyan}──${reset} ${bold}Overview${reset} ${cyan}──${reset}`);
     console.log();
     const rows = [
-        ["Projects", String(stats.projects)],
+        ["Active projects", String(stats.projects)],
         ["Conversations", String(stats.conversations)],
         ["Messages stored", formatNumber(stats.messages)],
         ["Summaries created", formatNumber(stats.summaries)],
@@ -160,6 +160,10 @@ export function collectStats() {
             continue;
         try {
             const projStats = queryProjectStats(dbPath);
+            // Only count projects with actual activity
+            const hasActivity = projStats.conversations > 0 || projStats.summaries > 0 || projStats.promotedCount > 0 || projStats.messages > 0;
+            if (!hasActivity)
+                continue;
             totalProjects++;
             totalConversations += projStats.conversations;
             totalMessages += projStats.messages;

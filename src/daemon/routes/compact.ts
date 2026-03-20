@@ -9,8 +9,6 @@ import { runLcmMigrations } from "../../db/migration.js";
 import { ConversationStore } from "../../store/conversation-store.js";
 import { SummaryStore } from "../../store/summary-store.js";
 import { CompactionEngine } from "../../compaction.js";
-import { createAnthropicSummarizer } from "../../llm/anthropic.js";
-import { createOpenAISummarizer } from "../../llm/openai.js";
 import { createClaudeProcessSummarizer } from "../../llm/claude-process.js";
 import { shouldPromote } from "../../promotion/detector.js";
 import { PromotedStore } from "../../db/promoted.js";
@@ -24,24 +22,30 @@ export const JUST_COMPACTED_TTL_MS = 30_000;
 // Guard against concurrent compactions for the same session
 const compactingNow = new Set<string>();
 
+async function resolveSummarizer(config: DaemonConfig) {
+  if (config.llm.provider === "disabled") return null;
+  if (config.llm.provider === "claude-process") return createClaudeProcessSummarizer();
+  if (config.llm.provider === "openai") {
+    const { createOpenAISummarizer } = await import("../../llm/openai.js");
+    return createOpenAISummarizer({
+      model: config.llm.model,
+      baseURL: config.llm.baseURL,
+      apiKey: config.llm.apiKey,
+    });
+  }
+  // anthropic
+  const { createAnthropicSummarizer } = await import("../../llm/anthropic.js");
+  return createAnthropicSummarizer({
+    model: config.llm.model,
+    apiKey: config.llm.apiKey!,
+  });
+}
+
 export function createCompactHandler(config: DaemonConfig): RouteHandler {
-  const summarize =
-    config.llm.provider === "disabled"
-      ? null
-      : config.llm.provider === "claude-process"
-        ? createClaudeProcessSummarizer()
-        : config.llm.provider === "openai"
-          ? createOpenAISummarizer({
-              model: config.llm.model,
-              baseURL: config.llm.baseURL,
-              apiKey: config.llm.apiKey,
-            })
-          : createAnthropicSummarizer({
-              model: config.llm.model,
-              apiKey: config.llm.apiKey!,
-            });
+  const summarizeP = resolveSummarizer(config);
 
   return async (_req, res, body) => {
+    const summarize = await summarizeP;
     // When summarization is disabled, return early with informative message
     if (!summarize) {
       sendJson(res, 200, { summary: "Summarization disabled — no summarizer configured." });

@@ -11,7 +11,7 @@
     "lossless-claude": "./dist/bin/lossless-claude.js"
   },
   "license": "MIT",
-  "author": "Josh Lehman <josh@martian.engineering>",
+  "author": "Pedro Almeida (https://github.com/ipedro)",
   "keywords": [
     "claude-code",
     "claude-code-plugin",
@@ -23,6 +23,7 @@
   ],
   "files": [
     "dist/",
+    ".claude-plugin/",
     "docs/",
     "README.md",
     "LICENSE"
@@ -38,21 +39,26 @@
     "version-packages": "changeset version"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
     "@modelcontextprotocol/sdk": "^1.12.0",
     "@sinclair/typebox": "0.34.48",
-    "@types/node": ">=22",
-    "js-yaml": "^4.1.1",
-    "openai": "^6.32.0",
-    "typescript": "^5.7.0"
+    "js-yaml": "^4.1.1"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
     "@changesets/cli": "^2.30.0",
     "@types/js-yaml": "^4.0.9",
+    "@types/node": ">=22",
+    "openai": "^6.32.0",
+    "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   },
-  "optionalDependencies": {
-    "claude-server": "*"
+  "peerDependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "openai": "^6.32.0"
+  },
+  "peerDependenciesMeta": {
+    "@anthropic-ai/sdk": { "optional": true },
+    "openai": { "optional": true }
   },
   "publishConfig": {
     "access": "public"

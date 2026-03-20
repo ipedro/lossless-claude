@@ -65,7 +65,9 @@ function testMcpHandshake(): Promise<CheckResult> {
     const initMsg = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "doctor", version: "0.1" } } });
     const listMsg = JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
 
-    const child = spawn("lossless-claude", ["mcp"], { stdio: ["pipe", "pipe", "ignore"] });
+    // Resolve the binary relative to this file so it works outside Claude Code's PATH
+    const binPath = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "bin", "lossless-claude.js");
+    const child = spawn(process.execPath, [binPath, "mcp"], { stdio: ["pipe", "pipe", "ignore"] });
     let stdout = "";
     const timer = setTimeout(() => { child.kill(); }, 6000);
 
@@ -112,7 +114,8 @@ export async function runDoctor(overrides?: Partial<DoctorDeps>): Promise<CheckR
   });
 
   // ── 1. Binary version ──
-  const pkgPath = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "package.json");
+  // dist/src/doctor/doctor.js → ../../.. → project root
+  const pkgPath = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "package.json");
   try {
     const pkg = JSON.parse(deps.readFileSync(pkgPath, "utf-8"));
     results.push({ name: "version", category: "Stack", status: "pass", message: `v${pkg.version}` });

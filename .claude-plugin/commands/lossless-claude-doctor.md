@@ -11,21 +11,12 @@ Run diagnostics on the lossless-claude installation.
 
 When invoked, call the `lcm_doctor` MCP tool (no arguments).
 
-Parse the plain-text output and reformat it as a markdown status table:
+The tool returns pre-formatted markdown with status tables per section. Display the output verbatim — it is already formatted correctly.
 
-| Check | Status | Details |
-|-------|--------|---------|
-| {check name} | ✅ / ⚠️ / ❌ | {message} |
-
-Rules for status icons:
-- ✅ = passed / ok / found / running
-- ⚠️ = warning / skipped / not configured
-- ❌ = failed / not found / error
-
-After the table, if any check is ❌, add a **Fix** section listing specific remediation steps for each failure.
+If any check shows a failure icon, add a **Fix** section listing specific remediation steps for each failure.
 
 End with one of:
 - *All checks passed — lossless-claude is healthy.*
-- *{N} check(s) need attention — see Fix section above.*
+- *N check(s) need attention — see Fix section above.*
 
 If `lcm_doctor` is unavailable, run `lossless-claude doctor` via Bash and display the output verbatim.

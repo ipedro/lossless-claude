@@ -94,17 +94,33 @@ Aligned text with ANSI colors and status icons. Same section headers as stats (`
 - `rawTokens` / `summaryTokens` scoped to compacted conversations only
 - `ratio` computed from compacted data only
 
+### Data model details
+
+`queryProjectStats()` must return `compactedConversations` (count where `summaries > 0`) so `collectStats()` can aggregate it across projects for the "Compacted: N of M" display.
+
+The MCP verbose table must also filter to compacted-only conversations, same as CLI.
+
+### Edge case: fresh install / 0 projects
+
+Memory section shows all zeros. Compression section is hidden. No special "no data" message.
+
+### Doctor check mapping
+
+All existing checks survive. Each check becomes a row in its table section. The `fixApplied` flag renders as `(auto-fixed)` suffix on the status value. Auto-fix behavior is unchanged.
+
 ### Files to modify
 
 | File | Change |
 |---|---|
-| `src/stats.ts` | Rewrite `printStats()`, update `collectStats()` to track compacted count, add compression bar renderer |
-| `src/mcp/server.ts` | Rewrite `lcm_stats` handler to output markdown tables with new framing |
-| `src/doctor/doctor.ts` | Rewrite `printResults()` for CLI, `formatResultsPlain()` for MCP markdown tables |
+| `src/stats.ts` | Rewrite `printStats()`, update `collectStats()` and `queryProjectStats()` to track `compactedConversations`, add compression bar renderer |
+| `src/mcp/server.ts` | Rewrite `lcm_stats` handler to output markdown tables with new framing, filter verbose to compacted-only |
+| `src/doctor/doctor.ts` | Rewrite `printResults()` for CLI, `formatResultsPlain()` for MCP markdown tables, keep all existing checks |
 | `.claude-plugin/commands/lossless-claude-stats.md` | Update slash command template to match new output structure |
 | `.claude-plugin/commands/lossless-claude-doctor.md` | Update slash command template |
+| `README.md` | Replace "60-90% token reduction" stats bar language with memory-first framing |
+| `gh-pages/index.html` | Update stats bar section (remove "60-90% savings", reframe around memory persistence) |
 
-### Language changes
+### Language changes (global)
 
 | Before | After |
 |---|---|
@@ -113,6 +129,8 @@ Aligned text with ANSI colors and status icons. Same section headers as stats (`
 | "Raw tokens" / "Summary tokens" | "Tokens: raw -> summary" |
 | "Active projects" | "Projects" |
 | "Compression ratio" | "Ratio" |
+| "60-90% token reduction" (website) | Reframe: e.g. "35x compression" or "every message preserved" |
+| "token savings" / "savings" (README) | "compression" or remove |
 
 ### What the percentage and bar represent
 

@@ -10,6 +10,7 @@ import { createExpandHandler } from "./routes/expand.js";
 import { createDescribeHandler } from "./routes/describe.js";
 import { createStoreHandler } from "./routes/store.js";
 import { createRecentHandler } from "./routes/recent.js";
+import { createIngestHandler } from "./routes/ingest.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const PKG_VERSION = (() => {
     try {
@@ -60,6 +61,64 @@ export async function createDaemon(config, options) {
     routes.set("POST /describe", createDescribeHandler(config));
     routes.set("POST /store", createStoreHandler());
     routes.set("POST /recent", createRecentHandler(config));
+    routes.set("POST /ingest", createIngestHandler(config));
+    // Periodic transcript ingestion scan
+    const INGEST_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+    const ingestHandler = createIngestHandler(config);
+    const scanForTranscripts = async () => {
+        try {
+            const { readdirSync, existsSync, readFileSync } = await import("node:fs");
+            const { join } = await import("node:path");
+            const { homedir } = await import("node:os");
+            const projectsDir = join(homedir(), ".lossless-claude", "projects");
+            if (!existsSync(projectsDir))
+                return;
+            for (const entry of readdirSync(projectsDir, { withFileTypes: true })) {
+                if (!entry.isDirectory())
+                    continue;
+                const metaPath = join(projectsDir, entry.name, "meta.json");
+                if (!existsSync(metaPath))
+                    continue;
+                let meta = {};
+                try {
+                    meta = JSON.parse(readFileSync(metaPath, "utf-8"));
+                }
+                catch {
+                    continue;
+                }
+                if (!meta.cwd)
+                    continue;
+                // Find Claude Code session files for this project's cwd
+                const cwdDashed = meta.cwd.replace(/\//g, "-").replace(/^-/, "");
+                const sessionsDir = join(homedir(), ".claude", "projects", cwdDashed);
+                if (!existsSync(sessionsDir))
+                    continue;
+                for (const file of readdirSync(sessionsDir)) {
+                    if (!file.endsWith(".jsonl"))
+                        continue;
+                    const sessionId = file.replace(".jsonl", "");
+                    const transcriptPath = join(sessionsDir, file);
+                    // Use the ingest route logic directly
+                    const mockReq = {};
+                    const response = { statusCode: 200, body: "" };
+                    const mockRes = {
+                        writeHead: (code) => { response.statusCode = code; },
+                        end: (data) => { response.body = data; },
+                    };
+                    await ingestHandler(mockReq, mockRes, JSON.stringify({
+                        session_id: sessionId,
+                        cwd: meta.cwd,
+                        transcript_path: transcriptPath,
+                    }));
+                }
+            }
+        }
+        catch {
+            // non-fatal: periodic scan failure shouldn't crash daemon
+        }
+    };
+    const ingestInterval = setInterval(scanForTranscripts, INGEST_INTERVAL_MS);
+    ingestInterval.unref(); // don't prevent process exit
     const server = createServer(async (req, res) => {
         resetIdleTimer();
         const key = `${req.method} ${req.url?.split("?")[0]}`;
@@ -90,6 +149,7 @@ export async function createDaemon(config, options) {
             resolve({
                 address: () => server.address(),
                 stop: async () => {
+                    clearInterval(ingestInterval);
                     if (idleTimer) {
                         clearTimeout(idleTimer);
                         idleTimer = null;

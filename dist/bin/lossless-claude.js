@@ -87,6 +87,21 @@ async function main() {
             exit(r.exitCode);
             break;
         }
+        case "session-end": {
+            const { handleSessionEnd } = await import("../src/hooks/session-end.js");
+            const { DaemonClient } = await import("../src/daemon/client.js");
+            const { loadDaemonConfig } = await import("../src/daemon/config.js");
+            const { join } = await import("node:path");
+            const { homedir } = await import("node:os");
+            const config = loadDaemonConfig(join(homedir(), ".lossless-claude", "config.json"));
+            const port = config.daemon?.port ?? 3737;
+            const input = await readStdin();
+            const r = await handleSessionEnd(input, new DaemonClient(`http://127.0.0.1:${port}`));
+            if (r.stdout)
+                stdout.write(r.stdout);
+            exit(r.exitCode);
+            break;
+        }
         case "mcp": {
             const { startMcpServer } = await import("../src/mcp/server.js");
             await startMcpServer();
@@ -151,7 +166,7 @@ async function main() {
             break;
         }
         default:
-            console.error("Usage: lossless-claude <daemon|compact|restore|mcp|install|uninstall|doctor|status|stats> [--dry-run|-v]");
+            console.error("Usage: lossless-claude <daemon|compact|restore|session-end|mcp|install|uninstall|doctor|status|stats> [--dry-run|-v]");
             exit(1);
     }
 }

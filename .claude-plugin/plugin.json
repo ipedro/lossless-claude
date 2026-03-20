@@ -23,6 +23,12 @@
         "matcher": "",
         "hooks": [{ "type": "command", "command": "lossless-claude restore" }]
       }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "",
+        "hooks": [{ "type": "command", "command": "lossless-claude session-end" }]
+      }
     ]
   },
   "mcpServers": {

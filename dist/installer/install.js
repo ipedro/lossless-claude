@@ -144,7 +144,9 @@ export async function install(deps = defaultDeps) {
         console.log(`Installed slash commands to ${commandsDst}`);
     }
     // 4. Start daemon (lazy daemon — no persistent service)
-    const configData = JSON.parse(deps.readFileSync(configPath, "utf-8"));
+    const configData = deps.existsSync(configPath)
+        ? JSON.parse(deps.readFileSync(configPath, "utf-8"))
+        : {};
     console.log("Verifying daemon...");
     const _ensureDaemon = deps.ensureDaemon ?? (async (opts) => {
         const { ensureDaemon } = await import("../src/daemon/lifecycle.js");

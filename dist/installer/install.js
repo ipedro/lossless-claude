@@ -1,6 +1,6 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, copyFileSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 const LC_HOOK_COMPACT_CMD = "lossless-claude compact";
 const LC_HOOK_RESTORE_CMD = "lossless-claude restore";
@@ -146,7 +146,19 @@ export async function install(deps = defaultDeps) {
     deps.mkdirSync(join(homedir(), ".claude"), { recursive: true });
     deps.writeFileSync(settingsPath, JSON.stringify(merged, null, 2));
     console.log(`Updated ${settingsPath}`);
-    // 3. Install claude-max-api-proxy if summarizer is claude-cli
+    // 3. Install slash commands to ~/.claude/commands/
+    const commandsSrc = join(dirname(new URL(import.meta.url).pathname), "..", ".claude-plugin", "commands");
+    const commandsDst = join(homedir(), ".claude", "commands");
+    if (deps.existsSync(commandsSrc)) {
+        deps.mkdirSync(commandsDst, { recursive: true });
+        for (const file of readdirSync(commandsSrc)) {
+            if (file.endsWith(".md")) {
+                copyFileSync(join(commandsSrc, file), join(commandsDst, file));
+            }
+        }
+        console.log(`Installed slash commands to ${commandsDst}`);
+    }
+    // 4. Install claude-max-api-proxy if summarizer is claude-cli
     const configData = JSON.parse(deps.readFileSync(configPath, "utf-8"));
     const provider = configData?.llm?.provider ?? "disabled";
     installClaudeServer(deps, { provider });

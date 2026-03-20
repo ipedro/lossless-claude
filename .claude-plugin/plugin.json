@@ -10,6 +10,7 @@
   "repository": "https://github.com/ipedro/lossless-claude",
   "license": "MIT",
   "keywords": ["context", "memory", "compaction", "summarization", "lcm"],
+  "commands": "./commands/",
   "hooks": {
     "PreCompact": [
       {

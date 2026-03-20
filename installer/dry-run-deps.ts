@@ -60,6 +60,16 @@ export class DryRunServiceDeps implements ServiceDeps, TeardownDeps {
     return "";
   }
 
+  async ensureDaemon(_opts: { port: number; pidFilePath: string; spawnTimeoutMs: number }): Promise<{ connected: boolean }> {
+    console.log(`[dry-run] would start daemon on port ${_opts.port}`);
+    return { connected: true };
+  }
+
+  async runDoctor(): Promise<{ name: string; status: string }[]> {
+    console.log(`[dry-run] would run doctor checks`);
+    return [];
+  }
+
   // ── pass-through ──────────────────────────────────────────────────────────
 
   readFileSync(path: string, encoding: string): string {

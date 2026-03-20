@@ -1,6 +1,6 @@
 {
   "name": "@ipedro/lossless-claude",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Lossless context management for Claude Code — DAG-based conversation compaction with semantic memory promotion",
   "type": "module",
   "main": "dist/src/memory/index.js",

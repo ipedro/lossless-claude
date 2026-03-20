@@ -47,6 +47,8 @@ export interface ServiceDeps {
   mkdirSync: (path: string, opts?: any) => void;
   existsSync: (path: string) => boolean;
   promptUser: (question: string) => Promise<string>;
+  ensureDaemon?: (opts: { port: number; pidFilePath: string; spawnTimeoutMs: number }) => Promise<{ connected: boolean }>;
+  runDoctor?: () => Promise<Array<{ name: string; status: string; category?: string; message?: string }>>;
 }
 
 async function readlinePrompt(question: string): Promise<string> {
@@ -189,9 +191,12 @@ export async function install(deps: ServiceDeps = defaultDeps): Promise<void> {
   // 4. Start daemon (lazy daemon — no persistent service)
   const configData = JSON.parse(deps.readFileSync(configPath, "utf-8"));
   console.log("Verifying daemon...");
-  const { ensureDaemon } = await import("../src/daemon/lifecycle.js");
+  const _ensureDaemon = deps.ensureDaemon ?? (async (opts) => {
+    const { ensureDaemon } = await import("../src/daemon/lifecycle.js");
+    return ensureDaemon(opts);
+  });
   const daemonPort = configData?.daemon?.port ?? configData?.port ?? 3737;
-  const { connected } = await ensureDaemon({
+  const { connected } = await _ensureDaemon({
     port: daemonPort,
     pidFilePath: join(lcDir, "daemon.pid"),
     spawnTimeoutMs: 30000,
@@ -204,9 +209,13 @@ export async function install(deps: ServiceDeps = defaultDeps): Promise<void> {
 
   // 5. Final verification
   console.log("\nRunning doctor...");
-  const { runDoctor, printResults } = await import("../src/doctor/doctor.js");
-  const results = await runDoctor();
-  printResults(results);
+  const _runDoctor = deps.runDoctor ?? (async () => {
+    const { runDoctor, printResults: _print } = await import("../src/doctor/doctor.js");
+    const _results = await runDoctor();
+    _print(_results);
+    return _results;
+  });
+  const results = await _runDoctor();
   const failures = results.filter((r: { status: string }) => r.status === "fail");
   if (failures.length > 0) {
     console.error(`${failures.length} check(s) failed. Run 'lossless-claude doctor' for details.`);

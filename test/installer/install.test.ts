@@ -14,14 +14,7 @@ function makeSpawn(status = 0, stdout = "") {
   return vi.fn().mockReturnValue({ status, stdout, stderr: "", pid: 1, output: [], signal: null });
 }
 
-function makeDeps(overrides: Partial<ServiceDeps> = {}): ServiceDeps & {
-  spawnSync: ReturnType<typeof vi.fn>;
-  readFileSync: ReturnType<typeof vi.fn>;
-  writeFileSync: ReturnType<typeof vi.fn>;
-  mkdirSync: ReturnType<typeof vi.fn>;
-  existsSync: ReturnType<typeof vi.fn>;
-  promptUser: ReturnType<typeof vi.fn>;
-} {
+function makeDeps(overrides: Partial<ServiceDeps> = {}): ServiceDeps {
   return {
     spawnSync: makeSpawn(),
     readFileSync: vi.fn().mockReturnValue("{}"),
@@ -29,6 +22,8 @@ function makeDeps(overrides: Partial<ServiceDeps> = {}): ServiceDeps & {
     mkdirSync: vi.fn(),
     existsSync: vi.fn().mockReturnValue(false),
     promptUser: vi.fn().mockResolvedValue("1"), // default: option 1
+    ensureDaemon: vi.fn().mockResolvedValue({ connected: true }),
+    runDoctor: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
 }
@@ -96,7 +91,7 @@ describe("install", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     await expect(install(deps)).resolves.not.toThrow();
     // No setup.sh, no cipher, no qdrant
-    const bashCalls = deps.spawnSync.mock.calls.filter((c: any[]) => c[0] === "bash");
+    const bashCalls = (deps.spawnSync as ReturnType<typeof vi.fn>).mock.calls.filter((c: any[]) => c[0] === "bash");
     expect(bashCalls).toHaveLength(0);
     warnSpy.mockRestore();
     process.env.ANTHROPIC_API_KEY = originalApiKey;

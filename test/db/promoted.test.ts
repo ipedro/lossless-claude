@@ -77,4 +77,60 @@ describe("PromotedStore", () => {
     const results = store.search("nonexistent", 10);
     expect(results).toEqual([]);
   });
+
+  it("archive() soft-deletes entry and removes from FTS5", () => {
+    const db = makeDb();
+    const store = new PromotedStore(db);
+    const id = store.insert({ content: "React is the framework", tags: ["decision"], projectId: "p1" });
+
+    store.archive(id);
+
+    const row = store.getById(id);
+    expect(row!.archived_at).toBeTruthy();
+
+    // Should not appear in search results
+    const results = store.search("React framework", 10);
+    expect(results.find((r) => r.id === id)).toBeUndefined();
+  });
+
+  it("deleteById() removes entry and FTS5 row", () => {
+    const db = makeDb();
+    const store = new PromotedStore(db);
+    const id = store.insert({ content: "Delete me", tags: [], projectId: "p1" });
+
+    store.deleteById(id);
+    expect(store.getById(id)).toBeNull();
+  });
+
+  it("update() changes content and re-syncs FTS5", () => {
+    const db = makeDb();
+    const store = new PromotedStore(db);
+    const id = store.insert({ content: "Old content about React", tags: ["decision"], projectId: "p1", confidence: 0.9 });
+
+    store.update(id, { content: "New content about Vue", confidence: 0.7 });
+
+    const row = store.getById(id);
+    expect(row!.content).toBe("New content about Vue");
+    expect(row!.confidence).toBe(0.7);
+
+    // FTS5 should find new content
+    const results = store.search("Vue", 10);
+    expect(results.length).toBe(1);
+
+    // FTS5 should NOT find old content
+    const oldResults = store.search("React", 10);
+    expect(oldResults.length).toBe(0);
+  });
+
+  it("search() excludes archived entries", () => {
+    const db = makeDb();
+    const store = new PromotedStore(db);
+    store.insert({ content: "Active React decision", tags: ["decision"], projectId: "p1" });
+    const archivedId = store.insert({ content: "Archived React memory", tags: ["decision"], projectId: "p1" });
+    store.archive(archivedId);
+
+    const results = store.search("React", 10);
+    expect(results.length).toBe(1);
+    expect(results[0].content).toContain("Active");
+  });
 });

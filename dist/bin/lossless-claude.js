@@ -18,7 +18,7 @@ async function main() {
         const { readFileSync } = await import("node:fs");
         const { join, dirname } = await import("node:path");
         const { fileURLToPath } = await import("node:url");
-        const pkgPath = join(dirname(fileURLToPath(import.meta.url)), "..", "package.json");
+        const pkgPath = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "package.json");
         const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
         stdout.write(pkg.version + "\n");
         exit(0);
@@ -102,6 +102,21 @@ async function main() {
             exit(r.exitCode);
             break;
         }
+        case "user-prompt": {
+            const { handleUserPromptSubmit } = await import("../src/hooks/user-prompt.js");
+            const { DaemonClient } = await import("../src/daemon/client.js");
+            const { loadDaemonConfig } = await import("../src/daemon/config.js");
+            const { join } = await import("node:path");
+            const { homedir } = await import("node:os");
+            const config = loadDaemonConfig(join(homedir(), ".lossless-claude", "config.json"));
+            const port = config.daemon?.port ?? 3737;
+            const input = await readStdin();
+            const r = await handleUserPromptSubmit(input, new DaemonClient(`http://127.0.0.1:${port}`));
+            if (r.stdout)
+                stdout.write(r.stdout);
+            exit(r.exitCode);
+            break;
+        }
         case "mcp": {
             const { startMcpServer } = await import("../src/mcp/server.js");
             await startMcpServer();
@@ -166,7 +181,7 @@ async function main() {
             break;
         }
         default:
-            console.error("Usage: lossless-claude <daemon|compact|restore|session-end|mcp|install|uninstall|doctor|status|stats> [--dry-run|-v]");
+            console.error("Usage: lossless-claude <daemon|compact|restore|session-end|user-prompt|mcp|install|uninstall|doctor|status|stats> [--dry-run|-v]");
             exit(1);
     }
 }

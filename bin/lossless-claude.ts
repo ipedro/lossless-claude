@@ -18,7 +18,7 @@ async function main() {
     const { readFileSync } = await import("node:fs");
     const { join, dirname } = await import("node:path");
     const { fileURLToPath } = await import("node:url");
-    const pkgPath = join(dirname(fileURLToPath(import.meta.url)), "..", "package.json");
+    const pkgPath = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "package.json");
     const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
     stdout.write(pkg.version + "\n");
     exit(0);

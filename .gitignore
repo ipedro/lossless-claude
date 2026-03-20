@@ -5,6 +5,9 @@ node_modules/
 .claude/
 data/
 
+# Tools
+.serena/
+
 # TUI
 tui/lcm-tui
 tui/dist/

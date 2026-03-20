@@ -1,5 +1,10 @@
 # lossless-claude
 
+[![npm](https://img.shields.io/npm/v/@ipedro/lossless-claude)](https://www.npmjs.com/package/@ipedro/lossless-claude)
+[![license](https://img.shields.io/github/license/ipedro/lossless-claude)](LICENSE)
+[![node](https://img.shields.io/node/v/@ipedro/lossless-claude)](package.json)
+[![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-7c3aed)](https://github.com/anthropics/claude-code)
+
 A fork and reinterpretation of [lossless-claw](https://github.com/Martian-Engineering/lossless-claude) by [Martian Engineering](https://martian.engineering), adapted for [Claude Code](https://github.com/anthropics/claude-code). The core ideas — DAG-based summarization, lossless message retention, and the LCM model from [Voltropy](https://x.com/Voltropy) — are theirs. This fork rewires the integration layer for Claude Code's plugin system and ships as a native Claude Code plugin.
 
 Replaces Claude Code's built-in sliding-window compaction with a DAG-based summarization system that preserves every message while keeping active context within model token limits.

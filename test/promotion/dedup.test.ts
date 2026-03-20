@@ -81,6 +81,38 @@ describe("deduplicateAndInsert", () => {
     expect(mockSummarize).toHaveBeenCalledOnce();
   });
 
+  it("archives merged entry when confidence drops below 0.2", async () => {
+    const db = makeDb();
+    const store = new PromotedStore(db);
+
+    // Insert with very low confidence so decay pushes below 0.2
+    store.insert({
+      content: "Decided to use PostgreSQL for the database layer",
+      tags: ["decision"],
+      projectId: "p1",
+      confidence: 0.2,
+    });
+
+    const mockSummarize = vi.fn().mockResolvedValue("Merged: PostgreSQL confirmed");
+
+    await deduplicateAndInsert({
+      store,
+      content: "Confirmed PostgreSQL as the database choice",
+      tags: ["decision"],
+      projectId: "p1",
+      sessionId: "s1",
+      depth: 2,
+      confidence: 0.15,
+      summarize: mockSummarize,
+      thresholds: { dedupBm25Threshold: 0.000001, mergeMaxEntries: 3, confidenceDecayRate: 0.1 },
+    });
+
+    // Archived entry should not appear in search results
+    const results = store.search("PostgreSQL database", 10);
+    expect(results.length).toBe(0);
+    expect(mockSummarize).toHaveBeenCalledOnce();
+  });
+
   it("inserts as new when summarize fails during merge", async () => {
     const db = makeDb();
     const store = new PromotedStore(db);

@@ -16,6 +16,10 @@ export type PromptTemplate = {
 const cache = new Map<string, PromptTemplate>();
 
 export function loadTemplate(name: string): PromptTemplate {
+  if (name.includes("/") || name.includes("..") || name.includes("\0")) {
+    throw new Error(`Invalid template name: ${name}`);
+  }
+
   const cached = cache.get(name);
   if (cached) return cached;
 

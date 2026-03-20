@@ -47,6 +47,14 @@ export class DryRunServiceDeps {
         console.log(`[dry-run] would prompt: ${question}`);
         return "";
     }
+    async ensureDaemon(_opts) {
+        console.log(`[dry-run] would start daemon on port ${_opts.port}`);
+        return { connected: true };
+    }
+    async runDoctor() {
+        console.log(`[dry-run] would run doctor checks`);
+        return [];
+    }
     // ── pass-through ──────────────────────────────────────────────────────────
     readFileSync(path, encoding) {
         return realReadFileSync(path, encoding);

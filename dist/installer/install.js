@@ -132,7 +132,7 @@ export async function install(deps = defaultDeps) {
     deps.writeFileSync(settingsPath, JSON.stringify(merged, null, 2));
     console.log(`Updated ${settingsPath}`);
     // 3. Install slash commands to ~/.claude/commands/
-    const commandsSrc = join(dirname(new URL(import.meta.url).pathname), "..", ".claude-plugin", "commands");
+    const commandsSrc = join(dirname(new URL(import.meta.url).pathname), "../..", ".claude-plugin", "commands");
     const commandsDst = join(homedir(), ".claude", "commands");
     if (deps.existsSync(commandsSrc)) {
         deps.mkdirSync(commandsDst, { recursive: true });
@@ -146,9 +146,12 @@ export async function install(deps = defaultDeps) {
     // 4. Start daemon (lazy daemon — no persistent service)
     const configData = JSON.parse(deps.readFileSync(configPath, "utf-8"));
     console.log("Verifying daemon...");
-    const { ensureDaemon } = await import("../src/daemon/lifecycle.js");
+    const _ensureDaemon = deps.ensureDaemon ?? (async (opts) => {
+        const { ensureDaemon } = await import("../src/daemon/lifecycle.js");
+        return ensureDaemon(opts);
+    });
     const daemonPort = configData?.daemon?.port ?? configData?.port ?? 3737;
-    const { connected } = await ensureDaemon({
+    const { connected } = await _ensureDaemon({
         port: daemonPort,
         pidFilePath: join(lcDir, "daemon.pid"),
         spawnTimeoutMs: 30000,
@@ -161,9 +164,13 @@ export async function install(deps = defaultDeps) {
     }
     // 5. Final verification
     console.log("\nRunning doctor...");
-    const { runDoctor, printResults } = await import("../src/doctor/doctor.js");
-    const results = await runDoctor();
-    printResults(results);
+    const _runDoctor = deps.runDoctor ?? (async () => {
+        const { runDoctor, printResults: _print } = await import("../src/doctor/doctor.js");
+        const _results = await runDoctor();
+        _print(_results);
+        return _results;
+    });
+    const results = await _runDoctor();
     const failures = results.filter((r) => r.status === "fail");
     if (failures.length > 0) {
         console.error(`${failures.length} check(s) failed. Run 'lossless-claude doctor' for details.`);

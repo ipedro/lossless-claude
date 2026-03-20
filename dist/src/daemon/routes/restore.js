@@ -113,7 +113,7 @@ export function createRestoreHandler(config) {
             }
             catch { /* non-fatal */ }
         }
-        const context = [orientation, episodicContext, promotedContext].filter(Boolean).join("\n\n");
+        const context = [orientation, episodicContext, promotedContext, instructionsContext].filter(Boolean).join("\n\n");
         sendJson(res, 200, { context });
     };
 }

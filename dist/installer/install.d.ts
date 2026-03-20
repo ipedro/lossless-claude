@@ -8,6 +8,19 @@ export interface ServiceDeps {
     mkdirSync: (path: string, opts?: any) => void;
     existsSync: (path: string) => boolean;
     promptUser: (question: string) => Promise<string>;
+    ensureDaemon?: (opts: {
+        port: number;
+        pidFilePath: string;
+        spawnTimeoutMs: number;
+    }) => Promise<{
+        connected: boolean;
+    }>;
+    runDoctor?: () => Promise<Array<{
+        name: string;
+        status: string;
+        category?: string;
+        message?: string;
+    }>>;
 }
 export declare function resolveBinaryPath(deps?: Pick<ServiceDeps, "spawnSync" | "existsSync">): string;
 export declare function waitForHealth(url: string, timeoutMs?: number, fetchFn?: typeof globalThis.fetch): Promise<boolean>;

@@ -15,6 +15,59 @@ import { PromotedStore } from "../../db/promoted.js";
 import { deduplicateAndInsert } from "../../promotion/dedup.js";
 import { parseTranscript } from "../../transcript.js";
 
+function fmtN(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
+  return String(n);
+}
+
+function buildCompactionMessage(p: {
+  tokensBefore: number; tokensAfter: number;
+  messageCount: number; summaryCount: number;
+  maxDepth: number; promotedCount: number;
+}): string {
+  const saved = p.tokensBefore - p.tokensAfter;
+  const ratio = p.tokensAfter > 0 ? (p.tokensBefore / p.tokensAfter).toFixed(1) : "–";
+  const pct = p.tokensBefore > 0
+    ? ((1 - p.tokensAfter / p.tokensBefore) * 100).toFixed(1)
+    : "0.0";
+  const barWidth = 30;
+  const filled = p.tokensBefore > 0
+    ? Math.round((1 - p.tokensAfter / p.tokensBefore) * barWidth) : 0;
+  const bar = "█".repeat(filled) + "░".repeat(barWidth - filled);
+  const border = "━".repeat(46);
+  const numW = Math.max(
+    String(p.messageCount).length,
+    String(p.summaryCount).length,
+    String(p.maxDepth).length,
+    String(p.promotedCount).length,
+    1,
+  );
+  const pad = (n: number) => String(n).padStart(numW);
+  const rows = [
+    `  ${pad(p.messageCount)}  messages  →  ${p.summaryCount} summaries`,
+    `  ${pad(p.maxDepth)}  DAG layers deep`,
+    ...(p.promotedCount > 0
+      ? [`  ${pad(p.promotedCount)}  insight${p.promotedCount > 1 ? "s" : ""} promoted to long-term memory`]
+      : []),
+  ];
+  return [
+    border,
+    `  🧠  lossless-claude · compaction complete`,
+    border,
+    ``,
+    `  ${fmtN(p.tokensBefore)} ──────────────────────→ ${fmtN(p.tokensAfter)}`,
+    `  ${bar}  ${pct}% saved`,
+    `  ${ratio}×  compression  ·  ${fmtN(saved)} tokens freed`,
+    ``,
+    ...rows,
+    ``,
+    border,
+    `  Nothing was lost. Everything is remembered.`,
+    border,
+  ].join("\n");
+}
+
 // In-memory justCompacted map (session_id -> timestamp)
 export const justCompactedMap = new Map<string, number>();
 export const JUST_COMPACTED_TTL_MS = 30_000;
@@ -126,12 +179,16 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
       force: true,
     });
 
+    // Gather stats for the compaction message (always, regardless of actionTaken)
+    const allSummaries = await summaryStore.getSummariesByConversation(conversation.conversationId);
+    const finalMsgCount = await conversationStore.getMessageCount(conversation.conversationId);
+    const maxDepth = allSummaries.length > 0 ? Math.max(...allSummaries.map((s) => s.depth)) : 0;
+
     // Promote worthy summaries to cross-session memory (SQLite promoted table)
     let promotedCount = 0;
     if (compactResult.actionTaken && compactResult.createdSummaryId) {
       try {
-        const summaries = await summaryStore.getSummariesByConversation(conversation.conversationId);
-        const newSummary = summaries.find((s) => s.summaryId === compactResult.createdSummaryId);
+        const newSummary = allSummaries.find((s) => s.summaryId === compactResult.createdSummaryId);
         if (newSummary) {
           const promotionResult = shouldPromote(
             {
@@ -182,9 +239,15 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
 
     db.close();
 
-    const tokenDelta = compactResult.tokensBefore - compactResult.tokensAfter;
     const summaryMsg = compactResult.actionTaken
-      ? `Compacted ${compactResult.tokensBefore} → ${compactResult.tokensAfter} tokens (saved ${tokenDelta}). ${promotedCount} promoted to long-term memory.`
+      ? buildCompactionMessage({
+          tokensBefore: compactResult.tokensBefore,
+          tokensAfter: compactResult.tokensAfter,
+          messageCount: finalMsgCount,
+          summaryCount: allSummaries.length,
+          maxDepth,
+          promotedCount,
+        })
       : "No compaction needed.";
 
     return { summary: summaryMsg };

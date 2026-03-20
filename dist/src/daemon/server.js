@@ -11,6 +11,7 @@ import { createDescribeHandler } from "./routes/describe.js";
 import { createStoreHandler } from "./routes/store.js";
 import { createRecentHandler } from "./routes/recent.js";
 import { createIngestHandler } from "./routes/ingest.js";
+import { createPromptSearchHandler } from "./routes/prompt-search.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const PKG_VERSION = (() => {
     try {
@@ -62,6 +63,7 @@ export async function createDaemon(config, options) {
     routes.set("POST /store", createStoreHandler());
     routes.set("POST /recent", createRecentHandler(config));
     routes.set("POST /ingest", createIngestHandler(config));
+    routes.set("POST /prompt-search", createPromptSearchHandler(config));
     // Periodic transcript ingestion scan
     const INGEST_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
     const ingestHandler = createIngestHandler(config);

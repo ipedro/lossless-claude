@@ -15,7 +15,14 @@ export function createClaudeProcessSummarizer() {
             ? buildCondensedSummaryPrompt({ text, targetTokens, depth: ctx.depth ?? 1 })
             : buildLeafSummaryPrompt({ text, mode: aggressive ? "aggressive" : "normal", targetTokens });
         return new Promise((resolve, reject) => {
-            const proc = spawn("claude", ["--print", "--model", HAIKU_MODEL], {
+            const proc = spawn("claude", [
+                "--print",
+                "--model", HAIKU_MODEL,
+                "--no-session-persistence",
+                "--system-prompt", LCM_SUMMARIZER_SYSTEM_PROMPT,
+                "--tools", "",
+                "--disable-slash-commands",
+            ], {
                 stdio: ["pipe", "pipe", "pipe"],
             });
             let stdout = "";
@@ -40,8 +47,7 @@ export function createClaudeProcessSummarizer() {
                 clearTimeout(timer);
                 reject(err);
             });
-            // Write system + user prompt to stdin
-            proc.stdin.write(`${LCM_SUMMARIZER_SYSTEM_PROMPT}\n\n${prompt}`);
+            proc.stdin.write(prompt);
             proc.stdin.end();
         });
     };

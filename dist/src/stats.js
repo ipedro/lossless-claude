@@ -94,7 +94,6 @@ export function printStats(stats, verbose) {
     console.log();
     const memRows = [
         ["Projects", String(stats.projects)],
-        ["Conversations", String(stats.conversations)],
         ["Messages", formatNumber(stats.messages)],
         ["Summaries", formatNumber(stats.summaries)],
         ["DAG depth", String(stats.maxDepth)],
@@ -116,7 +115,7 @@ export function printStats(stats, verbose) {
             : "0.0";
         const ratioStr = stats.ratio > 0 ? stats.ratio.toFixed(1) + "x" : "–";
         const barColor = stats.ratio > 10 ? green : cyan;
-        const compactedStr = `${stats.compactedConversations} of ${stats.conversations}`;
+        const compactedStr = `${stats.compactedConversations} of ${stats.projects} projects`;
         const tokensStr = `${rawStr} → ${sumStr}`;
         const compRows = [
             ["Compacted", compactedStr],

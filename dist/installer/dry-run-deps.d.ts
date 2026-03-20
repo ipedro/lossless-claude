@@ -7,6 +7,17 @@ export declare class DryRunServiceDeps implements ServiceDeps, TeardownDeps {
     rmSync(path: string): void;
     spawnSync(cmd: string, args: string[], opts?: any): SpawnSyncReturns<string>;
     promptUser(question: string): Promise<string>;
+    ensureDaemon(_opts: {
+        port: number;
+        pidFilePath: string;
+        spawnTimeoutMs: number;
+    }): Promise<{
+        connected: boolean;
+    }>;
+    runDoctor(): Promise<{
+        name: string;
+        status: string;
+    }[]>;
     readFileSync(path: string, encoding: string): string;
     existsSync(path: string): boolean;
 }

@@ -137,7 +137,6 @@ export function printStats(stats: OverallStats, verbose: boolean): void {
 
   const memRows: [string, string][] = [
     ["Projects", String(stats.projects)],
-    ["Conversations", String(stats.conversations)],
     ["Messages", formatNumber(stats.messages)],
     ["Summaries", formatNumber(stats.summaries)],
     ["DAG depth", String(stats.maxDepth)],
@@ -163,7 +162,7 @@ export function printStats(stats: OverallStats, verbose: boolean): void {
     const ratioStr = stats.ratio > 0 ? stats.ratio.toFixed(1) + "x" : "–";
     const barColor = stats.ratio > 10 ? green : cyan;
 
-    const compactedStr = `${stats.compactedConversations} of ${stats.conversations}`;
+    const compactedStr = `${stats.compactedConversations} of ${stats.projects} projects`;
     const tokensStr = `${rawStr} → ${sumStr}`;
 
     const compRows: [string, string][] = [

@@ -7,34 +7,83 @@ import { runLcmMigrations } from "../../db/migration.js";
 import { ConversationStore } from "../../store/conversation-store.js";
 import { SummaryStore } from "../../store/summary-store.js";
 import { CompactionEngine } from "../../compaction.js";
-import { createAnthropicSummarizer } from "../../llm/anthropic.js";
-import { createOpenAISummarizer } from "../../llm/openai.js";
 import { createClaudeProcessSummarizer } from "../../llm/claude-process.js";
 import { shouldPromote } from "../../promotion/detector.js";
 import { PromotedStore } from "../../db/promoted.js";
 import { deduplicateAndInsert } from "../../promotion/dedup.js";
 import { parseTranscript } from "../../transcript.js";
+function fmtN(n) {
+    if (n >= 1_000_000)
+        return (n / 1_000_000).toFixed(1) + "M";
+    if (n >= 1_000)
+        return (n / 1_000).toFixed(1) + "K";
+    return String(n);
+}
+function buildCompactionMessage(p) {
+    const saved = p.tokensBefore - p.tokensAfter;
+    const ratio = p.tokensAfter > 0 ? (p.tokensBefore / p.tokensAfter).toFixed(1) : "–";
+    const pct = p.tokensBefore > 0
+        ? ((1 - p.tokensAfter / p.tokensBefore) * 100).toFixed(1)
+        : "0.0";
+    const barWidth = 30;
+    const filled = p.tokensBefore > 0
+        ? Math.round((1 - p.tokensAfter / p.tokensBefore) * barWidth) : 0;
+    const bar = "█".repeat(filled) + "░".repeat(barWidth - filled);
+    const border = "━".repeat(46);
+    const numW = Math.max(String(p.messageCount).length, String(p.summaryCount).length, String(p.maxDepth).length, String(p.promotedCount).length, 1);
+    const pad = (n) => String(n).padStart(numW);
+    const rows = [
+        `  ${pad(p.messageCount)}  messages  →  ${p.summaryCount} summaries`,
+        `  ${pad(p.maxDepth)}  DAG layers deep`,
+        ...(p.promotedCount > 0
+            ? [`  ${pad(p.promotedCount)}  insight${p.promotedCount > 1 ? "s" : ""} promoted to long-term memory`]
+            : []),
+    ];
+    return [
+        border,
+        `  🧠  lossless-claude · compaction complete`,
+        border,
+        ``,
+        `  ${fmtN(p.tokensBefore)} ──────────────────────→ ${fmtN(p.tokensAfter)}`,
+        `  ${bar}  ${pct}% saved`,
+        `  ${ratio}×  compression  ·  ${fmtN(saved)} tokens freed`,
+        ``,
+        ...rows,
+        ``,
+        border,
+        `  Nothing was lost. Everything is remembered.`,
+        border,
+    ].join("\n");
+}
 // In-memory justCompacted map (session_id -> timestamp)
 export const justCompactedMap = new Map();
 export const JUST_COMPACTED_TTL_MS = 30_000;
 // Guard against concurrent compactions for the same session
 const compactingNow = new Set();
+async function resolveSummarizer(config) {
+    if (config.llm.provider === "disabled")
+        return null;
+    if (config.llm.provider === "claude-process")
+        return createClaudeProcessSummarizer();
+    if (config.llm.provider === "openai") {
+        const { createOpenAISummarizer } = await import("../../llm/openai.js");
+        return createOpenAISummarizer({
+            model: config.llm.model,
+            baseURL: config.llm.baseURL,
+            apiKey: config.llm.apiKey,
+        });
+    }
+    // anthropic
+    const { createAnthropicSummarizer } = await import("../../llm/anthropic.js");
+    return createAnthropicSummarizer({
+        model: config.llm.model,
+        apiKey: config.llm.apiKey,
+    });
+}
 export function createCompactHandler(config) {
-    const summarize = config.llm.provider === "disabled"
-        ? null
-        : config.llm.provider === "claude-process"
-            ? createClaudeProcessSummarizer()
-            : config.llm.provider === "openai"
-                ? createOpenAISummarizer({
-                    model: config.llm.model,
-                    baseURL: config.llm.baseURL,
-                    apiKey: config.llm.apiKey,
-                })
-                : createAnthropicSummarizer({
-                    model: config.llm.model,
-                    apiKey: config.llm.apiKey,
-                });
+    const summarizeP = resolveSummarizer(config);
     return async (_req, res, body) => {
+        const summarize = await summarizeP;
         // When summarization is disabled, return early with informative message
         if (!summarize) {
             sendJson(res, 200, { summary: "Summarization disabled — no summarizer configured." });
@@ -102,12 +151,15 @@ export function createCompactHandler(config) {
                     summarize,
                     force: true,
                 });
+                // Gather stats for the compaction message (always, regardless of actionTaken)
+                const allSummaries = await summaryStore.getSummariesByConversation(conversation.conversationId);
+                const finalMsgCount = await conversationStore.getMessageCount(conversation.conversationId);
+                const maxDepth = allSummaries.length > 0 ? Math.max(...allSummaries.map((s) => s.depth)) : 0;
                 // Promote worthy summaries to cross-session memory (SQLite promoted table)
                 let promotedCount = 0;
                 if (compactResult.actionTaken && compactResult.createdSummaryId) {
                     try {
-                        const summaries = await summaryStore.getSummariesByConversation(conversation.conversationId);
-                        const newSummary = summaries.find((s) => s.summaryId === compactResult.createdSummaryId);
+                        const newSummary = allSummaries.find((s) => s.summaryId === compactResult.createdSummaryId);
                         if (newSummary) {
                             const promotionResult = shouldPromote({
                                 content: newSummary.content,
@@ -153,9 +205,15 @@ export function createCompactHandler(config) {
                 // Set justCompacted flag
                 justCompactedMap.set(session_id, Date.now());
                 db.close();
-                const tokenDelta = compactResult.tokensBefore - compactResult.tokensAfter;
                 const summaryMsg = compactResult.actionTaken
-                    ? `Compacted ${compactResult.tokensBefore} → ${compactResult.tokensAfter} tokens (saved ${tokenDelta}). ${promotedCount} promoted to long-term memory.`
+                    ? buildCompactionMessage({
+                        tokensBefore: compactResult.tokensBefore,
+                        tokensAfter: compactResult.tokensAfter,
+                        messageCount: finalMsgCount,
+                        summaryCount: allSummaries.length,
+                        maxDepth,
+                        promotedCount,
+                    })
                     : "No compaction needed.";
                 return { summary: summaryMsg };
             }

@@ -30,12 +30,11 @@ export async function deduplicateAndInsert(params) {
     for (const dup of duplicates) {
         store.deleteById(dup.id);
     }
-    // Archive if confidence too low
+    // Archive if confidence too low — soft-delete, don't surface
     if (mergedConfidence < 0.2) {
         const id = store.insert({ content: mergedContent, tags, projectId, sessionId, depth, confidence: mergedConfidence });
         store.archive(id);
-        // Insert fresh entry with original confidence
-        return store.insert({ content, tags, projectId, sessionId, depth, confidence });
+        return id;
     }
     // Insert merged entry
     return store.insert({ content: mergedContent, tags, projectId, sessionId, depth, confidence: mergedConfidence });

@@ -6,6 +6,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const cache = new Map();
 export function loadTemplate(name) {
+    if (name.includes("/") || name.includes("..") || name.includes("\0")) {
+        throw new Error(`Invalid template name: ${name}`);
+    }
     const cached = cache.get(name);
     if (cached)
         return cached;

@@ -176,7 +176,7 @@ export async function install(deps: ServiceDeps = defaultDeps): Promise<void> {
   console.log(`Updated ${settingsPath}`);
 
   // 3. Install slash commands to ~/.claude/commands/
-  const commandsSrc = join(dirname(new URL(import.meta.url).pathname), "..", ".claude-plugin", "commands");
+  const commandsSrc = join(dirname(new URL(import.meta.url).pathname), "../..", ".claude-plugin", "commands");
   const commandsDst = join(homedir(), ".claude", "commands");
   if (deps.existsSync(commandsSrc)) {
     deps.mkdirSync(commandsDst, { recursive: true });

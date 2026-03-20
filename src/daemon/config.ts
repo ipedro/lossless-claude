@@ -7,7 +7,7 @@ export type DaemonConfig = {
   daemon: { port: number; socketPath: string; logLevel: string; logMaxSizeMB: number; logRetentionDays: number; idleTimeoutMs: number };
   compaction: {
     leafTokens: number; maxDepth: number;
-    promotionThresholds: { minDepth: number; compressionRatio: number; keywords: Record<string, string[]>; architecturePatterns: string[] };
+    promotionThresholds: { minDepth: number; compressionRatio: number; keywords: Record<string, string[]>; architecturePatterns: string[]; dedupBm25Threshold: number; mergeMaxEntries: number; confidenceDecayRate: number };
   };
   restoration: { recentSummaries: number };
   llm: { provider: "claude-process" | "anthropic" | "openai" | "disabled"; model: string; apiKey?: string; baseURL: string };
@@ -22,6 +22,9 @@ const DEFAULTS: DaemonConfig = {
       minDepth: 2, compressionRatio: 0.3,
       keywords: { decision: ["decided", "agreed", "will use", "going with", "chosen"], fix: ["fixed", "root cause", "workaround", "resolved"] },
       architecturePatterns: ["src/[\\w/]+\\.ts", "[A-Z][a-zA-Z]+(Engine|Store|Service|Manager|Handler|Client)", "interface [A-Z]", "class [A-Z]"],
+      dedupBm25Threshold: 15,
+      mergeMaxEntries: 3,
+      confidenceDecayRate: 0.1,
     },
   },
   restoration: { recentSummaries: 3 },

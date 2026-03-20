@@ -11,6 +11,7 @@
   "license": "MIT",
   "keywords": ["context", "memory", "compaction", "summarization", "lcm"],
   "commands": "./commands/",
+  "agents": "./agents/",
   "hooks": {
     "PreCompact": [
       {

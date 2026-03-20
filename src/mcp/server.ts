@@ -26,38 +26,68 @@ const TOOL_ROUTES: Record<string, string> = {
 
 const LOCAL_TOOLS: Record<string, (args: Record<string, unknown>) => Promise<string>> = {
   lcm_stats: async (args) => {
-    const { collectStats } = await import("../stats.js");
+    const { collectStats, formatNumber } = await import("../stats.js");
     const stats = collectStats();
     const verbose = args.verbose === true;
     const lines: string[] = [];
-    lines.push("## Overview");
-    lines.push(`- Active projects: ${stats.projects}`);
-    lines.push(`- Conversations: ${stats.conversations}`);
-    lines.push(`- Messages stored: ${stats.messages}`);
-    lines.push(`- Summaries created: ${stats.summaries}`);
-    lines.push(`- DAG max depth: ${stats.maxDepth}`);
-    lines.push(`- Promoted memories: ${stats.promotedCount}`);
+
+    // Memory section
+    lines.push("## 🧠 Memory");
     lines.push("");
-    lines.push("## Token Savings");
-    const saved = stats.rawTokens - stats.summaryTokens;
-    const pct = stats.rawTokens > 0 ? ((saved / stats.rawTokens) * 100).toFixed(1) : "0.0";
-    const ratio = stats.ratio > 0 ? stats.ratio.toFixed(1) + "x" : "–";
-    lines.push(`- Raw tokens: ${stats.rawTokens}`);
-    lines.push(`- Summary tokens: ${stats.summaryTokens}`);
-    lines.push(`- Saved: ${saved} (${pct}%)`);
-    lines.push(`- Compression ratio: ${ratio}`);
-    if (verbose && stats.conversationDetails.length > 0) {
+    lines.push("| Metric | Value |");
+    lines.push("|--------|-------|");
+    lines.push(`| Projects | ${stats.projects} |`);
+    lines.push(`| Conversations | ${stats.conversations} |`);
+    lines.push(`| Messages | ${formatNumber(stats.messages)} |`);
+    lines.push(`| Summaries | ${formatNumber(stats.summaries)} |`);
+    lines.push(`| DAG depth | ${stats.maxDepth} |`);
+    lines.push(`| Promoted memories | ${stats.promotedCount} |`);
+
+    // Compression section (only when summarization has happened)
+    if (stats.summaries > 0) {
       lines.push("");
-      lines.push("## Per-Conversation");
-      lines.push("| # | msgs | sums | depth | raw | summary | saved | ratio |");
-      lines.push("|---|------|------|-------|-----|---------|-------|-------|");
-      for (const c of stats.conversationDetails) {
-        const s = c.rawTokens - c.summaryTokens;
-        const p = c.rawTokens > 0 ? ((s / c.rawTokens) * 100).toFixed(0) + "%" : "–";
-        const r = c.ratio > 0 ? c.ratio.toFixed(1) + "x" : "–";
-        lines.push(`| ${c.conversationId} | ${c.messages} | ${c.summaries} | ${c.maxDepth} | ${c.rawTokens} | ${c.summaryTokens} | ${p} | ${r} |`);
+      lines.push("## Compression");
+      lines.push("");
+      lines.push("| Metric | Value |");
+      lines.push("|--------|-------|");
+
+      const rawStr = formatNumber(stats.rawTokens);
+      const sumStr = formatNumber(stats.summaryTokens);
+      const savedPct = stats.rawTokens > 0
+        ? ((1 - stats.summaryTokens / stats.rawTokens) * 100).toFixed(1)
+        : "0.0";
+      const ratio = stats.ratio > 0 ? stats.ratio.toFixed(1) + "x" : "–";
+
+      const barWidth = 30;
+      const filled = stats.rawTokens > 0
+        ? Math.round((1 - stats.summaryTokens / stats.rawTokens) * barWidth)
+        : 0;
+      const bar = "█".repeat(filled) + "░".repeat(barWidth - filled);
+
+      lines.push(`| Compacted | ${stats.compactedConversations} of ${stats.conversations} conversations |`);
+      lines.push(`| Tokens | ${rawStr} → ${sumStr} |`);
+      lines.push(`| Ratio | ${ratio} |`);
+      lines.push(`| | ${savedPct}% compressed |`);
+      lines.push(`| | \`${bar}\` |`);
+
+      // Per Conversation (verbose, compacted-only)
+      if (verbose) {
+        const compactedDetails = stats.conversationDetails.filter((c) => c.summaries > 0);
+        if (compactedDetails.length > 0) {
+          lines.push("");
+          lines.push("## Per Conversation");
+          lines.push("");
+          lines.push("| # | msgs | sums | depth | tokens | ratio |");
+          lines.push("|---|------|------|-------|--------|-------|");
+          for (const c of compactedDetails) {
+            const tokensStr = `${formatNumber(c.rawTokens)} → ${formatNumber(c.summaryTokens)}`;
+            const r = c.ratio > 0 ? c.ratio.toFixed(1) + "x" : "–";
+            lines.push(`| ${c.conversationId} | ${c.messages} | ${c.summaries} | ${c.maxDepth} | ${tokensStr} | ${r} |`);
+          }
+        }
       }
     }
+
     return lines.join("\n");
   },
   lcm_doctor: async () => {

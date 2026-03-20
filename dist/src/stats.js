@@ -39,14 +39,19 @@ function queryProjectStats(dbPath) {
             ratio: r.summary_tokens > 0 && r.raw_tokens > 0 ? r.raw_tokens / r.summary_tokens : 0,
             promotedCount: 0,
         }));
+        // Compression metrics only count conversations where summarization happened
+        const compacted = conversationDetails.filter((c) => c.summaries > 0);
+        const compactedRaw = compacted.reduce((s, c) => s + c.rawTokens, 0);
+        const compactedSum = compacted.reduce((s, c) => s + c.summaryTokens, 0);
         return {
             conversations: convRows.length,
+            compactedConversations: compacted.length,
             messages: msgStats.count,
             summaries: sumStats.count,
             maxDepth: sumStats.maxDepth,
-            rawTokens: msgStats.tokens,
-            summaryTokens: sumStats.tokens,
-            ratio: sumStats.tokens > 0 && msgStats.tokens > 0 ? msgStats.tokens / sumStats.tokens : 0,
+            rawTokens: compactedRaw,
+            summaryTokens: compactedSum,
+            ratio: compactedSum > 0 && compactedRaw > 0 ? compactedRaw / compactedSum : 0,
             promotedCount: promoted.count,
             conversationDetails,
         };
@@ -55,7 +60,7 @@ function queryProjectStats(dbPath) {
         db.close();
     }
 }
-function formatNumber(n) {
+export function formatNumber(n) {
     if (n >= 1_000_000)
         return (n / 1_000_000).toFixed(1) + "M";
     if (n >= 1_000)
@@ -65,71 +70,99 @@ function formatNumber(n) {
 function pad(s, width, align = "right") {
     return align === "left" ? s.padEnd(width) : s.padStart(width);
 }
+function sectionHeader(name) {
+    const cyan = "\x1b[36m";
+    const reset = "\x1b[0m";
+    const totalWidth = 42;
+    // "── Name ────..."
+    const prefix = `── ${name} `;
+    const remaining = totalWidth - prefix.length;
+    const dashes = "─".repeat(Math.max(0, remaining));
+    return `    ${cyan}${prefix}${dashes}${reset}`;
+}
 export function printStats(stats, verbose) {
     const dim = "\x1b[2m";
     const cyan = "\x1b[36m";
     const green = "\x1b[32m";
-    const yellow = "\x1b[33m";
     const bold = "\x1b[1m";
     const reset = "\x1b[0m";
     console.log();
-    console.log(`  ${cyan}──${reset} ${bold}Overview${reset} ${cyan}──${reset}`);
+    console.log(`    ${bold}${cyan}🧠 lossless-claude${reset}`);
     console.log();
-    const rows = [
-        ["Active projects", String(stats.projects)],
+    // Memory section
+    console.log(sectionHeader("Memory"));
+    console.log();
+    const memRows = [
+        ["Projects", String(stats.projects)],
         ["Conversations", String(stats.conversations)],
-        ["Messages stored", formatNumber(stats.messages)],
-        ["Summaries created", formatNumber(stats.summaries)],
-        ["DAG max depth", String(stats.maxDepth)],
+        ["Messages", formatNumber(stats.messages)],
+        ["Summaries", formatNumber(stats.summaries)],
+        ["DAG depth", String(stats.maxDepth)],
         ["Promoted memories", String(stats.promotedCount)],
     ];
-    const labelWidth = Math.max(...rows.map(([l]) => l.length));
-    for (const [label, value] of rows) {
-        console.log(`  ${dim}${pad(label, labelWidth, "left")}${reset}  ${value}`);
+    const labelWidth = Math.max(...memRows.map(([l]) => l.length));
+    for (const [label, value] of memRows) {
+        console.log(`    ${dim}${pad(label, labelWidth, "left")}${reset}  ${value}`);
     }
-    console.log();
-    console.log(`  ${cyan}──${reset} ${bold}Token Savings${reset} ${cyan}──${reset}`);
-    console.log();
-    const rawStr = formatNumber(stats.rawTokens);
-    const sumStr = formatNumber(stats.summaryTokens);
-    const savedTokens = stats.rawTokens - stats.summaryTokens;
-    const savedPct = stats.rawTokens > 0 ? ((savedTokens / stats.rawTokens) * 100).toFixed(1) : "0.0";
-    const ratioStr = stats.ratio > 0 ? stats.ratio.toFixed(1) + "x" : "–";
-    const color = savedTokens > 0 ? green : yellow;
-    const tokenRows = [
-        ["Raw message tokens", rawStr],
-        ["Summary tokens", sumStr],
-        ["Tokens saved", `${color}${formatNumber(savedTokens)} (${savedPct}%)${reset}`],
-        ["Compression ratio", ratioStr],
-    ];
-    const tLabelWidth = Math.max(...tokenRows.map(([l]) => l.length));
-    for (const [label, value] of tokenRows) {
-        console.log(`  ${dim}${pad(label, tLabelWidth, "left")}${reset}  ${value}`);
+    // Compression section (only when summarization has happened)
+    if (stats.summaries > 0) {
+        console.log();
+        console.log(sectionHeader("Compression"));
+        console.log();
+        const rawStr = formatNumber(stats.rawTokens);
+        const sumStr = formatNumber(stats.summaryTokens);
+        const savedPct = stats.rawTokens > 0
+            ? ((1 - stats.summaryTokens / stats.rawTokens) * 100).toFixed(1)
+            : "0.0";
+        const ratioStr = stats.ratio > 0 ? stats.ratio.toFixed(1) + "x" : "–";
+        const barColor = stats.ratio > 10 ? green : cyan;
+        const compactedStr = `${stats.compactedConversations} of ${stats.conversations}`;
+        const tokensStr = `${rawStr} → ${sumStr}`;
+        const compRows = [
+            ["Compacted", compactedStr],
+            ["Tokens", tokensStr],
+            ["Ratio", ratioStr],
+        ];
+        const cLabelWidth = Math.max(...compRows.map(([l]) => l.length));
+        for (const [label, value] of compRows) {
+            console.log(`    ${dim}${pad(label, cLabelWidth, "left")}${reset}  ${value}`);
+        }
+        // Percentage line
+        console.log(`    ${" ".repeat(cLabelWidth)}  ${savedPct}% compressed`);
+        // Visual bar (30 chars wide)
+        const barWidth = 30;
+        const filled = stats.rawTokens > 0
+            ? Math.round((1 - stats.summaryTokens / stats.rawTokens) * barWidth)
+            : 0;
+        const empty = barWidth - filled;
+        const bar = "█".repeat(filled) + "░".repeat(empty);
+        console.log(`    ${" ".repeat(cLabelWidth)}  ${barColor}${bar}${reset}`);
     }
-    if (verbose && stats.conversationDetails.length > 0) {
-        console.log();
-        console.log(`  ${cyan}──${reset} ${bold}Per-Conversation${reset} ${cyan}──${reset}`);
-        console.log();
-        const hdr = ["#", "msgs", "sums", "depth", "raw", "summary", "saved", "ratio"];
-        const colWidths = [4, 6, 6, 5, 8, 8, 8, 6];
-        const header = hdr.map((h, i) => pad(h, colWidths[i])).join("  ");
-        console.log(`  ${dim}${header}${reset}`);
-        console.log(`  ${dim}${"─".repeat(header.length)}${reset}`);
-        for (const c of stats.conversationDetails) {
-            const saved = c.rawTokens - c.summaryTokens;
-            const pct = c.rawTokens > 0 ? ((saved / c.rawTokens) * 100).toFixed(0) + "%" : "–";
-            const r = c.ratio > 0 ? c.ratio.toFixed(1) + "x" : "–";
-            const cells = [
-                pad(String(c.conversationId), colWidths[0]),
-                pad(formatNumber(c.messages), colWidths[1]),
-                pad(formatNumber(c.summaries), colWidths[2]),
-                pad(String(c.maxDepth), colWidths[3]),
-                pad(formatNumber(c.rawTokens), colWidths[4]),
-                pad(formatNumber(c.summaryTokens), colWidths[5]),
-                pad(pct, colWidths[6]),
-                pad(r, colWidths[7]),
-            ];
-            console.log(`  ${cells.join("  ")}`);
+    // Per Conversation (verbose only, compacted only)
+    if (verbose) {
+        const compactedDetails = stats.conversationDetails.filter((c) => c.summaries > 0);
+        if (compactedDetails.length > 0) {
+            console.log();
+            console.log(sectionHeader("Per Conversation"));
+            console.log();
+            const hdr = ["#", "msgs", "sums", "depth", "tokens", "ratio"];
+            const colWidths = [4, 6, 6, 5, 16, 6];
+            const header = hdr.map((h, i) => pad(h, colWidths[i])).join("  ");
+            console.log(`    ${dim}${header}${reset}`);
+            console.log(`    ${dim}${"─".repeat(header.length)}${reset}`);
+            for (const c of compactedDetails) {
+                const tokensStr = `${formatNumber(c.rawTokens)} → ${formatNumber(c.summaryTokens)}`;
+                const r = c.ratio > 0 ? c.ratio.toFixed(1) + "x" : "–";
+                const cells = [
+                    pad(String(c.conversationId), colWidths[0]),
+                    pad(formatNumber(c.messages), colWidths[1]),
+                    pad(formatNumber(c.summaries), colWidths[2]),
+                    pad(String(c.maxDepth), colWidths[3]),
+                    pad(tokensStr, colWidths[4]),
+                    pad(r, colWidths[5]),
+                ];
+                console.log(`    ${cells.join("  ")}`);
+            }
         }
     }
     console.log();
@@ -138,13 +171,14 @@ export function collectStats() {
     const baseDir = join(homedir(), ".lossless-claude", "projects");
     if (!existsSync(baseDir)) {
         return {
-            projects: 0, conversations: 0, messages: 0, summaries: 0,
+            projects: 0, conversations: 0, compactedConversations: 0, messages: 0, summaries: 0,
             maxDepth: 0, rawTokens: 0, summaryTokens: 0, ratio: 0,
             promotedCount: 0, conversationDetails: [],
         };
     }
     let totalProjects = 0;
     let totalConversations = 0;
+    let totalCompacted = 0;
     let totalMessages = 0;
     let totalSummaries = 0;
     let totalMaxDepth = 0;
@@ -160,12 +194,12 @@ export function collectStats() {
             continue;
         try {
             const projStats = queryProjectStats(dbPath);
-            // Only count projects with actual activity
-            const hasActivity = projStats.conversations > 0 || projStats.summaries > 0 || projStats.promotedCount > 0 || projStats.messages > 0;
-            if (!hasActivity)
+            // Only count projects with stored messages
+            if (projStats.messages === 0)
                 continue;
             totalProjects++;
             totalConversations += projStats.conversations;
+            totalCompacted += projStats.compactedConversations;
             totalMessages += projStats.messages;
             totalSummaries += projStats.summaries;
             totalMaxDepth = Math.max(totalMaxDepth, projStats.maxDepth);
@@ -181,6 +215,7 @@ export function collectStats() {
     return {
         projects: totalProjects,
         conversations: totalConversations,
+        compactedConversations: totalCompacted,
         messages: totalMessages,
         summaries: totalSummaries,
         maxDepth: totalMaxDepth,

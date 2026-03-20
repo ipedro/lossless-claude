@@ -115,7 +115,7 @@
     <section class="how-it-works">
       <div class="container">
         <h2>How it works</h2>
-        <p class="section-sub">Compaction runs automatically in the background after each turn — your session is never blocked.</p>
+        <p class="section-sub">Compaction runs automatically when Claude Code's context is nearly full — no manual intervention needed.</p>
         <div class="steps">
           <div class="step" data-step="1">
             <div class="step-num">1</div>
@@ -129,7 +129,7 @@
             <div class="step-num">2</div>
             <div class="step-content">
               <h4>Leaf compaction</h4>
-              <p>Once enough messages accumulate, a background daemon groups them into a leaf summary using your configured LLM.</p>
+              <p>When context fills up, lossless-claude intercepts the compaction hook and summarizes message chunks using a headless Claude process (Haiku).</p>
             </div>
           </div>
           <div class="step-connector"></div>
@@ -152,8 +152,8 @@
           <div class="step" data-step="5">
             <div class="step-num">5</div>
             <div class="step-content">
-              <h4>Context assembly</h4>
-              <p>Each turn assembled fresh from recent messages + DAG summaries + promoted knowledge. Full fidelity, minimal tokens.</p>
+              <h4>Context restoration</h4>
+              <p>At session start, recent summaries + promoted knowledge are injected as context. Full project history, minimal tokens.</p>
             </div>
           </div>
         </div>
@@ -214,7 +214,7 @@
               <li>Smart promotion engine — detects decisions, bugs, architecture</li>
               <li>Background daemon with lazy auto-spawning</li>
               <li>Native Claude Code plugin — hooks, MCP, one install command</li>
-              <li>Anthropic-native + OpenAI-compatible summarizers</li>
+              <li>Headless Claude subprocess for summarization — no API keys needed</li>
             </ul>
           </div>
         </div>

@@ -496,6 +496,16 @@ export function runLcmMigrations(
   backfillSummaryDepths(db);
   backfillSummaryMetadata(db);
 
+  // Session instructions (CLAUDE.md captured on startup)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS session_instructions (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      content TEXT NOT NULL,
+      content_hash TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+
   // Promoted memories (cross-session, agent-stored)
   db.exec(`
     CREATE TABLE IF NOT EXISTS promoted (

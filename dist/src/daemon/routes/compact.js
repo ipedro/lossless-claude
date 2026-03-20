@@ -15,6 +15,8 @@ import { parseTranscript } from "../../transcript.js";
 // In-memory justCompacted map (session_id -> timestamp)
 export const justCompactedMap = new Map();
 export const JUST_COMPACTED_TTL_MS = 30_000;
+// Guard against concurrent compactions for the same session
+const compactingNow = new Set();
 export function createCompactHandler(config) {
     const summarize = config.llm.provider === "disabled"
         ? null
@@ -42,105 +44,115 @@ export function createCompactHandler(config) {
             sendJson(res, 400, { error: "session_id and cwd are required" });
             return;
         }
-        const dbPath = projectDbPath(cwd);
-        ensureProjectDir(cwd);
-        const db = new DatabaseSync(dbPath);
-        runLcmMigrations(db);
-        const conversationStore = new ConversationStore(db);
-        const summaryStore = new SummaryStore(db);
-        const conversation = await conversationStore.getOrCreateConversation(session_id);
-        // Ingest new messages from the transcript into the DB.
-        if (transcript_path && existsSync(transcript_path)) {
-            const parsed = parseTranscript(transcript_path);
-            const storedCount = await conversationStore.getMessageCount(conversation.conversationId);
-            const newMessages = parsed.slice(storedCount);
-            if (newMessages.length > 0) {
-                const inputs = newMessages.map((m, i) => ({
-                    conversationId: conversation.conversationId,
-                    seq: storedCount + i,
-                    role: m.role,
-                    content: m.content,
-                    tokenCount: m.tokenCount,
-                }));
-                const records = await conversationStore.createMessagesBulk(inputs);
-                await summaryStore.appendContextMessages(conversation.conversationId, records.map((r) => r.messageId));
-            }
-        }
-        // Check if there's anything to compact
-        const tokenCount = await summaryStore.getContextTokenCount(conversation.conversationId);
-        if (tokenCount === 0) {
-            db.close();
-            sendJson(res, 200, { summary: "No messages to compact." });
+        if (compactingNow.has(session_id)) {
+            sendJson(res, 200, { summary: "Compaction already in progress for this session." });
             return;
         }
-        const engine = new CompactionEngine(conversationStore, summaryStore, {
-            contextThreshold: 0.75,
-            freshTailCount: 8,
-            leafMinFanout: 3,
-            condensedMinFanout: 2,
-            condensedMinFanoutHard: 1,
-            incrementalMaxDepth: 0,
-            leafTargetTokens: config.compaction.leafTokens,
-            condensedTargetTokens: 900,
-            maxRounds: 10,
-        });
-        const result = await engine.compact({
-            conversationId: conversation.conversationId,
-            tokenBudget: 200_000,
-            summarize,
-            force: true,
-        });
-        // Promote worthy summaries to cross-session memory (SQLite promoted table)
-        let promotedCount = 0;
-        if (result.actionTaken && result.createdSummaryId) {
-            try {
-                const summaries = await summaryStore.getSummariesByConversation(conversation.conversationId);
-                const newSummary = summaries.find((s) => s.summaryId === result.createdSummaryId);
-                if (newSummary) {
-                    const pid = projectId(cwd);
-                    const promotionResult = shouldPromote({
-                        content: newSummary.content,
-                        depth: newSummary.depth,
-                        tokenCount: newSummary.tokenCount,
-                        sourceMessageTokenCount: newSummary.sourceMessageTokenCount,
-                    }, config.compaction.promotionThresholds);
-                    if (promotionResult.promote) {
-                        const promotedStore = new PromotedStore(db);
-                        promotedStore.insert({
-                            content: newSummary.content,
-                            tags: promotionResult.tags,
-                            projectId: pid,
-                            sessionId: session_id,
-                            depth: newSummary.depth,
-                            confidence: promotionResult.confidence,
-                            sourceSummaryId: newSummary.summaryId,
-                        });
-                        promotedCount = 1;
-                    }
+        compactingNow.add(session_id);
+        try {
+            const dbPath = projectDbPath(cwd);
+            ensureProjectDir(cwd);
+            const db = new DatabaseSync(dbPath);
+            runLcmMigrations(db);
+            const conversationStore = new ConversationStore(db);
+            const summaryStore = new SummaryStore(db);
+            const conversation = await conversationStore.getOrCreateConversation(session_id);
+            // Ingest new messages from the transcript into the DB.
+            if (transcript_path && existsSync(transcript_path)) {
+                const parsed = parseTranscript(transcript_path);
+                const storedCount = await conversationStore.getMessageCount(conversation.conversationId);
+                const newMessages = parsed.slice(storedCount);
+                if (newMessages.length > 0) {
+                    const inputs = newMessages.map((m, i) => ({
+                        conversationId: conversation.conversationId,
+                        seq: storedCount + i,
+                        role: m.role,
+                        content: m.content,
+                        tokenCount: m.tokenCount,
+                    }));
+                    const records = await conversationStore.createMessagesBulk(inputs);
+                    await summaryStore.appendContextMessages(conversation.conversationId, records.map((r) => r.messageId));
                 }
             }
-            catch { /* non-fatal */ }
-        }
-        // Update meta.json
-        try {
-            const metaPath = projectMetaPath(cwd);
-            let meta = {};
-            if (existsSync(metaPath)) {
-                meta = JSON.parse(readFileSync(metaPath, "utf-8"));
+            // Check if there's anything to compact
+            const tokenCount = await summaryStore.getContextTokenCount(conversation.conversationId);
+            if (tokenCount === 0) {
+                db.close();
+                sendJson(res, 200, { summary: "No messages to compact." });
+                return;
             }
-            meta.cwd = cwd;
-            meta.lastCompact = new Date().toISOString();
-            writeFileSync(metaPath, JSON.stringify(meta, null, 2));
+            const engine = new CompactionEngine(conversationStore, summaryStore, {
+                contextThreshold: 0.75,
+                freshTailCount: 8,
+                leafMinFanout: 3,
+                condensedMinFanout: 2,
+                condensedMinFanoutHard: 1,
+                incrementalMaxDepth: 0,
+                leafTargetTokens: config.compaction.leafTokens,
+                condensedTargetTokens: 900,
+                maxRounds: 10,
+            });
+            const result = await engine.compact({
+                conversationId: conversation.conversationId,
+                tokenBudget: 200_000,
+                summarize,
+                force: true,
+            });
+            // Promote worthy summaries to cross-session memory (SQLite promoted table)
+            let promotedCount = 0;
+            if (result.actionTaken && result.createdSummaryId) {
+                try {
+                    const summaries = await summaryStore.getSummariesByConversation(conversation.conversationId);
+                    const newSummary = summaries.find((s) => s.summaryId === result.createdSummaryId);
+                    if (newSummary) {
+                        const pid = projectId(cwd);
+                        const promotionResult = shouldPromote({
+                            content: newSummary.content,
+                            depth: newSummary.depth,
+                            tokenCount: newSummary.tokenCount,
+                            sourceMessageTokenCount: newSummary.sourceMessageTokenCount,
+                        }, config.compaction.promotionThresholds);
+                        if (promotionResult.promote) {
+                            const promotedStore = new PromotedStore(db);
+                            promotedStore.insert({
+                                content: newSummary.content,
+                                tags: promotionResult.tags,
+                                projectId: pid,
+                                sessionId: session_id,
+                                depth: newSummary.depth,
+                                confidence: promotionResult.confidence,
+                                sourceSummaryId: newSummary.summaryId,
+                            });
+                            promotedCount = 1;
+                        }
+                    }
+                }
+                catch { /* non-fatal */ }
+            }
+            // Update meta.json
+            try {
+                const metaPath = projectMetaPath(cwd);
+                let meta = {};
+                if (existsSync(metaPath)) {
+                    meta = JSON.parse(readFileSync(metaPath, "utf-8"));
+                }
+                meta.cwd = cwd;
+                meta.lastCompact = new Date().toISOString();
+                writeFileSync(metaPath, JSON.stringify(meta, null, 2));
+            }
+            catch { /* non-fatal */ }
+            // Set justCompacted flag
+            justCompactedMap.set(session_id, Date.now());
+            db.close();
+            const tokenDelta = result.tokensBefore - result.tokensAfter;
+            const summaryMsg = result.actionTaken
+                ? `Compacted ${result.tokensBefore} → ${result.tokensAfter} tokens (saved ${tokenDelta}). ${promotedCount} promoted to long-term memory.`
+                : "No compaction needed.";
+            sendJson(res, 200, { summary: summaryMsg });
         }
-        catch { /* non-fatal */ }
-        // Set justCompacted flag
-        justCompactedMap.set(session_id, Date.now());
-        db.close();
-        const tokenDelta = result.tokensBefore - result.tokensAfter;
-        const summaryMsg = result.actionTaken
-            ? `Compacted ${result.tokensBefore} → ${result.tokensAfter} tokens (saved ${tokenDelta}). ${promotedCount} promoted to long-term memory.`
-            : "No compaction needed.";
-        sendJson(res, 200, { summary: summaryMsg });
+        finally {
+            compactingNow.delete(session_id);
+        }
     };
 }
 //# sourceMappingURL=compact.js.map

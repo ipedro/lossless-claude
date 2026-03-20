@@ -174,5 +174,9 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
       : "No compaction needed.";
 
     sendJson(res, 200, { summary: summaryMsg });
+
+    } finally {
+      compactingNow.delete(session_id);
+    }
   };
 }

@@ -221,45 +221,64 @@ export async function runDoctor(overrides) {
     return results;
 }
 export function printResults(results) {
+    console.log(`\n${COLORS.bold}🧠 lossless-claude${COLORS.nc}`);
     let currentCategory = "";
     for (const r of results) {
         if (r.category !== currentCategory) {
             currentCategory = r.category;
-            console.log(`\n  ${COLORS.cyan}──${COLORS.nc} ${COLORS.bold}${currentCategory}${COLORS.nc} ${COLORS.cyan}──${COLORS.nc}`);
+            const label = ` ${currentCategory} `;
+            const dashes = "─".repeat(42 - 3 - label.length);
+            console.log(`\n${COLORS.cyan}──${label}${dashes}${COLORS.nc}`);
         }
         if (r.name === "stack") {
-            console.log(`  ${COLORS.dim}${r.message}${COLORS.nc}`);
+            console.log(`    ${COLORS.dim}${r.message}${COLORS.nc}`);
             continue;
         }
-        const icon = r.status === "pass" ? `${COLORS.green}\u2705` : r.status === "warn" ? `${COLORS.yellow}\u26A0\uFE0F ` : `${COLORS.red}\u274C`;
+        const icon = r.status === "pass" ? `${COLORS.green}✅${COLORS.nc}` :
+            r.status === "warn" ? `${COLORS.yellow}⚠️ ${COLORS.nc}` :
+                `${COLORS.red}❌${COLORS.nc}`;
         const suffix = r.fixApplied ? ` ${COLORS.dim}(auto-fixed)${COLORS.nc}` : "";
-        console.log(`  ${icon}${COLORS.nc} ${r.name}: ${r.message}${suffix}`);
+        console.log(`    ${icon} ${COLORS.dim}${r.name}${COLORS.nc}  ${r.message}${suffix}`);
     }
     const pass = results.filter(r => r.status === "pass" && r.name !== "stack").length;
     const fail = results.filter(r => r.status === "fail").length;
     const warn = results.filter(r => r.status === "warn").length;
-    console.log(`\n  ${pass} passed, ${fail} failed, ${warn} warnings\n`);
+    console.log(`\n  ${pass} passed · ${fail} failed · ${warn} warnings\n`);
 }
 export function formatResultsPlain(results) {
     const lines = [];
-    let currentCategory = "";
+    // Group results by category
+    const categories = new Map();
     for (const r of results) {
-        if (r.category !== currentCategory) {
-            currentCategory = r.category;
-            lines.push(`\n## ${currentCategory}`);
+        if (!categories.has(r.category))
+            categories.set(r.category, []);
+        categories.get(r.category).push(r);
+    }
+    for (const [category, items] of categories) {
+        lines.push(`## ${category}`);
+        // Stack entries (name === "stack") go as plain text before the table
+        for (const r of items) {
+            if (r.name === "stack") {
+                lines.push(r.message);
+            }
         }
-        if (r.name === "stack") {
-            lines.push(r.message);
-            continue;
+        const tableItems = items.filter(r => r.name !== "stack");
+        if (tableItems.length > 0) {
+            lines.push("");
+            lines.push("| Check | Status |");
+            lines.push("|---|---|");
+            for (const r of tableItems) {
+                const icon = r.status === "pass" ? "✅" : r.status === "warn" ? "⚠️" : "❌";
+                const suffix = r.fixApplied ? " (auto-fixed)" : "";
+                lines.push(`| ${r.name} | ${icon} ${r.message}${suffix} |`);
+            }
         }
-        const icon = r.status === "pass" ? "OK" : r.status === "warn" ? "WARN" : "FAIL";
-        const suffix = r.fixApplied ? " (auto-fixed)" : "";
-        lines.push(`- [${icon}] ${r.name}: ${r.message}${suffix}`);
+        lines.push("");
     }
     const pass = results.filter(r => r.status === "pass" && r.name !== "stack").length;
     const fail = results.filter(r => r.status === "fail").length;
     const warn = results.filter(r => r.status === "warn").length;
-    lines.push(`\n${pass} passed, ${fail} failed, ${warn} warnings`);
+    lines.push(`${pass} passed · ${fail} failed · ${warn} warnings`);
     return lines.join("\n");
 }
 //# sourceMappingURL=doctor.js.map

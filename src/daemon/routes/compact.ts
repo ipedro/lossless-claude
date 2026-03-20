@@ -1,7 +1,8 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import type { DaemonConfig } from "../config.js";
-import { projectId, projectDbPath, projectMetaPath, ensureProjectDir } from "../project.js";
+import { projectId, projectDbPath, projectMetaPath, ensureProjectDir } from "../project.js"
+import { enqueue } from "../project-queue.js";
 import { sendJson } from "../server.js";
 import type { RouteHandler } from "../server.js";
 import { runLcmMigrations } from "../../db/migration.js";
@@ -56,16 +57,20 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
     }
 
     if (compactingNow.has(session_id)) {
-      sendJson(res, 200, { summary: "Compaction already in progress for this session." });
+      sendJson(res, 200, { skipped: true, summary: "Compaction already in progress for this session." });
       return;
     }
     compactingNow.add(session_id);
+
+    const pid = projectId(cwd);
+    const result = await enqueue(pid, async () => {
     try {
 
     const dbPath = projectDbPath(cwd);
     ensureProjectDir(cwd);
 
     const db = new DatabaseSync(dbPath);
+    db.exec("PRAGMA busy_timeout = 5000");
     runLcmMigrations(db);
 
     const conversationStore = new ConversationStore(db);
@@ -95,8 +100,7 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
 
     if (tokenCount === 0) {
       db.close();
-      sendJson(res, 200, { summary: "No messages to compact." });
-      return;
+      return { summary: "No messages to compact." };
     }
 
     const engine = new CompactionEngine(conversationStore, summaryStore, {
@@ -111,7 +115,7 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
       maxRounds: 10,
     });
 
-    const result = await engine.compact({
+    const compactResult = await engine.compact({
       conversationId: conversation.conversationId,
       tokenBudget: 200_000,
       summarize,
@@ -120,12 +124,11 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
 
     // Promote worthy summaries to cross-session memory (SQLite promoted table)
     let promotedCount = 0;
-    if (result.actionTaken && result.createdSummaryId) {
+    if (compactResult.actionTaken && compactResult.createdSummaryId) {
       try {
         const summaries = await summaryStore.getSummariesByConversation(conversation.conversationId);
-        const newSummary = summaries.find((s) => s.summaryId === result.createdSummaryId);
+        const newSummary = summaries.find((s) => s.summaryId === compactResult.createdSummaryId);
         if (newSummary) {
-          const pid = projectId(cwd);
           const promotionResult = shouldPromote(
             {
               content: newSummary.content,
@@ -175,15 +178,18 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
 
     db.close();
 
-    const tokenDelta = result.tokensBefore - result.tokensAfter;
-    const summaryMsg = result.actionTaken
-      ? `Compacted ${result.tokensBefore} → ${result.tokensAfter} tokens (saved ${tokenDelta}). ${promotedCount} promoted to long-term memory.`
+    const tokenDelta = compactResult.tokensBefore - compactResult.tokensAfter;
+    const summaryMsg = compactResult.actionTaken
+      ? `Compacted ${compactResult.tokensBefore} → ${compactResult.tokensAfter} tokens (saved ${tokenDelta}). ${promotedCount} promoted to long-term memory.`
       : "No compaction needed.";
 
-    sendJson(res, 200, { summary: summaryMsg });
+    return { summary: summaryMsg };
 
     } finally {
       compactingNow.delete(session_id);
     }
+    }) // end enqueue
+
+    sendJson(res, 200, result);
   };
 }

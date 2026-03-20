@@ -23,6 +23,11 @@ export type DaemonConfig = {
     };
     restoration: {
         recentSummaries: number;
+        promptSearchMinScore: number;
+        promptSearchMaxResults: number;
+        promptSnippetLength: number;
+        recencyHalfLifeHours: number;
+        crossSessionAffinity: number;
     };
     llm: {
         provider: "claude-process" | "anthropic" | "openai" | "disabled";

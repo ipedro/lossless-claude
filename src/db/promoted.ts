@@ -29,6 +29,7 @@ export type SearchResult = {
   content: string;
   tags: string[];
   projectId: string;
+  sessionId: string | null;
   confidence: number;
   createdAt: string;
   rank: number;
@@ -81,7 +82,7 @@ export class PromotedStore {
     if (!sanitized) return [];
 
     const rows = this.db.prepare(
-      `SELECT p.id, p.content, p.tags, p.project_id, p.confidence, p.created_at, rank
+      `SELECT p.id, p.content, p.tags, p.project_id, p.session_id, p.confidence, p.created_at, rank
        FROM promoted_fts fts
        JOIN promoted p ON p.rowid = fts.rowid
        WHERE promoted_fts MATCH ?
@@ -95,6 +96,7 @@ export class PromotedStore {
       content: r.content,
       tags: JSON.parse(r.tags) as string[],
       projectId: r.project_id,
+      sessionId: r.session_id,
       confidence: r.confidence,
       createdAt: r.created_at,
       rank: r.rank,

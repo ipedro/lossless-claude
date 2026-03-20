@@ -9,7 +9,7 @@ export type DaemonConfig = {
     leafTokens: number; maxDepth: number;
     promotionThresholds: { minDepth: number; compressionRatio: number; keywords: Record<string, string[]>; architecturePatterns: string[]; dedupBm25Threshold: number; mergeMaxEntries: number; confidenceDecayRate: number };
   };
-  restoration: { recentSummaries: number; promptSearchMinScore: number; promptSearchMaxResults: number; promptSnippetLength: number };
+  restoration: { recentSummaries: number; promptSearchMinScore: number; promptSearchMaxResults: number; promptSnippetLength: number; recencyHalfLifeHours: number; crossSessionAffinity: number };
   llm: { provider: "claude-process" | "anthropic" | "openai" | "disabled"; model: string; apiKey?: string; baseURL: string };
 };
 
@@ -27,7 +27,7 @@ const DEFAULTS: DaemonConfig = {
       confidenceDecayRate: 0.1,
     },
   },
-  restoration: { recentSummaries: 3, promptSearchMinScore: 10, promptSearchMaxResults: 3, promptSnippetLength: 200 },
+  restoration: { recentSummaries: 3, promptSearchMinScore: 2, promptSearchMaxResults: 3, promptSnippetLength: 200, recencyHalfLifeHours: 24, crossSessionAffinity: 0.85 },
   llm: { provider: "claude-process", model: "", apiKey: "", baseURL: "" },
 };
 

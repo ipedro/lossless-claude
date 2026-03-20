@@ -25,6 +25,7 @@ export type SearchResult = {
     content: string;
     tags: string[];
     projectId: string;
+    sessionId: string | null;
     confidence: number;
     createdAt: string;
     rank: number;

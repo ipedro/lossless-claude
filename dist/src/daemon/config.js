@@ -15,7 +15,7 @@ const DEFAULTS = {
             confidenceDecayRate: 0.1,
         },
     },
-    restoration: { recentSummaries: 3 },
+    restoration: { recentSummaries: 3, promptSearchMinScore: 2, promptSearchMaxResults: 3, promptSnippetLength: 200, recencyHalfLifeHours: 24, crossSessionAffinity: 0.85 },
     llm: { provider: "claude-process", model: "", apiKey: "", baseURL: "" },
 };
 function deepMerge(target, source) {

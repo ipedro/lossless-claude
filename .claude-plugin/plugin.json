@@ -29,6 +29,12 @@
         "matcher": "",
         "hooks": [{ "type": "command", "command": "lossless-claude session-end" }]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [{ "type": "command", "command": "lossless-claude user-prompt" }]
+      }
     ]
   },
   "mcpServers": {

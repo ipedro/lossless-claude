@@ -1,7 +1,6 @@
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
-import { dirname } from "node:path";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
-import { projectId, projectDbPath, projectMetaPath } from "../project.js";
+import { projectId, projectDbPath, projectMetaPath, ensureProjectDir } from "../project.js";
 import { sendJson } from "../server.js";
 import { runLcmMigrations } from "../../db/migration.js";
 import { ConversationStore } from "../../store/conversation-store.js";
@@ -40,7 +39,7 @@ export function createCompactHandler(config) {
             return;
         }
         const dbPath = projectDbPath(cwd);
-        mkdirSync(dirname(dbPath), { recursive: true });
+        ensureProjectDir(cwd);
         const db = new DatabaseSync(dbPath);
         runLcmMigrations(db);
         const conversationStore = new ConversationStore(db);
@@ -104,11 +103,11 @@ export function createCompactHandler(config) {
         // Update meta.json
         try {
             const metaPath = projectMetaPath(cwd);
-            mkdirSync(dirname(metaPath), { recursive: true });
             let meta = {};
             if (existsSync(metaPath)) {
                 meta = JSON.parse(readFileSync(metaPath, "utf-8"));
             }
+            meta.cwd = cwd;
             meta.lastCompact = new Date().toISOString();
             writeFileSync(metaPath, JSON.stringify(meta, null, 2));
         }

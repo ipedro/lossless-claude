@@ -27,10 +27,12 @@ type appDataPaths struct {
 	claudeCredsDir string
 }
 
-// agentEntry describes one agent directory under ~/.claude/agents.
+// agentEntry describes one lossless-claude project.
 type agentEntry struct {
-	name string
-	path string
+	name        string
+	path        string // ~/.lossless-claude/projects/<sha256>
+	sessionsDir string // ~/.claude/projects/<cwd-as-dir>/ where JSONL files live
+	dbPath      string // ~/.lossless-claude/projects/<sha256>/db.sqlite
 }
 
 // sessionEntry describes one JSONL session file.
@@ -170,42 +172,96 @@ func resolveDataPaths() (appDataPaths, error) {
 	if err != nil {
 		return appDataPaths{}, fmt.Errorf("resolve home dir: %w", err)
 	}
-	base := filepath.Join(home, ".claude")
+	claudeBase := filepath.Join(home, ".claude")
+	losslessProjects := filepath.Join(home, ".lossless-claude", "projects")
 	return appDataPaths{
-		agentsDir:      filepath.Join(base, "agents"),
-		lcmDBPath:      filepath.Join(base, "lcm.db"),
-		claudeDir:      base,
-		claudeConfig:   filepath.Join(base, "claude.json"),
-		claudeEnv:      filepath.Join(base, ".env"),
-		claudeCredsDir: filepath.Join(base, "credentials"),
+		agentsDir:      losslessProjects, // repurposed: lists lossless-claude projects
+		lcmDBPath:      "",               // set on project selection
+		claudeDir:      claudeBase,
+		claudeConfig:   filepath.Join(claudeBase, "claude.json"),
+		claudeEnv:      filepath.Join(claudeBase, ".env"),
+		claudeCredsDir: filepath.Join(claudeBase, "credentials"),
 	}, nil
 }
 
-func loadAgents(agentsDir string) ([]agentEntry, error) {
-	entries, err := os.ReadDir(agentsDir)
+// cwdToClaudeProjectDir converts a cwd path to Claude Code's project directory name.
+// Claude Code names project dirs by replacing all "/" with "-".
+func cwdToClaudeProjectDir(cwd string) string {
+	return strings.ReplaceAll(cwd, "/", "-")
+}
+
+// projectMeta mirrors the fields we write to meta.json from TypeScript.
+type projectMeta struct {
+	CWD         string `json:"cwd"`
+	LastCompact string `json:"lastCompact"`
+}
+
+func loadAgents(projectsDir string) ([]agentEntry, error) {
+	entries, err := os.ReadDir(projectsDir)
 	if err != nil {
-		return nil, fmt.Errorf("read agents dir %q: %w", agentsDir, err)
+		if os.IsNotExist(err) {
+			return nil, nil // no projects yet
+		}
+		return nil, fmt.Errorf("read projects dir %q: %w", projectsDir, err)
 	}
+
+	home, _ := os.UserHomeDir()
+	claudeProjectsDir := filepath.Join(home, ".claude", "projects")
 
 	agents := make([]agentEntry, 0, len(entries))
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
+		projectPath := filepath.Join(projectsDir, entry.Name())
+		dbPath := filepath.Join(projectPath, "db.sqlite")
+		if _, err := os.Stat(dbPath); err != nil {
+			continue // skip dirs without db.sqlite
+		}
+
+		// Read meta.json to get the cwd and derive display name + sessions dir.
+		var displayName, sessionsDir string
+		metaPath := filepath.Join(projectPath, "meta.json")
+		if metaBytes, err := os.ReadFile(metaPath); err == nil {
+			var meta projectMeta
+			if err := json.Unmarshal(metaBytes, &meta); err == nil && meta.CWD != "" {
+				displayName = filepath.Base(meta.CWD)
+				claudeDirName := cwdToClaudeProjectDir(meta.CWD)
+				sessionsDir = filepath.Join(claudeProjectsDir, claudeDirName)
+			}
+		}
+		if displayName == "" {
+			displayName = entry.Name()[:8] // first 8 chars of sha256
+		}
+		if sessionsDir == "" {
+			sessionsDir = filepath.Join(claudeProjectsDir, entry.Name())
+		}
+
 		agents = append(agents, agentEntry{
-			name: entry.Name(),
-			path: filepath.Join(agentsDir, entry.Name()),
+			name:        displayName,
+			path:        projectPath,
+			sessionsDir: sessionsDir,
+			dbPath:      dbPath,
 		})
 	}
 
+	// Sort by db.sqlite modification time (most recently active first).
 	sort.Slice(agents, func(i, j int) bool {
-		return strings.ToLower(agents[i].name) < strings.ToLower(agents[j].name)
+		iInfo, iErr := os.Stat(agents[i].dbPath)
+		jInfo, jErr := os.Stat(agents[j].dbPath)
+		if iErr != nil || jErr != nil {
+			return agents[i].name < agents[j].name
+		}
+		return iInfo.ModTime().After(jInfo.ModTime())
 	})
 	return agents, nil
 }
 
 func discoverSessionFiles(agent agentEntry) ([]sessionFileEntry, error) {
-	sessionsDir := filepath.Join(agent.path, "sessions")
+	sessionsDir := agent.sessionsDir
+	if sessionsDir == "" {
+		sessionsDir = filepath.Join(agent.path, "sessions")
+	}
 	paths, err := filepath.Glob(filepath.Join(sessionsDir, "*.jsonl"))
 	if err != nil {
 		return nil, fmt.Errorf("glob sessions for agent %q: %w", agent.name, err)

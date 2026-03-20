@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -200,7 +203,15 @@ func main() {
 		return
 	}
 
-	m := newModel()
+	cwd := flag.String("cwd", "", "project working directory (defaults to $PWD)")
+	flag.Parse()
+
+	projectCWD := *cwd
+	if projectCWD == "" {
+		projectCWD = os.Getenv("PWD")
+	}
+
+	m := newModel(projectCWD)
 	program := tea.NewProgram(m, tea.WithAltScreen())
 	if _, err := program.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "lcm-tui failed: %v\n", err)
@@ -208,7 +219,7 @@ func main() {
 	}
 }
 
-func newModel() model {
+func newModel(cwd string) model {
 	m := model{
 		screen:           screenAgents,
 		summarySources:   make(map[string][]summarySource),
@@ -231,7 +242,26 @@ func newModel() model {
 		return m
 	}
 	m.agents = agents
-	m.status = fmt.Sprintf("Loaded %d agents from %s", len(agents), paths.agentsDir)
+
+	// If a cwd is known, try to auto-select the matching project.
+	if cwd != "" {
+		hash := fmt.Sprintf("%x", sha256.Sum256([]byte(cwd)))
+		for i, a := range agents {
+			if filepath.Base(a.path) == hash {
+				m.agentCursor = i
+				m.paths.lcmDBPath = a.dbPath
+				if loadErr := m.loadInitialSessions(a); loadErr == nil {
+					m.screen = screenSessions
+					m.status = fmt.Sprintf("%s — %d sessions", a.name, len(m.sessions))
+				} else {
+					m.status = fmt.Sprintf("Loaded project %s (no sessions yet)", a.name)
+				}
+				return m
+			}
+		}
+	}
+
+	m.status = fmt.Sprintf("Loaded %d projects", len(agents))
 	return m
 }
 
@@ -335,10 +365,11 @@ func (m model) handleAgentsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.agentCursor = clamp(m.agentCursor+1, 0, len(m.agents)-1)
 	case "enter":
 		if len(m.agents) == 0 {
-			m.status = "No agents found"
+			m.status = "No projects found"
 			return m, nil
 		}
 		agent := m.agents[m.agentCursor]
+		m.paths.lcmDBPath = agent.dbPath
 		if err := m.loadInitialSessions(agent); err != nil {
 			m.status = "Error: " + err.Error()
 			return m, nil
@@ -348,7 +379,7 @@ func (m model) handleAgentsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.summary = summaryGraph{}
 		m.summaryRows = nil
 		m.screen = screenSessions
-		m.status = fmt.Sprintf("Loaded %d of %d sessions for agent %s", len(m.sessions), len(m.sessionFiles), agent.name)
+		m.status = fmt.Sprintf("Loaded %d of %d sessions for %s", len(m.sessions), len(m.sessionFiles), agent.name)
 	case "r":
 		agents, err := loadAgents(m.paths.agentsDir)
 		if err != nil {

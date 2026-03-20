@@ -1,0 +1,4 @@
+{"type":"server-started","port":56605,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:56605","screen_dir":"/Users/pedro/Developer/lossless-claude/.superpowers/brainstorm/27252-1773861351"}
+{"type":"screen-added","file":"/Users/pedro/Developer/lossless-claude/.superpowers/brainstorm/27252-1773861351/approaches.html"}
+{"type":"screen-added","file":"/Users/pedro/Developer/lossless-claude/.superpowers/brainstorm/27252-1773861351/wireframe.html"}
+{"type":"server-stopped","reason":"idle timeout"}

@@ -83,16 +83,16 @@ export function resolveBinaryPath(deps: Pick<ServiceDeps, "spawnSync" | "existsS
 
 
 type SummarizerConfig = {
-  provider: "claude-cli" | "anthropic" | "openai";
+  provider: "claude-process" | "anthropic" | "openai";
   model: string;
   apiKey: string;
   baseURL: string;
 };
 
 async function pickSummarizer(deps: ServiceDeps): Promise<SummarizerConfig> {
-  // Non-TTY (CI, piped stdin): skip interactive picker, default to claude-cli
+  // Non-TTY (CI, piped stdin): skip interactive picker, default to claude-process
   if (!process.stdin.isTTY) {
-    return { provider: "claude-cli", model: "claude-haiku-4-5", apiKey: "", baseURL: "" };
+    return { provider: "claude-process", model: "", apiKey: "", baseURL: "" };
   }
 
   console.log("\n  ─── Summarizer (for conversation compaction)\n");
@@ -111,7 +111,7 @@ async function pickSummarizer(deps: ServiceDeps): Promise<SummarizerConfig> {
   }
 
   if (choice === "1") {
-    return { provider: "claude-cli", model: "claude-haiku-4-5", apiKey: "", baseURL: "" };
+    return { provider: "claude-process", model: "", apiKey: "", baseURL: "" };
   }
 
   if (choice === "2") {
@@ -126,24 +126,7 @@ async function pickSummarizer(deps: ServiceDeps): Promise<SummarizerConfig> {
   }
 
   // Fallback (should not reach here)
-  return { provider: "claude-cli", model: "claude-haiku-4-5", apiKey: "", baseURL: "" };
-}
-
-// ── claude-max-api-proxy installation ──
-
-export function installClaudeServer(deps: Pick<ServiceDeps, "spawnSync">, config: { provider: string }): boolean {
-  if (config.provider !== "claude-cli") return true;
-
-  const has = deps.spawnSync("sh", ["-c", "command -v claude-server || command -v claude-max-api"], { encoding: "utf-8" });
-  if (has.status === 0) return true;
-
-  console.log("Installing claude-max-api-proxy (Claude Max summarizer)...");
-  const r = deps.spawnSync("npm", ["install", "-g", "claude-max-api-proxy"], { stdio: "inherit" });
-  if (r.status !== 0) {
-    console.warn("Warning: Could not install claude-max-api-proxy — summarization via Claude CLI may not work");
-    return false;
-  }
-  return true;
+  return { provider: "claude-process", model: "", apiKey: "", baseURL: "" };
 }
 
 // ── Health-wait ──
@@ -203,12 +186,8 @@ export async function install(deps: ServiceDeps = defaultDeps): Promise<void> {
     console.log(`Installed slash commands to ${commandsDst}`);
   }
 
-  // 4. Install claude-max-api-proxy if summarizer is claude-cli
-  const configData = JSON.parse(deps.readFileSync(configPath, "utf-8"));
-  const provider = configData?.llm?.provider ?? "disabled";
-  installClaudeServer(deps, { provider });
-
   // 4. Start daemon (lazy daemon — no persistent service)
+  const configData = JSON.parse(deps.readFileSync(configPath, "utf-8"));
   console.log("Verifying daemon...");
   const { ensureDaemon } = await import("../src/daemon/lifecycle.js");
   const daemonPort = configData?.daemon?.port ?? configData?.port ?? 3737;

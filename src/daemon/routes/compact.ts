@@ -10,6 +10,7 @@ import { SummaryStore } from "../../store/summary-store.js";
 import { CompactionEngine } from "../../compaction.js";
 import { createAnthropicSummarizer } from "../../llm/anthropic.js";
 import { createOpenAISummarizer } from "../../llm/openai.js";
+import { createClaudeProcessSummarizer } from "../../llm/claude-process.js";
 import { shouldPromote } from "../../promotion/detector.js";
 import { PromotedStore } from "../../db/promoted.js";
 import { parseTranscript } from "../../transcript.js";
@@ -18,20 +19,25 @@ import { parseTranscript } from "../../transcript.js";
 export const justCompactedMap = new Map<string, number>();
 export const JUST_COMPACTED_TTL_MS = 30_000;
 
+// Guard against concurrent compactions for the same session
+const compactingNow = new Set<string>();
+
 export function createCompactHandler(config: DaemonConfig): RouteHandler {
   const summarize =
     config.llm.provider === "disabled"
       ? null
-      : config.llm.provider === "openai" || config.llm.provider === "claude-cli"
-        ? createOpenAISummarizer({
-            model: config.llm.model,
-            baseURL: config.llm.baseURL,
-            apiKey: config.llm.apiKey,
-          })
-        : createAnthropicSummarizer({
-            model: config.llm.model,
-            apiKey: config.llm.apiKey!,
-          });
+      : config.llm.provider === "claude-process"
+        ? createClaudeProcessSummarizer()
+        : config.llm.provider === "openai"
+          ? createOpenAISummarizer({
+              model: config.llm.model,
+              baseURL: config.llm.baseURL,
+              apiKey: config.llm.apiKey,
+            })
+          : createAnthropicSummarizer({
+              model: config.llm.model,
+              apiKey: config.llm.apiKey!,
+            });
 
   return async (_req, res, body) => {
     // When summarization is disabled, return early with informative message
@@ -47,6 +53,13 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
       sendJson(res, 400, { error: "session_id and cwd are required" });
       return;
     }
+
+    if (compactingNow.has(session_id)) {
+      sendJson(res, 200, { summary: "Compaction already in progress for this session." });
+      return;
+    }
+    compactingNow.add(session_id);
+    try {
 
     const dbPath = projectDbPath(cwd);
     ensureProjectDir(cwd);

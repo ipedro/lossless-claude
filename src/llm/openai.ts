@@ -51,9 +51,10 @@ export function createOpenAISummarizer(opts: OpenAISummarizerOptions): LcmSummar
         const response = await client.chat.completions.create({
           model: opts.model,
           max_tokens: 1024,
+          // Merge system content into user message for compatibility with local
+          // servers (e.g. MLX/llama.cpp) that don't support role:"system".
           messages: [
-            { role: "system", content: LCM_SUMMARIZER_SYSTEM_PROMPT },
-            { role: "user", content: prompt },
+            { role: "user", content: `${LCM_SUMMARIZER_SYSTEM_PROMPT}\n\n${prompt}` },
           ],
         });
 

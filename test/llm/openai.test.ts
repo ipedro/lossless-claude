@@ -27,8 +27,10 @@ describe("createOpenAISummarizer", () => {
     const args = mockClient.chat.completions.create.mock.calls[0][0];
     expect(args.model).toBe("qwen2.5:14b");
     expect(args.max_tokens).toBe(1024);
-    expect(args.messages[0].role).toBe("system");
-    expect(args.messages[1].role).toBe("user");
+    // System prompt is merged into user message for local LLM compatibility
+    expect(args.messages).toHaveLength(1);
+    expect(args.messages[0].role).toBe("user");
+    expect(args.messages[0].content).toContain("context-compaction summarization engine");
   });
 
   it("retries 3 times on 5xx error then throws", async () => {

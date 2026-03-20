@@ -13,8 +13,7 @@ const DEFAULTS = {
         },
     },
     restoration: { recentSummaries: 3 },
-    llm: { provider: "claude-cli", model: "claude-haiku-4-5", apiKey: "", baseURL: "" },
-    claudeCliProxy: { enabled: true, port: 3456, startupTimeoutMs: 10000, model: "claude-haiku-4-5" },
+    llm: { provider: "claude-process", model: "", apiKey: "", baseURL: "" },
 };
 function deepMerge(target, source) {
     if (!source || typeof source !== "object")
@@ -39,40 +38,22 @@ export function loadDaemonConfig(configPath, overrides, env) {
     if (merged.llm.apiKey)
         merged.llm.apiKey = merged.llm.apiKey.replace(/\$\{(\w+)\}/g, (_, k) => e[k] ?? "");
     // Env var override: LCM_SUMMARY_PROVIDER takes precedence over config
-    const VALID_PROVIDERS = new Set(["claude-cli", "anthropic", "openai", "disabled"]);
+    const VALID_PROVIDERS = new Set(["claude-process", "anthropic", "openai", "disabled"]);
     if (e.LCM_SUMMARY_PROVIDER) {
         if (!VALID_PROVIDERS.has(e.LCM_SUMMARY_PROVIDER)) {
             throw new Error(`[lcm] Invalid LCM_SUMMARY_PROVIDER="${e.LCM_SUMMARY_PROVIDER}". ` +
                 `Valid values: ${[...VALID_PROVIDERS].join(", ")}`);
         }
         merged.llm.provider = e.LCM_SUMMARY_PROVIDER;
-        // When overriding away from claude-cli, disable the proxy
-        if (merged.llm.provider !== "claude-cli") {
-            merged.claudeCliProxy.enabled = false;
-        }
-    }
-    // Disable proxy when provider is not claude-cli
-    if (merged.llm.provider !== "claude-cli") {
-        merged.claudeCliProxy.enabled = false;
     }
     // Anthropic API key fallback from env
     if (!merged.llm.apiKey && merged.llm.provider === "anthropic" && e.ANTHROPIC_API_KEY) {
         merged.llm.apiKey = e.ANTHROPIC_API_KEY;
     }
-    // Resolve "claude-cli" provider
-    if (merged.llm.provider === "claude-cli") {
-        if (merged.claudeCliProxy.enabled) {
-            merged.llm.provider = "openai";
-            merged.llm.baseURL = `http://localhost:${merged.claudeCliProxy.port}/v1`;
-        }
-        else {
-            merged.llm.provider = "disabled";
-        }
-    }
     // Validate: anthropic provider requires an API key
     if (merged.llm.provider === "anthropic" && !merged.llm.apiKey) {
         throw new Error("[lcm] LCM_SUMMARY_API_KEY is required when using the Anthropic provider. " +
-            "Set it in your environment or switch to 'claude-cli' provider.");
+            "Set it in your environment or switch to 'claude-process' provider.");
     }
     return merged;
 }

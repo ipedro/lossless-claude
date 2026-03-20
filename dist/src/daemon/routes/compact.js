@@ -8,6 +8,7 @@ import { SummaryStore } from "../../store/summary-store.js";
 import { CompactionEngine } from "../../compaction.js";
 import { createAnthropicSummarizer } from "../../llm/anthropic.js";
 import { createOpenAISummarizer } from "../../llm/openai.js";
+import { createClaudeProcessSummarizer } from "../../llm/claude-process.js";
 import { shouldPromote } from "../../promotion/detector.js";
 import { PromotedStore } from "../../db/promoted.js";
 import { parseTranscript } from "../../transcript.js";
@@ -17,16 +18,18 @@ export const JUST_COMPACTED_TTL_MS = 30_000;
 export function createCompactHandler(config) {
     const summarize = config.llm.provider === "disabled"
         ? null
-        : config.llm.provider === "openai" || config.llm.provider === "claude-cli"
-            ? createOpenAISummarizer({
-                model: config.llm.model,
-                baseURL: config.llm.baseURL,
-                apiKey: config.llm.apiKey,
-            })
-            : createAnthropicSummarizer({
-                model: config.llm.model,
-                apiKey: config.llm.apiKey,
-            });
+        : config.llm.provider === "claude-process"
+            ? createClaudeProcessSummarizer()
+            : config.llm.provider === "openai"
+                ? createOpenAISummarizer({
+                    model: config.llm.model,
+                    baseURL: config.llm.baseURL,
+                    apiKey: config.llm.apiKey,
+                })
+                : createAnthropicSummarizer({
+                    model: config.llm.model,
+                    apiKey: config.llm.apiKey,
+                });
     return async (_req, res, body) => {
         // When summarization is disabled, return early with informative message
         if (!summarize) {

@@ -6,7 +6,8 @@ describe("loadDaemonConfig", () => {
     const c = loadDaemonConfig("/nonexistent/config.json");
     expect(c.daemon.port).toBe(3737);
     expect(c.daemon.socketPath).toContain("daemon.sock");
-    expect(c.llm.model).toBe("claude-haiku-4-5");
+    expect(c.llm.provider).toBe("claude-process");
+    expect(c.llm.model).toBe("");
     expect(c.compaction.leafTokens).toBe(1000);
     expect(c.restoration.recentSummaries).toBe(3);
     expect(c.version).toBe(1);
@@ -28,12 +29,6 @@ describe("loadDaemonConfig", () => {
     expect(c.llm.apiKey).toBe("sk-env");
   });
 
-  it("defaults provider to 'openai' (resolved from claude-cli) with localhost baseURL", () => {
-    const c = loadDaemonConfig("/nonexistent/config.json");
-    expect(c.llm.provider).toBe("openai");
-    expect(c.llm.baseURL).toBe("http://localhost:3456/v1");
-  });
-
   it("merges provider and baseURL from file config", () => {
     const c = loadDaemonConfig("/nonexistent/config.json", {
       llm: { provider: "openai", baseURL: "http://localhost:11435/v1", model: "qwen2.5:14b" }
@@ -51,31 +46,6 @@ describe("loadDaemonConfig", () => {
   it("still injects ANTHROPIC_API_KEY when provider is anthropic", () => {
     const c = loadDaemonConfig("/nonexistent", { llm: { provider: "anthropic" } }, { ANTHROPIC_API_KEY: "sk-env" });
     expect(c.llm.apiKey).toBe("sk-env");
-  });
-
-  it("resolves 'claude-cli' provider to 'openai' with localhost baseURL", () => {
-    const c = loadDaemonConfig("/nonexistent", {
-      llm: { provider: "claude-cli" },
-    });
-    expect(c.llm.provider).toBe("openai");
-    expect(c.llm.baseURL).toBe("http://localhost:3456/v1");
-  });
-
-  it("resolves 'claude-cli' + claudeCliProxy.port override to correct baseURL", () => {
-    const c = loadDaemonConfig("/nonexistent", {
-      llm: { provider: "claude-cli" },
-      claudeCliProxy: { port: 9999 },
-    });
-    expect(c.llm.provider).toBe("openai");
-    expect(c.llm.baseURL).toBe("http://localhost:9999/v1");
-  });
-
-  it("resolves 'claude-cli' + claudeCliProxy.enabled=false to 'disabled'", () => {
-    const c = loadDaemonConfig("/nonexistent", {
-      llm: { provider: "claude-cli" },
-      claudeCliProxy: { enabled: false },
-    });
-    expect(c.llm.provider).toBe("disabled");
   });
 
   it("throws when provider resolves to 'anthropic' and apiKey is missing", () => {
@@ -99,46 +69,19 @@ describe("loadDaemonConfig", () => {
   it("LCM_SUMMARY_PROVIDER env var overrides config provider", () => {
     const c = loadDaemonConfig(
       "/nonexistent",
-      { llm: { provider: "claude-cli" } },
+      { llm: { provider: "claude-process" } },
       { LCM_SUMMARY_PROVIDER: "openai" }
     );
     expect(c.llm.provider).toBe("openai");
   });
 
-  it("LCM_SUMMARY_PROVIDER=anthropic disables claudeCliProxy", () => {
+  it("LCM_SUMMARY_PROVIDER=anthropic overrides provider with apiKey", () => {
     const c = loadDaemonConfig(
       "/nonexistent",
-      { llm: { provider: "claude-cli", apiKey: "sk-test" } },
+      { llm: { apiKey: "sk-test" } },
       { LCM_SUMMARY_PROVIDER: "anthropic" }
     );
     expect(c.llm.provider).toBe("anthropic");
-    expect(c.claudeCliProxy.enabled).toBe(false);
-  });
-
-  it("defaults claudeCliProxy fields correctly", () => {
-    const c = loadDaemonConfig("/nonexistent");
-    expect(c.claudeCliProxy).toEqual({
-      enabled: true,
-      port: 3456,
-      startupTimeoutMs: 10000,
-      model: "claude-haiku-4-5",
-    });
-  });
-
-  it("defaults llm.provider to 'claude-cli' (resolves to openai + localhost)", () => {
-    const c = loadDaemonConfig("/nonexistent");
-    expect(c.llm.provider).toBe("openai");
-    expect(c.llm.baseURL).toBe("http://localhost:3456/v1");
-  });
-
-  it("disables claudeCliProxy when provider is explicitly set to 'anthropic'", () => {
-    const c = loadDaemonConfig("/nonexistent", { llm: { provider: "anthropic", apiKey: "sk-test" } }, {});
-    expect(c.claudeCliProxy.enabled).toBe(false);
-  });
-
-  it("disables claudeCliProxy when provider is explicitly set to 'openai'", () => {
-    const c = loadDaemonConfig("/nonexistent", { llm: { provider: "openai", baseURL: "http://custom/v1" } }, {});
-    expect(c.claudeCliProxy.enabled).toBe(false);
   });
 
   it("throws when LCM_SUMMARY_PROVIDER is set to an invalid value", () => {

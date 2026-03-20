@@ -10,9 +10,6 @@ export interface ServiceDeps {
     promptUser: (question: string) => Promise<string>;
 }
 export declare function resolveBinaryPath(deps?: Pick<ServiceDeps, "spawnSync" | "existsSync">): string;
-export declare function installClaudeServer(deps: Pick<ServiceDeps, "spawnSync">, config: {
-    provider: string;
-}): boolean;
 export declare function waitForHealth(url: string, timeoutMs?: number, fetchFn?: typeof globalThis.fetch): Promise<boolean>;
 export declare function install(deps?: ServiceDeps): Promise<void>;
 export { rmSync };

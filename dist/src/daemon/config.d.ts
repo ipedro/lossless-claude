@@ -22,16 +22,10 @@ export type DaemonConfig = {
         recentSummaries: number;
     };
     llm: {
-        provider: "claude-cli" | "anthropic" | "openai" | "disabled";
+        provider: "claude-process" | "anthropic" | "openai" | "disabled";
         model: string;
         apiKey?: string;
         baseURL: string;
-    };
-    claudeCliProxy: {
-        enabled: boolean;
-        port: number;
-        startupTimeoutMs: number;
-        model: string;
     };
 };
 export declare function loadDaemonConfig(configPath: string, overrides?: any, env?: Record<string, string | undefined>): DaemonConfig;

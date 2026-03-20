@@ -47,14 +47,10 @@ async function main() {
                 }
                 const { createDaemon } = await import("../src/daemon/server.js");
                 const { loadDaemonConfig } = await import("../src/daemon/config.js");
-                const { createClaudeCliProxyManager } = await import("../src/daemon/proxy-manager.js");
                 const { join } = await import("node:path");
                 const { homedir } = await import("node:os");
                 const config = loadDaemonConfig(join(homedir(), ".lossless-claude", "config.json"));
-                const proxyManager = config.claudeCliProxy.enabled
-                    ? createClaudeCliProxyManager(config.claudeCliProxy)
-                    : undefined;
-                const daemon = await createDaemon(config, { proxyManager });
+                const daemon = await createDaemon(config);
                 console.log(`lossless-claude daemon started on port ${daemon.address().port}`);
                 process.on("SIGTERM", () => exit(0));
                 process.on("SIGINT", () => exit(0));

@@ -3,6 +3,7 @@ import {
   mergeClaudeSettings,
   resolveBinaryPath,
   install,
+  REQUIRED_HOOKS,
   type ServiceDeps,
 } from "../../installer/install.js";
 import { homedir } from "node:os";
@@ -35,7 +36,46 @@ describe("mergeClaudeSettings", () => {
     const r = mergeClaudeSettings({});
     expect(r.hooks.PreCompact[0]).toEqual({ matcher: "", hooks: [{ type: "command", command: "lossless-claude compact" }] });
     expect(r.hooks.SessionStart[0]).toEqual({ matcher: "", hooks: [{ type: "command", command: "lossless-claude restore" }] });
+    expect(r.hooks.SessionEnd[0]).toEqual({ matcher: "", hooks: [{ type: "command", command: "lossless-claude session-end" }] });
+    expect(r.hooks.UserPromptSubmit[0]).toEqual({ matcher: "", hooks: [{ type: "command", command: "lossless-claude user-prompt" }] });
     expect(r.mcpServers["lossless-claude"]).toBeDefined();
+  });
+
+  it("registers all 4 required hooks on empty settings", () => {
+    const r = mergeClaudeSettings({});
+    expect(r.hooks.PreCompact).toHaveLength(1);
+    expect(r.hooks.SessionStart).toHaveLength(1);
+    expect(r.hooks.SessionEnd).toHaveLength(1);
+    expect(r.hooks.UserPromptSubmit).toHaveLength(1);
+    expect(r.hooks.SessionEnd[0]).toEqual({
+      matcher: "",
+      hooks: [{ type: "command", command: "lossless-claude session-end" }],
+    });
+    expect(r.hooks.UserPromptSubmit[0]).toEqual({
+      matcher: "",
+      hooks: [{ type: "command", command: "lossless-claude user-prompt" }],
+    });
+  });
+
+  it("REQUIRED_HOOKS contains exactly 4 expected events", () => {
+    expect(REQUIRED_HOOKS.map(h => h.event).sort()).toEqual([
+      "PreCompact", "SessionEnd", "SessionStart", "UserPromptSubmit",
+    ]);
+  });
+
+  it("does not duplicate any of the 4 hooks if already present", () => {
+    const existing = {
+      hooks: {
+        PreCompact: [{ matcher: "", hooks: [{ type: "command", command: "lossless-claude compact" }] }],
+        SessionStart: [{ matcher: "", hooks: [{ type: "command", command: "lossless-claude restore" }] }],
+        SessionEnd: [{ matcher: "", hooks: [{ type: "command", command: "lossless-claude session-end" }] }],
+        UserPromptSubmit: [{ matcher: "", hooks: [{ type: "command", command: "lossless-claude user-prompt" }] }],
+      },
+    };
+    const r = mergeClaudeSettings(existing);
+    for (const event of ["PreCompact", "SessionStart", "SessionEnd", "UserPromptSubmit"]) {
+      expect(r.hooks[event]).toHaveLength(1);
+    }
   });
 
   it("preserves existing hooks", () => {

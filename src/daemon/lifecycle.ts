@@ -1,12 +1,16 @@
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 
 export type EnsureDaemonOptions = {
   port: number;
   pidFilePath: string;
   spawnTimeoutMs: number;
   expectedVersion?: string;
+  spawnCommand?: string;
+  spawnArgs?: string[];
   _skipSpawn?: boolean; // for testing — don't attempt to spawn
+  _spawnOverride?: typeof spawn;
+  _skipHealthWait?: boolean;
   _fetchOverride?: typeof globalThis.fetch;
 };
 
@@ -98,15 +102,22 @@ export async function ensureDaemon(opts: EnsureDaemonOptions): Promise<EnsureDae
     return { connected: false, port: opts.port, spawned: false };
   }
 
-  const child = spawn(process.execPath, [process.argv[1], "daemon", "start"], {
+  const spawnCommand = opts.spawnCommand ?? process.execPath;
+  const spawnArgs = opts.spawnArgs ?? [process.argv[1], "daemon", "start"];
+  const spawnImpl = opts._spawnOverride ?? spawn;
+  const child = spawnImpl(spawnCommand, spawnArgs, {
     detached: true,
     stdio: "ignore",
     env: { ...process.env },
-  });
+  }) as ChildProcess;
   child.unref();
 
   if (child.pid) {
     writeFileSync(opts.pidFilePath, String(child.pid));
+  }
+
+  if (opts._skipHealthWait) {
+    return { connected: false, port: opts.port, spawned: true };
   }
 
   // Step 4: Wait for health

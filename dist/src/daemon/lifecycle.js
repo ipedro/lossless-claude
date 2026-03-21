@@ -73,7 +73,10 @@ export async function ensureDaemon(opts) {
     if (opts._skipSpawn) {
         return { connected: false, port: opts.port, spawned: false };
     }
-    const child = spawn(process.execPath, [process.argv[1], "daemon", "start"], {
+    const spawnCommand = opts.spawnCommand ?? process.execPath;
+    const spawnArgs = opts.spawnArgs ?? [process.argv[1], "daemon", "start"];
+    const spawnImpl = opts._spawnOverride ?? spawn;
+    const child = spawnImpl(spawnCommand, spawnArgs, {
         detached: true,
         stdio: "ignore",
         env: { ...process.env },
@@ -81,6 +84,9 @@ export async function ensureDaemon(opts) {
     child.unref();
     if (child.pid) {
         writeFileSync(opts.pidFilePath, String(child.pid));
+    }
+    if (opts._skipHealthWait) {
+        return { connected: false, port: opts.port, spawned: true };
     }
     // Step 4: Wait for health
     const deadline = Date.now() + opts.spawnTimeoutMs;

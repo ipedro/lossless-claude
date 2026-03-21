@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ensureDaemon } from "../../src/daemon/lifecycle.js";
 
 const tempDirs: string[] = [];
@@ -99,5 +99,30 @@ describe("ensureDaemon", () => {
       // daemon may have been killed by version mismatch logic
       try { await daemon.stop(); } catch { /* may already be stopped */ }
     }
+  });
+
+  it("spawns a caller-specified command instead of process.argv[1] when provided", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "lossless-lifecycle-spawn-"));
+    tempDirs.push(tempDir);
+    const pidFile = join(tempDir, "daemon.pid");
+    const spawnMock = vi.fn().mockReturnValue({ pid: 12345, unref: vi.fn() });
+
+    const result = await ensureDaemon({
+      port: 19999,
+      pidFilePath: pidFile,
+      spawnTimeoutMs: 100,
+      spawnCommand: "lossless-claude",
+      spawnArgs: ["daemon", "start"],
+      _skipHealthWait: true,
+      _spawnOverride: spawnMock as any,
+    });
+
+    expect(result.connected).toBe(false);
+    expect(result.spawned).toBe(true);
+    expect(spawnMock).toHaveBeenCalledWith(
+      "lossless-claude",
+      ["daemon", "start"],
+      expect.objectContaining({ detached: true, stdio: "ignore" }),
+    );
   });
 });

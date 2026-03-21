@@ -6,15 +6,34 @@ import { runLcmMigrations } from "../../db/migration.js";
 import { ConversationStore } from "../../store/conversation-store.js";
 import { SummaryStore } from "../../store/summary-store.js";
 import { parseTranscript } from "../../transcript.js";
+function isParsedMessage(value) {
+    if (!value || typeof value !== "object")
+        return false;
+    const message = value;
+    return (typeof message.role === "string" &&
+        ["user", "assistant", "system", "tool"].includes(message.role) &&
+        typeof message.content === "string" &&
+        typeof message.tokenCount === "number");
+}
+function resolveMessages(input) {
+    if (Array.isArray(input.messages)) {
+        return input.messages.filter(isParsedMessage);
+    }
+    if (input.transcript_path && existsSync(input.transcript_path)) {
+        return parseTranscript(input.transcript_path);
+    }
+    return [];
+}
 export function createIngestHandler(_config) {
     return async (_req, res, body) => {
         const input = JSON.parse(body || "{}");
-        const { session_id, cwd, transcript_path } = input;
+        const { session_id, cwd } = input;
         if (!session_id || !cwd) {
             sendJson(res, 400, { error: "session_id and cwd are required" });
             return;
         }
-        if (!transcript_path || !existsSync(transcript_path)) {
+        const parsed = resolveMessages(input);
+        if (parsed.length === 0) {
             sendJson(res, 200, { ingested: 0 });
             return;
         }
@@ -26,7 +45,6 @@ export function createIngestHandler(_config) {
             const conversationStore = new ConversationStore(db);
             const summaryStore = new SummaryStore(db);
             const conversation = await conversationStore.getOrCreateConversation(session_id);
-            const parsed = parseTranscript(transcript_path);
             const storedCount = await conversationStore.getMessageCount(conversation.conversationId);
             const newMessages = parsed.slice(storedCount);
             if (newMessages.length === 0) {

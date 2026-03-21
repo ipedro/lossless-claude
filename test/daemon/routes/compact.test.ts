@@ -1,6 +1,12 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { createDaemon, type DaemonInstance } from "../../../src/daemon/server.js";
 import { loadDaemonConfig } from "../../../src/daemon/config.js";
+import { projectDbPath } from "../../../src/daemon/project.js";
+import { ConversationStore } from "../../../src/store/conversation-store.js";
 
 // --- Summarizer branching unit tests ---
 
@@ -39,6 +45,18 @@ function makeConfig(provider: "anthropic" | "openai" | "disabled"): DaemonConfig
     claudeCliProxy: { enabled: true, port: 3456, startupTimeoutMs: 10000, model: "claude-haiku-4-5" },
     cipher: { configPath: "/tmp/cipher.yml", collection: "test" },
   } as DaemonConfig;
+}
+
+async function readMessageCount(cwd: string, sessionId: string): Promise<number> {
+  const db = new DatabaseSync(projectDbPath(cwd));
+
+  try {
+    const conversationStore = new ConversationStore(db);
+    const conversation = await conversationStore.getOrCreateConversation(sessionId);
+    return conversationStore.getMessageCount(conversation.conversationId);
+  } finally {
+    db.close();
+  }
 }
 
 describe("buildCompactionMessage", () => {
@@ -147,7 +165,17 @@ describe("createCompactHandler — summarizer branching", () => {
 
 describe("POST /compact", () => {
   let daemon: DaemonInstance | undefined;
-  afterEach(async () => { if (daemon) { await daemon.stop(); daemon = undefined; } });
+  const tempDirs: string[] = [];
+
+  afterEach(async () => {
+    if (daemon) {
+      await daemon.stop();
+      daemon = undefined;
+    }
+    for (const dir of tempDirs.splice(0)) {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 
   it("accepts compact request and returns summary", async () => {
     daemon = await createDaemon(loadDaemonConfig("/x", { daemon: { port: 0 }, llm: { apiKey: "sk-test" } }));
@@ -160,6 +188,65 @@ describe("POST /compact", () => {
     const body = await res.json();
     expect(body).toHaveProperty("summary");
     expect(typeof body.summary).toBe("string");
+  });
+
+  it("skips transcript ingestion when skip_ingest is true", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "lossless-compact-"));
+    tempDirs.push(tempDir);
+
+    const transcriptPath = join(tempDir, "session.jsonl");
+    writeFileSync(
+      transcriptPath,
+      [
+        JSON.stringify({ message: { role: "user", content: "transcript user 1" } }),
+        JSON.stringify({ message: { role: "assistant", content: "transcript assistant 1" } }),
+        JSON.stringify({ message: { role: "user", content: "transcript user 2" } }),
+        JSON.stringify({ message: { role: "assistant", content: "transcript assistant 2" } }),
+        JSON.stringify({ message: { role: "user", content: "transcript user 3" } }),
+        JSON.stringify({ message: { role: "assistant", content: "transcript assistant 3" } }),
+      ].join("\n"),
+    );
+
+    daemon = await createDaemon(loadDaemonConfig("/x", {
+      daemon: { port: 0 },
+      llm: { provider: "openai", model: "test-model", apiKey: "sk-test", baseURL: "http://localhost:11435/v1" },
+    }));
+
+    const baseUrl = `http://127.0.0.1:${daemon.address().port}`;
+    const sessionId = "skip-ingest-session";
+
+    const ingestRes = await fetch(`${baseUrl}/ingest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: sessionId,
+        cwd: tempDir,
+        messages: [
+          { role: "user", content: "stored user 1", tokenCount: 3 },
+          { role: "assistant", content: "stored assistant 1", tokenCount: 4 },
+          { role: "user", content: "stored user 2", tokenCount: 3 },
+          { role: "assistant", content: "stored assistant 2", tokenCount: 4 },
+        ],
+      }),
+    });
+
+    expect(ingestRes.status).toBe(200);
+    expect(await ingestRes.json()).toEqual({ ingested: 4 });
+    expect(await readMessageCount(tempDir, sessionId)).toBe(4);
+
+    const compactRes = await fetch(`${baseUrl}/compact`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: sessionId,
+        cwd: tempDir,
+        transcript_path: transcriptPath,
+        skip_ingest: true,
+      }),
+    });
+
+    expect(compactRes.status).toBe(200);
+    expect(await readMessageCount(tempDir, sessionId)).toBe(4);
   });
 });
 

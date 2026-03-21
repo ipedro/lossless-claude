@@ -106,7 +106,7 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
     }
 
     const input = JSON.parse(body || "{}");
-    const { session_id, cwd, transcript_path } = input;
+    const { session_id, cwd, transcript_path, skip_ingest } = input;
 
     if (!session_id || !cwd) {
       sendJson(res, 400, { error: "session_id and cwd are required" });
@@ -135,7 +135,7 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
     const conversation = await conversationStore.getOrCreateConversation(session_id);
 
     // Ingest new messages from the transcript into the DB.
-    if (transcript_path && existsSync(transcript_path)) {
+    if (!skip_ingest && transcript_path && existsSync(transcript_path)) {
       const parsed = parseTranscript(transcript_path);
       const storedCount = await conversationStore.getMessageCount(conversation.conversationId);
       const newMessages = parsed.slice(storedCount);

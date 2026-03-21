@@ -1,5 +1,5 @@
 <p align="center">
-  <strong>Lossless context management for Claude Code</strong><br>
+  <strong>Lossless context management for Claude Code and Codex</strong><br>
   DAG-based summarization that preserves every message
 </p>
 
@@ -21,6 +21,8 @@
 ---
 
 Replaces Claude Code's built-in sliding-window compaction with a DAG-based summarization system. Every message is preserved in SQLite, summaries form a hierarchy, and relevant context from past sessions surfaces automatically.
+
+The backend memory model now supports both Claude Code and Codex. Claude still integrates through hooks and transcript ingestion; Codex uses the `lossless-codex` wrapper for live structured turn ingestion into the same project memory.
 
 **It feels like talking to an agent that never forgets. Because it doesn't.**
 
@@ -44,6 +46,7 @@ Nothing is lost. Raw messages stay in the database. Summaries link back to their
 ### Prerequisites
 
 - Claude Code
+- Codex CLI for `lossless-codex`
 - Node.js 22+
 
 ### Marketplace (recommended)
@@ -66,6 +69,20 @@ Both methods register hooks and MCP server automatically. Then run the setup wiz
 ```bash
 lossless-claude install
 ```
+
+### Codex wrapper
+
+```bash
+lossless-codex "Reply only with OK"
+```
+
+`lossless-codex` wraps `codex exec` and opportunistically uses `codex exec resume` when a native Codex session ID is available, giving Codex the same shared project memory model used by multiple Claude sessions.
+
+### Integration model
+
+- Claude Code uses hooks plus Claude transcript ingestion.
+- Codex uses the `lossless-codex` wrapper plus live structured turn ingestion.
+- Both paths write into the same project SQLite database and promoted memory store.
 
 ## Hooks
 
@@ -125,6 +142,7 @@ lossless-claude session-end            # SessionEnd hook handler
 lossless-claude user-prompt            # UserPromptSubmit hook handler
 lossless-claude mcp                    # Start MCP server
 lossless-claude -v                     # Version
+lossless-codex "your prompt"           # Run Codex with shared LCM memory
 ```
 
 ## Configuration
@@ -158,7 +176,10 @@ npx tsc --noEmit     # Type check
 ```
 bin/
   lossless-claude.ts          # CLI entry point
+  lossless-codex.ts           # Codex wrapper entry point
 src/
+  adapters/
+    codex.ts                  # Codex JSONL normalization + session runner
   compaction.ts               # CompactionEngine — leaf passes, condensation, sweeps
   summarize.ts                # Depth-aware prompt generation and LLM summarization
   expansion.ts                # DAG expansion for lcm_expand

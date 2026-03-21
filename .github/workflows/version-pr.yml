@@ -3,7 +3,7 @@ name: Version Packages
 on:
   push:
     branches:
-      - main
+      - develop
 
 permissions:
   contents: write
@@ -33,5 +33,6 @@ jobs:
           commit: "chore: version packages"
           title: "chore: version packages"
           version: npm run version-packages
+          createGithubReleases: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -32,29 +32,26 @@ function makeDeps(overrides: Partial<ServiceDeps> = {}): ServiceDeps {
 // ─── mergeClaudeSettings ────────────────────────────────────────────────────
 
 describe("mergeClaudeSettings", () => {
-  it("adds hooks and mcpServers to empty settings", () => {
+  it("removes managed hooks and mcpServers from empty settings", () => {
     const r = mergeClaudeSettings({});
-    expect(r.hooks.PreCompact[0]).toEqual({ matcher: "", hooks: [{ type: "command", command: "lcm compact" }] });
-    expect(r.hooks.SessionStart[0]).toEqual({ matcher: "", hooks: [{ type: "command", command: "lcm restore" }] });
-    expect(r.hooks.SessionEnd[0]).toEqual({ matcher: "", hooks: [{ type: "command", command: "lcm session-end" }] });
-    expect(r.hooks.UserPromptSubmit[0]).toEqual({ matcher: "", hooks: [{ type: "command", command: "lcm user-prompt" }] });
-    expect(r.mcpServers["lcm"]).toBeDefined();
+    expect(r).toEqual({});
   });
 
-  it("registers all 4 required hooks on empty settings", () => {
-    const r = mergeClaudeSettings({});
-    expect(r.hooks.PreCompact).toHaveLength(1);
-    expect(r.hooks.SessionStart).toHaveLength(1);
-    expect(r.hooks.SessionEnd).toHaveLength(1);
-    expect(r.hooks.UserPromptSubmit).toHaveLength(1);
-    expect(r.hooks.SessionEnd[0]).toEqual({
-      matcher: "",
-      hooks: [{ type: "command", command: "lcm session-end" }],
-    });
-    expect(r.hooks.UserPromptSubmit[0]).toEqual({
-      matcher: "",
-      hooks: [{ type: "command", command: "lcm user-prompt" }],
-    });
+  it("removes all 4 required hooks when already present", () => {
+    const existing = {
+      hooks: {
+        PreCompact: [{ matcher: "", hooks: [{ type: "command", command: "lcm compact" }] }],
+        SessionStart: [{ matcher: "", hooks: [{ type: "command", command: "lcm restore" }] }],
+        SessionEnd: [{ matcher: "", hooks: [{ type: "command", command: "lcm session-end" }] }],
+        UserPromptSubmit: [{ matcher: "", hooks: [{ type: "command", command: "lcm user-prompt" }] }],
+      },
+      mcpServers: {
+        lcm: { command: "lcm", args: ["mcp"] },
+      },
+    };
+    const r = mergeClaudeSettings(existing);
+    expect(r.hooks).toBeUndefined();
+    expect(r.mcpServers).toBeUndefined();
   });
 
   it("REQUIRED_HOOKS contains exactly 4 expected events", () => {
@@ -63,7 +60,7 @@ describe("mergeClaudeSettings", () => {
     ]);
   });
 
-  it("does not duplicate any of the 4 hooks if already present", () => {
+  it("removes any of the 4 hooks if already present", () => {
     const existing = {
       hooks: {
         PreCompact: [{ matcher: "", hooks: [{ type: "command", command: "lcm compact" }] }],
@@ -73,44 +70,43 @@ describe("mergeClaudeSettings", () => {
       },
     };
     const r = mergeClaudeSettings(existing);
-    for (const event of ["PreCompact", "SessionStart", "SessionEnd", "UserPromptSubmit"]) {
-      expect(r.hooks[event]).toHaveLength(1);
-    }
+    expect(r.hooks).toBeUndefined();
   });
 
-  it("preserves existing hooks", () => {
+  it("preserves unrelated hooks", () => {
     const r = mergeClaudeSettings({ hooks: { PreCompact: [{ matcher: "", hooks: [{ type: "command", command: "other" }] }] } });
-    expect(r.hooks.PreCompact).toHaveLength(2);
+    expect(r.hooks.PreCompact).toHaveLength(1);
     expect(r.hooks.PreCompact[0].hooks[0].command).toBe("other");
   });
 
-  it("does not duplicate if already present", () => {
+  it("removes managed hooks without leaving duplicates behind", () => {
     const r = mergeClaudeSettings({ hooks: { PreCompact: [{ matcher: "", hooks: [{ type: "command", command: "lcm compact" }] }] } });
-    expect(r.hooks.PreCompact).toHaveLength(1);
+    expect(r.hooks).toBeUndefined();
   });
 
-  it("migrates legacy lossless-claude hooks to lcm", () => {
+  it("migrates legacy lossless-claude hooks to lcm before removing them", () => {
     const existing = {
       hooks: {
         PreCompact: [{ matcher: "", hooks: [{ type: "command", command: "lossless-claude compact" }] }],
         SessionStart: [{ matcher: "", hooks: [{ type: "command", command: "lossless-claude restore" }] }],
+        PostToolUse: [{ matcher: "", hooks: [{ type: "command", command: "other" }] }],
       },
       mcpServers: {
-        "lossless-claude": { command: "lossless-claude", args: ["mcp"] }
+        "lossless-claude": { command: "lossless-claude", args: ["mcp"] },
+        other: { command: "other", args: ["mcp"] },
       }
     };
     const result = mergeClaudeSettings(existing);
-    // Old hooks should be replaced with new lcm commands
     for (const { event, command } of REQUIRED_HOOKS) {
-      const entries = result.hooks[event];
-      expect(entries).toBeDefined();
+      const entries = result.hooks?.[event] ?? [];
       const commands = entries.flatMap((e: any) => e.hooks.map((h: any) => h.command));
-      expect(commands).toContain(command); // lcm version
-      expect(commands).not.toContain(command.replace(/^lcm /, 'lossless-claude ')); // old version gone
+      expect(commands).not.toContain(command);
+      expect(commands).not.toContain(command.replace(/^lcm /, "lossless-claude "));
     }
-    // Old MCP key should be removed, new one present
+    expect(result.hooks?.PostToolUse).toEqual([{ matcher: "", hooks: [{ type: "command", command: "other" }] }]);
     expect(result.mcpServers["lossless-claude"]).toBeUndefined();
-    expect(result.mcpServers["lcm"]).toBeDefined();
+    expect(result.mcpServers["lcm"]).toBeUndefined();
+    expect(result.mcpServers.other).toEqual({ command: "other", args: ["mcp"] });
   });
 });
 

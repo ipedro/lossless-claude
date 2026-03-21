@@ -16,29 +16,31 @@ function makeDeps(overrides: Partial<AutoHealDeps> = {}): AutoHealDeps {
 }
 
 describe("validateAndFixHooks", () => {
-  it("fixes missing hooks in settings.json", () => {
+  it("removes duplicate lcm hooks from settings.json", () => {
     const deps = makeDeps({
       readFileSync: vi.fn().mockReturnValue(JSON.stringify({
         hooks: {
           PreCompact: [{ matcher: "", hooks: [{ type: "command", command: "lcm compact" }] }],
           SessionStart: [{ matcher: "", hooks: [{ type: "command", command: "lcm restore" }] }],
+          PostToolUse: [{ matcher: "", hooks: [{ type: "command", command: "other" }] }],
         },
       })),
     });
     validateAndFixHooks(deps);
     expect(deps.writeFileSync).toHaveBeenCalledTimes(1);
     const written = JSON.parse((deps.writeFileSync as ReturnType<typeof vi.fn>).mock.calls[0][1]);
-    expect(written.hooks.SessionEnd).toHaveLength(1);
-    expect(written.hooks.UserPromptSubmit).toHaveLength(1);
+    expect(written.hooks.PreCompact).toBeUndefined();
+    expect(written.hooks.SessionStart).toBeUndefined();
+    expect(written.hooks.PostToolUse).toEqual([{ matcher: "", hooks: [{ type: "command", command: "other" }] }]);
   });
 
-  it("no-ops when all hooks present", () => {
-    const allHooks: Record<string, any[]> = {};
-    for (const { event, command } of REQUIRED_HOOKS) {
-      allHooks[event] = [{ matcher: "", hooks: [{ type: "command", command }] }];
-    }
+  it("no-ops when no managed hooks are present", () => {
     const deps = makeDeps({
-      readFileSync: vi.fn().mockReturnValue(JSON.stringify({ hooks: allHooks })),
+      readFileSync: vi.fn().mockReturnValue(JSON.stringify({
+        hooks: {
+          PostToolUse: [{ matcher: "", hooks: [{ type: "command", command: "other" }] }],
+        },
+      })),
     });
     validateAndFixHooks(deps);
     expect(deps.writeFileSync).not.toHaveBeenCalled();
@@ -78,6 +80,7 @@ describe("validateAndFixHooks", () => {
       existsSync: vi.fn().mockReturnValue(false),
     });
     validateAndFixHooks(deps);
-    expect(deps.writeFileSync).toHaveBeenCalledTimes(1);
+    expect(deps.writeFileSync).not.toHaveBeenCalled();
+    expect(deps.appendFileSync).not.toHaveBeenCalled();
   });
 });

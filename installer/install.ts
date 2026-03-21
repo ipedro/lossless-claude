@@ -10,18 +10,6 @@ export const REQUIRED_HOOKS: { event: string; command: string }[] = [
   { event: "UserPromptSubmit", command: "lcm user-prompt" },
 ];
 
-const LC_MCP = { command: "lcm", args: ["mcp"] };
-
-function makeHookEntry(command: string): { matcher: string; hooks: { type: string; command: string }[] } {
-  return { matcher: "", hooks: [{ type: "command", command }] };
-}
-
-function hasHookCommand(entries: any[], command: string): boolean {
-  return entries.some((entry: any) =>
-    Array.isArray(entry.hooks) && entry.hooks.some((h: any) => h.command === command)
-  );
-}
-
 export function mergeClaudeSettings(existing: any): any {
   const settings = JSON.parse(JSON.stringify(existing));
   settings.hooks = (settings.hooks && typeof settings.hooks === "object" && !Array.isArray(settings.hooks)) ? settings.hooks : {};
@@ -53,18 +41,24 @@ export function mergeClaudeSettings(existing: any): any {
       });
     }
   }
-  // Migrate old lossless-claude MCP server entry: remove legacy key (new key set below)
+  // Remove legacy MCP server entries
   delete settings.mcpServers["lossless-claude"];
 
+  // Remove lcm hooks from settings.json — plugin.json owns them.
+  // Having hooks in both causes double-firing.
   for (const { event, command } of REQUIRED_HOOKS) {
-    const entries = Array.isArray(settings.hooks[event]) ? settings.hooks[event] : [];
-    settings.hooks[event] = entries;
-    if (!hasHookCommand(entries, command)) {
-      entries.push(makeHookEntry(command));
-    }
+    if (!Array.isArray(settings.hooks[event])) continue;
+    settings.hooks[event] = settings.hooks[event].filter((entry: any) =>
+      !Array.isArray(entry.hooks) || !entry.hooks.some((h: any) => h.command === command)
+    );
+    if (settings.hooks[event].length === 0) delete settings.hooks[event];
   }
+  if (Object.keys(settings.hooks).length === 0) delete settings.hooks;
 
-  settings.mcpServers["lcm"] = LC_MCP;
+  // MCP server also owned by plugin.json — remove from settings.json
+  delete settings.mcpServers["lcm"];
+  if (Object.keys(settings.mcpServers).length === 0) delete settings.mcpServers;
+
   return settings;
 }
 

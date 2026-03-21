@@ -46,6 +46,28 @@ describe("validateAndFixHooks", () => {
     expect(deps.writeFileSync).not.toHaveBeenCalled();
   });
 
+  it("removes leaked mcpServers.lcm even when no managed hooks are present", () => {
+    const deps = makeDeps({
+      readFileSync: vi.fn().mockReturnValue(JSON.stringify({
+        hooks: {
+          PostToolUse: [{ matcher: "", hooks: [{ type: "command", command: "other" }] }],
+        },
+        mcpServers: {
+          lcm: { command: "lcm", args: ["mcp"] },
+          other: { command: "other", args: ["mcp"] },
+        },
+      })),
+    });
+
+    validateAndFixHooks(deps);
+
+    expect(deps.writeFileSync).toHaveBeenCalledTimes(1);
+    const written = JSON.parse((deps.writeFileSync as ReturnType<typeof vi.fn>).mock.calls[0][1]);
+    expect(written.hooks.PostToolUse).toEqual([{ matcher: "", hooks: [{ type: "command", command: "other" }] }]);
+    expect(written.mcpServers.lcm).toBeUndefined();
+    expect(written.mcpServers.other).toEqual({ command: "other", args: ["mcp"] });
+  });
+
   it("does not throw on fs errors", () => {
     const deps = makeDeps({
       readFileSync: vi.fn().mockImplementation(() => { throw new Error("ENOENT"); }),

@@ -48,9 +48,15 @@ export function mergeClaudeSettings(existing: any): any {
   // Having hooks in both causes double-firing.
   for (const { event, command } of REQUIRED_HOOKS) {
     if (!Array.isArray(settings.hooks[event])) continue;
-    settings.hooks[event] = settings.hooks[event].filter((entry: any) =>
-      !Array.isArray(entry.hooks) || !entry.hooks.some((h: any) => h.command === command)
-    );
+    settings.hooks[event] = settings.hooks[event]
+      .map((entry: any) => {
+        if (!Array.isArray(entry.hooks)) return entry;
+        return {
+          ...entry,
+          hooks: entry.hooks.filter((h: any) => h.command !== command),
+        };
+      })
+      .filter((entry: any) => !Array.isArray(entry.hooks) || entry.hooks.length > 0);
     if (settings.hooks[event].length === 0) delete settings.hooks[event];
   }
   if (Object.keys(settings.hooks).length === 0) delete settings.hooks;

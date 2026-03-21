@@ -84,6 +84,25 @@ describe("mergeClaudeSettings", () => {
     expect(r.hooks).toBeUndefined();
   });
 
+  it("removes only matching managed sub-hooks from a mixed entry", () => {
+    const r = mergeClaudeSettings({
+      hooks: {
+        PreCompact: [{
+          matcher: "",
+          hooks: [
+            { type: "command", command: "other" },
+            { type: "command", command: "lcm compact" },
+          ],
+        }],
+      },
+    });
+
+    expect(r.hooks.PreCompact).toEqual([{
+      matcher: "",
+      hooks: [{ type: "command", command: "other" }],
+    }]);
+  });
+
   it("migrates legacy lossless-claude hooks to lcm before removing them", () => {
     const existing = {
       hooks: {

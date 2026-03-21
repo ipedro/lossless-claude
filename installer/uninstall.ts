@@ -10,13 +10,18 @@ export function removeClaudeSettings(existing: any): any {
   settings.mcpServers = (settings.mcpServers && typeof settings.mcpServers === "object" && !Array.isArray(settings.mcpServers)) ? settings.mcpServers : {};
 
   const LC_COMMANDS = new Set(REQUIRED_HOOKS.map(h => h.command));
+  // Also remove legacy lossless-claude commands
+  for (const { command } of REQUIRED_HOOKS) {
+    LC_COMMANDS.add(command.replace(/^lcm /, 'lossless-claude '));
+  }
   for (const event of Object.keys(settings.hooks)) {
     if (!Array.isArray(settings.hooks[event])) continue;
     settings.hooks[event] = settings.hooks[event].filter(
       (entry: any) => !(Array.isArray(entry.hooks) && entry.hooks.some((h: any) => LC_COMMANDS.has(h.command)))
     );
   }
-  delete settings.mcpServers["lossless-claude"];
+  delete settings.mcpServers["lcm"];
+  delete settings.mcpServers["lossless-claude"]; // legacy cleanup
   return settings;
 }
 
@@ -81,17 +86,17 @@ export async function uninstall(deps: TeardownDeps = defaultDeps): Promise<void>
   // 1. Stop and remove the daemon service
   teardownDaemonService(deps);
 
-  // 2. Remove lossless-claude entries from ~/.claude/settings.json
+  // 2. Remove lcm and legacy lossless-claude entries from ~/.claude/settings.json
   const settingsPath = join(homedir(), ".claude", "settings.json");
   if (deps.existsSync(settingsPath)) {
     try {
       const existing = JSON.parse(deps.readFileSync(settingsPath, "utf-8"));
       deps.writeFileSync(settingsPath, JSON.stringify(removeClaudeSettings(existing), null, 2));
-      console.log(`Removed lossless-claude from ${settingsPath}`);
+      console.log(`Removed lcm from ${settingsPath}`);
     } catch (err) {
       console.warn(`Warning: could not update ${settingsPath}: ${err instanceof Error ? err.message : err}`);
     }
   }
 
-  console.log("lossless-claude uninstalled.");
+  console.log("lcm uninstalled.");
 }

@@ -29,52 +29,52 @@ function makeDeps(existsResult = true, overrides: Partial<TeardownDeps> = {}): T
 // ─── removeClaudeSettings ───────────────────────────────────────────────────
 
 describe("removeClaudeSettings", () => {
-  it("removes lossless-claude hooks and mcpServer", () => {
+  it("removes lcm hooks and mcpServer", () => {
     const r = removeClaudeSettings({
       hooks: {
         PreCompact: [
           { matcher: "", hooks: [{ type: "command", command: "other" }] },
-          { matcher: "", hooks: [{ type: "command", command: "lossless-claude compact" }] },
+          { matcher: "", hooks: [{ type: "command", command: "lcm compact" }] },
         ],
         SessionStart: [
-          { matcher: "", hooks: [{ type: "command", command: "lossless-claude restore" }] },
+          { matcher: "", hooks: [{ type: "command", command: "lcm restore" }] },
         ],
       },
-      mcpServers: { "lossless-claude": {}, "other": {} },
+      mcpServers: { "lcm": {}, "other": {} },
     });
     expect(r.hooks.PreCompact).toHaveLength(1);
     expect(r.hooks.PreCompact[0].hooks[0].command).toBe("other");
     expect(r.hooks.SessionStart).toHaveLength(0);
-    expect(r.mcpServers["lossless-claude"]).toBeUndefined();
+    expect(r.mcpServers["lcm"]).toBeUndefined();
     expect(r.mcpServers["other"]).toBeDefined();
   });
 
-  it("removes all 4 lossless-claude hook events", () => {
+  it("removes all 4 lcm hook events", () => {
     const r = removeClaudeSettings({
       hooks: {
         PreCompact: [
-          { matcher: "", hooks: [{ type: "command", command: "lossless-claude compact" }] },
+          { matcher: "", hooks: [{ type: "command", command: "lcm compact" }] },
         ],
         SessionStart: [
-          { matcher: "", hooks: [{ type: "command", command: "lossless-claude restore" }] },
+          { matcher: "", hooks: [{ type: "command", command: "lcm restore" }] },
         ],
         SessionEnd: [
-          { matcher: "", hooks: [{ type: "command", command: "lossless-claude session-end" }] },
+          { matcher: "", hooks: [{ type: "command", command: "lcm session-end" }] },
         ],
         UserPromptSubmit: [
-          { matcher: "", hooks: [{ type: "command", command: "lossless-claude user-prompt" }] },
+          { matcher: "", hooks: [{ type: "command", command: "lcm user-prompt" }] },
         ],
       },
-      mcpServers: { "lossless-claude": {} },
+      mcpServers: { "lcm": {} },
     });
     expect(r.hooks.PreCompact).toHaveLength(0);
     expect(r.hooks.SessionStart).toHaveLength(0);
     expect(r.hooks.SessionEnd).toHaveLength(0);
     expect(r.hooks.UserPromptSubmit).toHaveLength(0);
-    expect(r.mcpServers["lossless-claude"]).toBeUndefined();
+    expect(r.mcpServers["lcm"]).toBeUndefined();
   });
 
-  it("removes entry when any sub-hook matches a lossless-claude command", () => {
+  it("removes entry when any sub-hook matches a lcm command", () => {
     const r = removeClaudeSettings({
       hooks: {
         PreCompact: [
@@ -82,7 +82,7 @@ describe("removeClaudeSettings", () => {
             matcher: "",
             hooks: [
               { type: "command", command: "something-else" },
-              { type: "command", command: "lossless-claude compact" },
+              { type: "command", command: "lcm compact" },
             ],
           },
         ],
@@ -173,8 +173,8 @@ describe("uninstall", () => {
       existsSync: vi.fn().mockReturnValue(true),
       rmSync: vi.fn(),
       readFileSync: vi.fn().mockReturnValue(JSON.stringify({
-        hooks: { PreCompact: [{ matcher: "", hooks: [{ type: "command", command: "lossless-claude compact" }] }] },
-        mcpServers: { "lossless-claude": {} },
+        hooks: { PreCompact: [{ matcher: "", hooks: [{ type: "command", command: "lcm compact" }] }] },
+        mcpServers: { "lcm": {} },
       })),
       writeFileSync: writeFileMock,
     };

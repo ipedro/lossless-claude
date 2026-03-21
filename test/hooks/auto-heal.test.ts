@@ -20,8 +20,8 @@ describe("validateAndFixHooks", () => {
     const deps = makeDeps({
       readFileSync: vi.fn().mockReturnValue(JSON.stringify({
         hooks: {
-          PreCompact: [{ matcher: "", hooks: [{ type: "command", command: "lossless-claude compact" }] }],
-          SessionStart: [{ matcher: "", hooks: [{ type: "command", command: "lossless-claude restore" }] }],
+          PreCompact: [{ matcher: "", hooks: [{ type: "command", command: "lcm compact" }] }],
+          SessionStart: [{ matcher: "", hooks: [{ type: "command", command: "lcm restore" }] }],
         },
       })),
     });

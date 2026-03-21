@@ -1,9 +1,9 @@
 ---
-name: lossless-claude-doctor
+name: lcm-doctor
 description: Run lossless-claude diagnostics — checks daemon, hooks, MCP server, and summarizer health.
 ---
 
-# /lossless-claude-doctor
+# /lcm-doctor
 
 Run diagnostics on the lossless-claude installation.
 
@@ -19,4 +19,4 @@ End with one of:
 - *All checks passed — lossless-claude is healthy.*
 - *N check(s) need attention — see Fix section above.*
 
-If `lcm_doctor` is unavailable, run `lossless-claude doctor` via Bash and display the output verbatim.
+If `lcm_doctor` is unavailable, run `lcm doctor` via Bash and display the output verbatim.

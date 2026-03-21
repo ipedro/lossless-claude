@@ -11,7 +11,7 @@ function buildSettingsJson(): string {
   for (const { event, command } of REQUIRED_HOOKS) {
     hooks[event] = [{ matcher: "", hooks: [{ type: "command", command }] }];
   }
-  return JSON.stringify({ hooks, mcpServers: { "lossless-claude": {} } });
+  return JSON.stringify({ hooks, mcpServers: { "lcm": {} } });
 }
 
 describe("runDoctor summarizer modes", () => {

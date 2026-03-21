@@ -111,7 +111,7 @@ describe("ensureDaemon", () => {
       port: 19999,
       pidFilePath: pidFile,
       spawnTimeoutMs: 100,
-      spawnCommand: "lossless-claude",
+      spawnCommand: "lcm",
       spawnArgs: ["daemon", "start"],
       _skipHealthWait: true,
       _spawnOverride: spawnMock as any,
@@ -120,7 +120,7 @@ describe("ensureDaemon", () => {
     expect(result.connected).toBe(false);
     expect(result.spawned).toBe(true);
     expect(spawnMock).toHaveBeenCalledWith(
-      "lossless-claude",
+      "lcm",
       ["daemon", "start"],
       expect.objectContaining({ detached: true, stdio: "ignore" }),
     );

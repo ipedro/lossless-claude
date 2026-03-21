@@ -41,7 +41,7 @@ async function main() {
                         const lcDir = join(homedir(), ".lossless-claude");
                         mkdirSync(lcDir, { recursive: true });
                         writeFileSync(join(lcDir, "daemon.pid"), String(child.pid));
-                        console.log(`lossless-claude daemon started in background (PID ${child.pid})`);
+                        console.log(`lcm daemon started in background (PID ${child.pid})`);
                     }
                     exit(0);
                 }
@@ -51,34 +51,13 @@ async function main() {
                 const { homedir } = await import("node:os");
                 const config = loadDaemonConfig(join(homedir(), ".lossless-claude", "config.json"));
                 const daemon = await createDaemon(config);
-                console.log(`lossless-claude daemon started on port ${daemon.address().port}`);
+                console.log(`lcm daemon started on port ${daemon.address().port}`);
                 process.on("SIGTERM", () => exit(0));
                 process.on("SIGINT", () => exit(0));
             }
             break;
         }
-        case "compact": {
-            if (argv.includes("--all")) {
-                const { batchCompact } = await import("../src/batch-compact.js");
-                const { loadDaemonConfig } = await import("../src/daemon/config.js");
-                const { join } = await import("node:path");
-                const { homedir } = await import("node:os");
-                const { ensureDaemon } = await import("../src/daemon/lifecycle.js");
-                const config = loadDaemonConfig(join(homedir(), ".lossless-claude", "config.json"));
-                const port = config.daemon?.port ?? 3737;
-                const pidFilePath = join(homedir(), ".lossless-claude", "daemon.pid");
-                const { connected } = await ensureDaemon({ port, pidFilePath, spawnTimeoutMs: 10000 });
-                if (!connected) {
-                    console.error("Could not connect to daemon. Start it with: lossless-claude daemon start --detach");
-                    exit(1);
-                }
-                const dryRun = argv.includes("--dry-run");
-                const minTokens = config.compaction.autoCompactMinTokens;
-                await batchCompact({ minTokens, dryRun, port });
-                break;
-            }
-        }
-        // falls through to hook dispatch
+        case "compact":
         case "restore":
         case "session-end":
         case "user-prompt": {
@@ -100,7 +79,7 @@ async function main() {
             const { install } = await import("../installer/install.js");
             if (dryRun) {
                 const { DryRunServiceDeps } = await import("../installer/dry-run-deps.js");
-                console.log("\n  lossless-claude install --dry-run\n");
+                console.log("\n  lcm install --dry-run\n");
                 await install(new DryRunServiceDeps());
                 console.log("\n  No changes written.");
             }
@@ -114,7 +93,7 @@ async function main() {
             const { uninstall } = await import("../installer/uninstall.js");
             if (dryRun) {
                 const { DryRunServiceDeps } = await import("../installer/dry-run-deps.js");
-                console.log("\n  lossless-claude uninstall --dry-run\n");
+                console.log("\n  lcm uninstall --dry-run\n");
                 await uninstall(new DryRunServiceDeps());
                 console.log("\n  No changes written.");
             }
@@ -158,9 +137,9 @@ async function main() {
             break;
         }
         default:
-            console.error("Usage: lossless-claude <daemon|compact|restore|session-end|user-prompt|mcp|install|uninstall|doctor|status|stats> [--dry-run|-v]");
+            console.error("Usage: lcm <daemon|compact|restore|session-end|user-prompt|mcp|install|uninstall|doctor|status|stats> [--dry-run|-v]");
             exit(1);
     }
 }
 main().catch((err) => { console.error(err); exit(1); });
-//# sourceMappingURL=lossless-claude.js.map
+//# sourceMappingURL=lcm.js.map

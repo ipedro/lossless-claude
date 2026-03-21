@@ -8,7 +8,7 @@
     ".": "./dist/src/memory/index.js"
   },
   "bin": {
-    "lossless-claude": "dist/bin/lossless-claude.js"
+    "lcm": "dist/bin/lcm.js"
   },
   "license": "MIT",
   "author": "Pedro Almeida (https://github.com/ipedro)",

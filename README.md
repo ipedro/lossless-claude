@@ -1,6 +1,6 @@
 <p align="center">
   <strong>lossless-claude</strong><br>
-  Shared memory infrastructure for Claude Code and Codex
+  Shared memory infrastructure for Claude Code
 </p>
 
 <p align="center">
@@ -29,11 +29,11 @@
 - Every message is stored in a project SQLite database.
 - Older context is compacted into a DAG of summaries instead of being dropped.
 - Durable decisions and findings are promoted into cross-session memory.
-- Claude Code and Codex can both read and write the same project memory.
+- Claude Code reads and writes project memory across sessions.
 
 Humans and agents use the same backend. The integration surface differs by client, but the memory model is shared.
 
-This repo started as a fork of [lossless-claw](https://github.com/Martian-Engineering/lossless-claude) by [Martian Engineering](https://martian.engineering), adapted for Claude Code and extended to support Codex. The LCM model and DAG architecture originate from the [Voltropy paper](https://papers.voltropy.com/LCM).
+This repo started as a fork of [lossless-claw](https://github.com/Martian-Engineering/lossless-claude) by [Martian Engineering](https://martian.engineering), adapted for Claude Code. The LCM model and DAG architecture originate from the [Voltropy paper](https://papers.voltropy.com/LCM).
 
 ## Runtime Model
 
@@ -41,11 +41,9 @@ This repo started as a fork of [lossless-claw](https://github.com/Martian-Engine
 flowchart LR
   subgraph Clients["Clients"]
     CC["Claude Code<br/>hooks + MCP"]
-    PC["plain codex<br/>MCP + AGENTS fallback"]
   end
 
   CC --> D["lossless-claude daemon"]
-  PC --> D
 
   D --> DB[("project SQLite DAG")]
   D --> PM[("promoted memory FTS5")]
@@ -57,7 +55,6 @@ flowchart LR
 | Path | Restore | Prompt hints | Turn writeback | Automatic compaction | Notes |
 |---|---|---|---|---|---|
 | Claude Code | Yes | Yes | Yes, via transcript/hooks | Yes | Primary hook-based integration |
-| Plain `codex` + MCP | Manual | Manual | Manual | Manual | Fallback mode only |
 
 ## LCM Model
 
@@ -114,54 +111,6 @@ lcm install
 ```
 
 `lcm install` writes config, registers hooks, installs slash commands, registers MCP, and verifies the daemon.
-
-## Codex Fallback
-
-Plain `codex` can still use LCM, but this is advisory fallback mode rather than full automatic shared memory.
-
-### Step 1: register the MCP server
-
-Add this to `~/.codex/config.toml`:
-
-```toml
-[mcp_servers.lcm]
-command = "lcm"
-args = ["mcp"]
-```
-
-### Step 2: copy fallback instructions
-
-Project-local:
-
-```bash
-cp configs/codex/AGENTS.md ./AGENTS.md
-```
-
-Global:
-
-```bash
-mkdir -p ~/.codex
-cp configs/codex/AGENTS.md ~/.codex/AGENTS.md
-```
-
-The fallback prompt lives in [`configs/codex/AGENTS.md`](configs/codex/AGENTS.md).
-
-Restart Codex after registering the MCP server or changing `AGENTS.md`.
-
-### What this gives you
-
-- access to LCM MCP tools from plain `codex`
-- prompt-level guidance to search/store memory before claiming context is unavailable
-- a usable manual fallback when hook-based automatic mode is not available
-
-### What it does not give you
-
-- automatic restore before each turn
-- automatic turn ingestion
-- automatic post-turn compaction
-- hook-based reliability
-
-Plain Codex support is intentionally weaker and documented as manual fallback mode. Hook-based clients (Claude Code) get full automatic memory management.
 
 ## Hooks
 
@@ -250,12 +199,10 @@ npx tsc --noEmit
 
 ```text
 bin/
-  lossless-claude.ts          CLI entry point (binary: lcm)
-configs/
-  codex/AGENTS.md             Plain Codex fallback instructions
+  lcm.ts                      CLI entry point (binary: lcm)
 src/
-  adapters/codex.ts           Codex session runner + JSONL normalization
   compaction.ts               DAG compaction engine
+  connectors/                 client integration adapters
   daemon/                     HTTP daemon, lifecycle, config, routes
   db/                         SQLite schema + promoted memory
   hooks/                      Claude hook handlers + auto-heal
@@ -272,9 +219,8 @@ test/
 ## Technical Notes
 
 - Claude Code integration is hook-first.
-- Plain Codex support is intentionally weaker and documented as fallback mode.
-- The daemon is shared; the memory backend is not Claude-specific or Codex-specific.
-- The repo still carries the original lossless-claw lineage, but the current runtime is Claude Code + Codex oriented.
+- The daemon is shared; the memory backend is client-agnostic.
+- The repo carries the original lossless-claw lineage; the current runtime is Claude Code oriented.
 
 ## Acknowledgments
 

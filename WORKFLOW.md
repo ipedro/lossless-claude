@@ -14,7 +14,7 @@ This document is a living record. **Update it whenever you learn something:**
 
 **When to update:** At the end of every feature cycle (after the implementation PR merges), review this doc against what actually happened. If reality diverged from the doc, fix the doc — not reality.
 
-**How to update:** Create a `docs/workflow-*` branch, push, get Copilot review, merge. Same flow as any other docs change.
+**How to update:** Create a `docs/<topic>` branch, push, get Copilot review, merge. Same flow as any other docs change.
 
 ## Defaults (predefined answers for brainstorming)
 
@@ -70,7 +70,7 @@ This document is a living record. **Update it whenever you learn something:**
 1. Push implementation branch, open PR
 2. Request Copilot review (add to reviewers list)
 3. Run review loop (see below)
-4. Merge once Copilot approves
+4. Merge once Copilot review has no remaining inline comments
 
 ## Copilot Interaction
 

@@ -22,21 +22,22 @@ Always review every file in the PR diff, including documentation, specs, plans, 
 
 ## Code Review Checklist
 
-When reviewing pull requests that include code, verify these invariants:
+These rules apply to **new and changed code** in the PR. Do not flag pre-existing code that the PR did not touch.
 
 ### Hook Safety
-- All hook handlers in `src/hooks/*.ts` must return `{ exitCode: 0 }` on error — never throw or return non-zero
+- Hook handlers (`handle*` functions in `src/hooks/*.ts`) must return `{ exitCode: 0 }` on error — never throw or return non-zero
+- The hook dispatcher (`dispatchHook` in `src/hooks/dispatch.ts`) may throw on invalid input — that is intentional
 - Hooks must never crash Claude Code, even if the daemon is unreachable
 
 ### Database Safety
-- Every `new DatabaseSync()` call must have a matching `db.close()` in a `finally` block
-- Every database must set `PRAGMA busy_timeout = 5000` before queries
+- New `DatabaseSync()` calls should have a matching `db.close()` in a `finally` block
+- New database connections should set `PRAGMA busy_timeout = 5000` before queries
 - `--dry-run` commands must not call `runLcmMigrations()` or otherwise write to disk
 
 ### Import Discipline
-- Required dependencies are limited — see `package.json` `dependencies` (not `devDependencies`)
-- All other packages (e.g., `openai`, `@anthropic-ai/sdk`) must use lazy `await import()`, never top-level imports
-- Use `node:` prefix for Node.js built-ins
+- Required dependencies are listed in `package.json` `dependencies` (not `devDependencies`)
+- Optional SDK packages (e.g., `openai`, `@anthropic-ai/sdk`) have dedicated wrapper modules in `src/llm/` — new call sites should import from those wrappers, not directly from the SDK
+- Prefer `node:` prefix for Node.js built-ins in new code
 
 ### Type Completeness
 - When adding fields to shared types (e.g., `DaemonConfig`), verify all test mocks and fixtures include the new field

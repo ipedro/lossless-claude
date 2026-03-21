@@ -45,7 +45,7 @@ export function createIngestHandler(_config: DaemonConfig): RouteHandler {
 
     const parsed = resolveMessages(input);
     if (parsed.length === 0) {
-      sendJson(res, 200, { ingested: 0 });
+      sendJson(res, 200, { ingested: 0, totalTokens: 0 });
       return;
     }
 
@@ -64,7 +64,7 @@ export function createIngestHandler(_config: DaemonConfig): RouteHandler {
       const newMessages = parsed.slice(storedCount);
 
       if (newMessages.length === 0) {
-        sendJson(res, 200, { ingested: 0 });
+        sendJson(res, 200, { ingested: 0, totalTokens: 0 });
         return;
       }
 
@@ -78,7 +78,8 @@ export function createIngestHandler(_config: DaemonConfig): RouteHandler {
       const records = await conversationStore.createMessagesBulk(inputs);
       await summaryStore.appendContextMessages(conversation.conversationId, records.map((r) => r.messageId));
 
-      sendJson(res, 200, { ingested: records.length });
+      const totalTokens = await summaryStore.getContextTokenCount(conversation.conversationId);
+      sendJson(res, 200, { ingested: records.length, totalTokens });
     } finally {
       db.close();
     }

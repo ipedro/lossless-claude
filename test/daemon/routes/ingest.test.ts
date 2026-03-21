@@ -39,7 +39,7 @@ describe("POST /ingest", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ingested: 2 });
+    expect(await res.json()).toEqual({ ingested: 2, totalTokens: 2 });
   });
 
   it("accepts tool messages in structured ingestion mode", async () => {
@@ -63,7 +63,7 @@ describe("POST /ingest", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ingested: 4 });
+    expect(await res.json()).toEqual({ ingested: 4, totalTokens: 11 });
   });
 
   it("prefers messages[] over transcript_path when both are present", async () => {
@@ -86,7 +86,7 @@ describe("POST /ingest", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ingested: 2 });
+    expect(await res.json()).toEqual({ ingested: 2, totalTokens: 3 });
   });
 
   it("returns ingested=0 when transcript_path is missing and messages[] is absent", async () => {
@@ -105,6 +105,6 @@ describe("POST /ingest", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ingested: 0 });
+    expect(await res.json()).toEqual({ ingested: 0, totalTokens: 0 });
   });
 });

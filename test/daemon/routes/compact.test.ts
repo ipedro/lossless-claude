@@ -310,7 +310,7 @@ describe("POST /compact", () => {
     });
 
     expect(ingestRes.status).toBe(200);
-    expect(await ingestRes.json()).toEqual({ ingested: 4 });
+    expect(await ingestRes.json()).toMatchObject({ ingested: 4 });
     expect(await readMessageCount(tempDir, sessionId)).toBe(4);
 
     const compactRes = await fetch(`${baseUrl}/compact`, {

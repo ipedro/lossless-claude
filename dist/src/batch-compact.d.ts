@@ -7,7 +7,7 @@ export interface UncompactedConversation {
     tokens: number;
 }
 /** Find all conversations with messages but no summaries, above the token threshold. */
-export declare function findUncompacted(minTokens: number): UncompactedConversation[];
+export declare function findUncompacted(minTokens: number, readOnly?: boolean): UncompactedConversation[];
 /** Compact all uncompacted conversations above threshold via the daemon. */
 export declare function batchCompact(opts: {
     minTokens: number;

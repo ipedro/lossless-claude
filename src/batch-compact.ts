@@ -14,7 +14,7 @@ export interface UncompactedConversation {
 }
 
 /** Find all conversations with messages but no summaries, above the token threshold. */
-export function findUncompacted(minTokens: number): UncompactedConversation[] {
+export function findUncompacted(minTokens: number, readOnly = false): UncompactedConversation[] {
   const baseDir = join(homedir(), ".lossless-claude", "projects");
   if (!existsSync(baseDir)) return [];
 
@@ -35,9 +35,9 @@ export function findUncompacted(minTokens: number): UncompactedConversation[] {
     }
     if (!cwd) continue;
 
-    const db = new DatabaseSync(dbPath);
+    const db = new DatabaseSync(dbPath, readOnly ? { readOnly: true } : undefined);
     try {
-      runLcmMigrations(db);
+      if (!readOnly) runLcmMigrations(db);
       const rows = db.prepare(`
         SELECT
           c.conversation_id,
@@ -83,7 +83,7 @@ export async function batchCompact(opts: {
   dryRun: boolean;
   port: number;
 }): Promise<void> {
-  const conversations = findUncompacted(opts.minTokens);
+  const conversations = findUncompacted(opts.minTokens, opts.dryRun);
 
   if (conversations.length === 0) {
     console.log("No uncompacted conversations above threshold.");

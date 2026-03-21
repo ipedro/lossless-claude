@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { runLcmMigrations } from "./db/migration.js";
 /** Find all conversations with messages but no summaries, above the token threshold. */
-export function findUncompacted(minTokens) {
+export function findUncompacted(minTokens, readOnly = false) {
     const baseDir = join(homedir(), ".lossless-claude", "projects");
     if (!existsSync(baseDir))
         return [];
@@ -26,9 +26,10 @@ export function findUncompacted(minTokens) {
         }
         if (!cwd)
             continue;
-        const db = new DatabaseSync(dbPath);
+        const db = new DatabaseSync(dbPath, readOnly ? { readOnly: true } : undefined);
         try {
-            runLcmMigrations(db);
+            if (!readOnly)
+                runLcmMigrations(db);
             const rows = db.prepare(`
         SELECT
           c.conversation_id,
@@ -70,7 +71,7 @@ export function findUncompacted(minTokens) {
 }
 /** Compact all uncompacted conversations above threshold via the daemon. */
 export async function batchCompact(opts) {
-    const conversations = findUncompacted(opts.minTokens);
+    const conversations = findUncompacted(opts.minTokens, opts.dryRun);
     if (conversations.length === 0) {
         console.log("No uncompacted conversations above threshold.");
         return;

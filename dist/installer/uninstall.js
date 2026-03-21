@@ -13,7 +13,8 @@ export function removeClaudeSettings(existing) {
             continue;
         settings.hooks[event] = settings.hooks[event].filter((entry) => !(Array.isArray(entry.hooks) && entry.hooks.some((h) => LC_COMMANDS.has(h.command))));
     }
-    delete settings.mcpServers["lossless-claude"];
+    delete settings.mcpServers["lcm"];
+    delete settings.mcpServers["lossless-claude"]; // legacy cleanup
     return settings;
 }
 const defaultDeps = {
@@ -64,12 +65,12 @@ export async function uninstall(deps = defaultDeps) {
         try {
             const existing = JSON.parse(deps.readFileSync(settingsPath, "utf-8"));
             deps.writeFileSync(settingsPath, JSON.stringify(removeClaudeSettings(existing), null, 2));
-            console.log(`Removed lossless-claude from ${settingsPath}`);
+            console.log(`Removed lcm from ${settingsPath}`);
         }
         catch (err) {
             console.warn(`Warning: could not update ${settingsPath}: ${err instanceof Error ? err.message : err}`);
         }
     }
-    console.log("lossless-claude uninstalled.");
+    console.log("lcm uninstalled.");
 }
 //# sourceMappingURL=uninstall.js.map

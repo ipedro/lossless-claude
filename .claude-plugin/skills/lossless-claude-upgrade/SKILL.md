@@ -23,16 +23,16 @@ Rebuild from source, restart daemon, and verify installation.
    PID_FILE="$HOME/.lossless-claude/daemon.pid"
    if [ -f "$PID_FILE" ]; then
      PID=$(cat "$PID_FILE")
-     if ps -p "$PID" -o args= 2>/dev/null | grep -q 'lossless-claude.*daemon'; then
+     if ps -p "$PID" -o args= 2>/dev/null | grep -q 'lcm.*daemon'; then
        kill "$PID" 2>/dev/null
      fi
      rm -f "$PID_FILE"
    fi
-   lossless-claude daemon start --detach
+   lcm daemon start --detach
    ```
 4. Run doctor with Bash:
    ```
-   lossless-claude doctor
+   lcm doctor
    ```
 5. **IMPORTANT**: After all Bash commands complete, re-display key results as markdown text directly in the conversation. Format as:
    ```

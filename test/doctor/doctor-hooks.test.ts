@@ -13,7 +13,7 @@ describe("doctor hook validation", () => {
     for (const { event, command } of REQUIRED_HOOKS) {
       allHooks[event] = [{ matcher: "", hooks: [{ type: "command", command }] }];
     }
-    const settings = JSON.stringify({ hooks: allHooks, mcpServers: { "lossless-claude": {} } });
+    const settings = JSON.stringify({ hooks: allHooks, mcpServers: { "lcm": {} } });
     const results = await runDoctor({
       existsSync: () => true,
       readFileSync: (p: string) => {

@@ -8,10 +8,10 @@ All hooks auto-heal: each validates that all 4 hooks are registered in `settings
 
 | Hook | Command | What it does |
 |------|---------|-------------|
-| PreCompact | `lossless-claude compact` | Intercepts compaction, runs LLM summarization into a DAG, returns the summary (exit 2 = replace native) |
-| SessionStart | `lossless-claude restore` | Restores project context + recent summaries + promoted memories from prior sessions |
-| SessionEnd | `lossless-claude session-end` | Ingests the session transcript into the database for future recall |
-| UserPromptSubmit | `lossless-claude user-prompt` | Searches promoted memory for relevant context, surfaces it as `<memory-context>` hints |
+| PreCompact | `lcm compact` | Intercepts compaction, runs LLM summarization into a DAG, returns the summary (exit 2 = replace native) |
+| SessionStart | `lcm restore` | Restores project context + recent summaries + promoted memories from prior sessions |
+| SessionEnd | `lcm session-end` | Ingests the session transcript into the database for future recall |
+| UserPromptSubmit | `lcm user-prompt` | Searches promoted memory for relevant context, surfaces it as `<memory-context>` hints |
 
 ## Lifecycle
 

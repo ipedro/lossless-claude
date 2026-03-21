@@ -37,7 +37,7 @@ export class DryRunServiceDeps {
         }
         // Special case 2: binary resolution — return canned result, no output printed
         if (cmd === "sh" && args[0] === "-c" && typeof args[1] === "string" && args[1].startsWith("command -v")) {
-            return { ...fakeZeroExit(), stdout: "lossless-claude" };
+            return { ...fakeZeroExit(), stdout: "lcm" };
         }
         // All other commands: print and fake
         console.log(`[dry-run] would run: ${cmd} ${args.join(" ")}`);

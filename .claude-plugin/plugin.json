@@ -15,31 +15,31 @@
     "PreCompact": [
       {
         "matcher": "",
-        "hooks": [{ "type": "command", "command": "lossless-claude compact" }]
+        "hooks": [{ "type": "command", "command": "lcm compact" }]
       }
     ],
     "SessionStart": [
       {
         "matcher": "",
-        "hooks": [{ "type": "command", "command": "lossless-claude restore" }]
+        "hooks": [{ "type": "command", "command": "lcm restore" }]
       }
     ],
     "SessionEnd": [
       {
         "matcher": "",
-        "hooks": [{ "type": "command", "command": "lossless-claude session-end" }]
+        "hooks": [{ "type": "command", "command": "lcm session-end" }]
       }
     ],
     "UserPromptSubmit": [
       {
         "matcher": "",
-        "hooks": [{ "type": "command", "command": "lossless-claude user-prompt" }]
+        "hooks": [{ "type": "command", "command": "lcm user-prompt" }]
       }
     ]
   },
   "mcpServers": {
-    "lossless-claude": {
-      "command": "lossless-claude",
+    "lcm": {
+      "command": "lcm",
       "args": ["mcp"]
     }
   }

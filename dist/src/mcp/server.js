@@ -93,7 +93,7 @@ export async function startMcpServer() {
     const pidFilePath = join(homedir(), ".lossless-claude", "daemon.pid");
     await ensureDaemon({ port, pidFilePath, spawnTimeoutMs: 10000 });
     const client = new DaemonClient(`http://127.0.0.1:${port}`);
-    const server = new Server({ name: "lossless-claude", version: "1.0.0" }, { capabilities: { tools: {} } });
+    const server = new Server({ name: "lcm", version: "1.0.0" }, { capabilities: { tools: {} } });
     server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
     server.setRequestHandler(CallToolRequestSchema, async (req) => {
         const localHandler = LOCAL_TOOLS[req.params.name];

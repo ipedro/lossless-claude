@@ -34,11 +34,11 @@ function makeDeps(overrides: Partial<ServiceDeps> = {}): ServiceDeps {
 describe("mergeClaudeSettings", () => {
   it("adds hooks and mcpServers to empty settings", () => {
     const r = mergeClaudeSettings({});
-    expect(r.hooks.PreCompact[0]).toEqual({ matcher: "", hooks: [{ type: "command", command: "lossless-claude compact" }] });
-    expect(r.hooks.SessionStart[0]).toEqual({ matcher: "", hooks: [{ type: "command", command: "lossless-claude restore" }] });
-    expect(r.hooks.SessionEnd[0]).toEqual({ matcher: "", hooks: [{ type: "command", command: "lossless-claude session-end" }] });
-    expect(r.hooks.UserPromptSubmit[0]).toEqual({ matcher: "", hooks: [{ type: "command", command: "lossless-claude user-prompt" }] });
-    expect(r.mcpServers["lossless-claude"]).toBeDefined();
+    expect(r.hooks.PreCompact[0]).toEqual({ matcher: "", hooks: [{ type: "command", command: "lcm compact" }] });
+    expect(r.hooks.SessionStart[0]).toEqual({ matcher: "", hooks: [{ type: "command", command: "lcm restore" }] });
+    expect(r.hooks.SessionEnd[0]).toEqual({ matcher: "", hooks: [{ type: "command", command: "lcm session-end" }] });
+    expect(r.hooks.UserPromptSubmit[0]).toEqual({ matcher: "", hooks: [{ type: "command", command: "lcm user-prompt" }] });
+    expect(r.mcpServers["lcm"]).toBeDefined();
   });
 
   it("registers all 4 required hooks on empty settings", () => {
@@ -49,11 +49,11 @@ describe("mergeClaudeSettings", () => {
     expect(r.hooks.UserPromptSubmit).toHaveLength(1);
     expect(r.hooks.SessionEnd[0]).toEqual({
       matcher: "",
-      hooks: [{ type: "command", command: "lossless-claude session-end" }],
+      hooks: [{ type: "command", command: "lcm session-end" }],
     });
     expect(r.hooks.UserPromptSubmit[0]).toEqual({
       matcher: "",
-      hooks: [{ type: "command", command: "lossless-claude user-prompt" }],
+      hooks: [{ type: "command", command: "lcm user-prompt" }],
     });
   });
 
@@ -66,10 +66,10 @@ describe("mergeClaudeSettings", () => {
   it("does not duplicate any of the 4 hooks if already present", () => {
     const existing = {
       hooks: {
-        PreCompact: [{ matcher: "", hooks: [{ type: "command", command: "lossless-claude compact" }] }],
-        SessionStart: [{ matcher: "", hooks: [{ type: "command", command: "lossless-claude restore" }] }],
-        SessionEnd: [{ matcher: "", hooks: [{ type: "command", command: "lossless-claude session-end" }] }],
-        UserPromptSubmit: [{ matcher: "", hooks: [{ type: "command", command: "lossless-claude user-prompt" }] }],
+        PreCompact: [{ matcher: "", hooks: [{ type: "command", command: "lcm compact" }] }],
+        SessionStart: [{ matcher: "", hooks: [{ type: "command", command: "lcm restore" }] }],
+        SessionEnd: [{ matcher: "", hooks: [{ type: "command", command: "lcm session-end" }] }],
+        UserPromptSubmit: [{ matcher: "", hooks: [{ type: "command", command: "lcm user-prompt" }] }],
       },
     };
     const r = mergeClaudeSettings(existing);
@@ -85,7 +85,7 @@ describe("mergeClaudeSettings", () => {
   });
 
   it("does not duplicate if already present", () => {
-    const r = mergeClaudeSettings({ hooks: { PreCompact: [{ matcher: "", hooks: [{ type: "command", command: "lossless-claude compact" }] }] } });
+    const r = mergeClaudeSettings({ hooks: { PreCompact: [{ matcher: "", hooks: [{ type: "command", command: "lcm compact" }] }] } });
     expect(r.hooks.PreCompact).toHaveLength(1);
   });
 });
@@ -94,17 +94,17 @@ describe("mergeClaudeSettings", () => {
 
 describe("resolveBinaryPath", () => {
   it("returns path from which when available", () => {
-    const spawnMock = makeSpawn(0, "/usr/local/bin/lossless-claude\n");
+    const spawnMock = makeSpawn(0, "/usr/local/bin/lcm\n");
     const deps = {
       spawnSync: spawnMock,
       existsSync: vi.fn().mockReturnValue(false),
     };
-    expect(resolveBinaryPath(deps)).toBe("/usr/local/bin/lossless-claude");
-    expect(spawnMock).toHaveBeenCalledWith("sh", ["-c", "command -v lossless-claude"], expect.anything());
+    expect(resolveBinaryPath(deps)).toBe("/usr/local/bin/lcm");
+    expect(spawnMock).toHaveBeenCalledWith("sh", ["-c", "command -v lcm"], expect.anything());
   });
 
   it("falls back to ~/.npm-global/bin when which fails", () => {
-    const npmGlobal = join(homedir(), ".npm-global", "bin", "lossless-claude");
+    const npmGlobal = join(homedir(), ".npm-global", "bin", "lcm");
     const deps = {
       spawnSync: makeSpawn(1, ""),
       existsSync: vi.fn().mockImplementation((p: string) => p === npmGlobal),
@@ -117,7 +117,7 @@ describe("resolveBinaryPath", () => {
       spawnSync: makeSpawn(1, ""),
       existsSync: vi.fn().mockReturnValue(false),
     };
-    expect(resolveBinaryPath(deps)).toBe("lossless-claude");
+    expect(resolveBinaryPath(deps)).toBe("lcm");
   });
 });
 

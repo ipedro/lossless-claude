@@ -86,7 +86,7 @@ function testMcpHandshake(): Promise<CheckResult> {
     const listMsg = JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
 
     // Resolve the binary relative to this file so it works outside Claude Code's PATH
-    const binPath = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "bin", "lossless-claude.js");
+    const binPath = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "bin", "lcm.js");
     const child = spawn(process.execPath, [binPath, "mcp"], { stdio: ["pipe", "pipe", "ignore"] });
     let stdout = "";
     const timer = setTimeout(() => { child.kill(); }, 6000);
@@ -100,11 +100,11 @@ function testMcpHandshake(): Promise<CheckResult> {
         try {
           const parsed = JSON.parse(toolsLine);
           const count = parsed.result?.tools?.length ?? 0;
-          resolve({ name: "mcp-handshake-lcm", category: "MCP Servers", status: count === 7 ? "pass" : "warn", message: `lossless-claude: ${count}/7 tools` });
+          resolve({ name: "mcp-handshake-lcm", category: "MCP Servers", status: count === 7 ? "pass" : "warn", message: `lcm: ${count}/7 tools` });
           return;
         } catch {}
       }
-      resolve({ name: "mcp-handshake-lcm", category: "MCP Servers", status: "warn", message: `lossless-claude: 0/7 tools` });
+      resolve({ name: "mcp-handshake-lcm", category: "MCP Servers", status: "warn", message: `lcm: 0/7 tools` });
     });
     child.on("error", () => {
       clearTimeout(timer);
@@ -150,7 +150,7 @@ export async function runDoctor(overrides?: Partial<DoctorDeps>): Promise<CheckR
   if (deps.existsSync(configPath)) {
     results.push({ name: "config", category: "Stack", status: "pass", message: configPath });
   } else {
-    results.push({ name: "config", category: "Stack", status: "fail", message: `Missing — run: lossless-claude install` });
+    results.push({ name: "config", category: "Stack", status: "fail", message: `Missing — run: lcm install` });
   }
 
   // ── Daemon ──
@@ -169,10 +169,10 @@ export async function runDoctor(overrides?: Partial<DoctorDeps>): Promise<CheckR
       if (connected) {
         results.push({ name: "daemon", category: "Daemon", status: "warn", message: `localhost:${config.port} — started`, fixApplied: true });
       } else {
-        results.push({ name: "daemon", category: "Daemon", status: "fail", message: `localhost:${config.port} not responding\n     Fix: lossless-claude daemon start` });
+        results.push({ name: "daemon", category: "Daemon", status: "fail", message: `localhost:${config.port} not responding\n     Fix: lcm daemon start` });
       }
     } catch {
-      results.push({ name: "daemon", category: "Daemon", status: "fail", message: `localhost:${config.port} not responding\n     Fix: lossless-claude daemon start` });
+      results.push({ name: "daemon", category: "Daemon", status: "fail", message: `localhost:${config.port} not responding\n     Fix: lcm daemon start` });
     }
   }
 
@@ -222,22 +222,22 @@ export async function runDoctor(overrides?: Partial<DoctorDeps>): Promise<CheckR
         name: "hooks",
         category: "Settings",
         status: "fail",
-        message: `Missing ${missingHooks.join(", ")} — run: lossless-claude install`,
+        message: `Missing ${missingHooks.join(", ")} — run: lcm install`,
       });
     }
   }
 
   const mcpServers = settingsData.mcpServers as Record<string, unknown> | undefined;
-  if (mcpServers?.["lossless-claude"]) {
-    results.push({ name: "mcp-lossless-claude", category: "Settings", status: "pass", message: "lossless-claude MCP \u2713" });
+  if (mcpServers?.["lcm"]) {
+    results.push({ name: "mcp-lcm", category: "Settings", status: "pass", message: "lcm MCP \u2713" });
   } else {
     // Auto-fix
     try {
       const merged = mergeClaudeSettings(settingsData);
       deps.writeFileSync(settingsPath, JSON.stringify(merged, null, 2));
-      results.push({ name: "mcp-lossless-claude", category: "Settings", status: "warn", message: "MCP entry missing — fixed", fixApplied: true });
+      results.push({ name: "mcp-lcm", category: "Settings", status: "warn", message: "MCP entry missing — fixed", fixApplied: true });
     } catch {
-      results.push({ name: "mcp-lossless-claude", category: "Settings", status: "fail", message: "MCP entry missing — run: lossless-claude install" });
+      results.push({ name: "mcp-lcm", category: "Settings", status: "fail", message: "MCP entry missing — run: lcm install" });
     }
   }
 

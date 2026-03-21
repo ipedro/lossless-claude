@@ -4,13 +4,13 @@ import { dirname, join } from "node:path";
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 
 export const REQUIRED_HOOKS: { event: string; command: string }[] = [
-  { event: "PreCompact", command: "lossless-claude compact" },
-  { event: "SessionStart", command: "lossless-claude restore" },
-  { event: "SessionEnd", command: "lossless-claude session-end" },
-  { event: "UserPromptSubmit", command: "lossless-claude user-prompt" },
+  { event: "PreCompact", command: "lcm compact" },
+  { event: "SessionStart", command: "lcm restore" },
+  { event: "SessionEnd", command: "lcm session-end" },
+  { event: "UserPromptSubmit", command: "lcm user-prompt" },
 ];
 
-const LC_MCP = { command: "lossless-claude", args: ["mcp"] };
+const LC_MCP = { command: "lcm", args: ["mcp"] };
 
 function makeHookEntry(command: string): { matcher: string; hooks: { type: string; command: string }[] } {
   return { matcher: "", hooks: [{ type: "command", command }] };
@@ -27,6 +27,30 @@ export function mergeClaudeSettings(existing: any): any {
   settings.hooks = (settings.hooks && typeof settings.hooks === "object" && !Array.isArray(settings.hooks)) ? settings.hooks : {};
   settings.mcpServers = (settings.mcpServers && typeof settings.mcpServers === "object" && !Array.isArray(settings.mcpServers)) ? settings.mcpServers : {};
 
+  // Migrate old lossless-claude hook commands to lcm
+  const OLD_TO_NEW: Record<string, string> = {
+    "lossless-claude compact": "lcm compact",
+    "lossless-claude restore": "lcm restore",
+    "lossless-claude session-end": "lcm session-end",
+    "lossless-claude user-prompt": "lcm user-prompt",
+  };
+  for (const event of Object.keys(settings.hooks)) {
+    if (!Array.isArray(settings.hooks[event])) continue;
+    for (const entry of settings.hooks[event]) {
+      if (!Array.isArray(entry.hooks)) continue;
+      for (const h of entry.hooks) {
+        if (h.command && OLD_TO_NEW[h.command]) {
+          h.command = OLD_TO_NEW[h.command];
+        }
+      }
+    }
+  }
+  // Migrate old lossless-claude MCP server entry to lcm
+  if (settings.mcpServers["lossless-claude"] && !settings.mcpServers["lcm"]) {
+    settings.mcpServers["lcm"] = settings.mcpServers["lossless-claude"];
+  }
+  delete settings.mcpServers["lossless-claude"];
+
   for (const { event, command } of REQUIRED_HOOKS) {
     const entries = Array.isArray(settings.hooks[event]) ? settings.hooks[event] : [];
     settings.hooks[event] = entries;
@@ -35,7 +59,7 @@ export function mergeClaudeSettings(existing: any): any {
     }
   }
 
-  settings.mcpServers["lossless-claude"] = LC_MCP;
+  settings.mcpServers["lcm"] = LC_MCP;
   return settings;
 }
 
@@ -65,21 +89,21 @@ async function readlinePrompt(question: string): Promise<string> {
 const defaultDeps: ServiceDeps = { spawnSync: spawnSync as any, readFileSync: (path, encoding) => readFileSync(path, encoding as BufferEncoding) as string, writeFileSync, mkdirSync, existsSync, promptUser: readlinePrompt };
 
 export function resolveBinaryPath(deps: Pick<ServiceDeps, "spawnSync" | "existsSync"> = defaultDeps): string {
-  const result = deps.spawnSync("sh", ["-c", "command -v lossless-claude"], { encoding: "utf-8" });
+  const result = deps.spawnSync("sh", ["-c", "command -v lcm"], { encoding: "utf-8" });
   if (result.status === 0 && typeof result.stdout === "string" && result.stdout.trim()) {
     return result.stdout.trim();
   }
 
   const fallbacks = [
-    join(homedir(), ".npm-global", "bin", "lossless-claude"),
-    "/usr/local/bin/lossless-claude",
-    "/opt/homebrew/bin/lossless-claude",
+    join(homedir(), ".npm-global", "bin", "lcm"),
+    "/usr/local/bin/lcm",
+    "/opt/homebrew/bin/lcm",
   ];
   for (const p of fallbacks) {
     if (deps.existsSync(p)) return p;
   }
 
-  return "lossless-claude";
+  return "lcm";
 }
 
 
@@ -203,7 +227,7 @@ export async function install(deps: ServiceDeps = defaultDeps): Promise<void> {
     spawnTimeoutMs: 30000,
   });
   if (!connected) {
-    console.warn("Warning: daemon not responding — run: lossless-claude doctor");
+    console.warn("Warning: daemon not responding — run: lcm doctor");
   } else {
     console.log("Daemon started successfully.");
   }
@@ -219,9 +243,9 @@ export async function install(deps: ServiceDeps = defaultDeps): Promise<void> {
   const results = await _runDoctor();
   const failures = results.filter((r: { status: string }) => r.status === "fail");
   if (failures.length > 0) {
-    console.error(`${failures.length} check(s) failed. Run 'lossless-claude doctor' for details.`);
+    console.error(`${failures.length} check(s) failed. Run 'lcm doctor' for details.`);
   } else {
-    console.log("lossless-claude installed successfully! All checks passed.");
+    console.log("lcm installed successfully! All checks passed.");
   }
 }
 

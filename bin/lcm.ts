@@ -42,7 +42,7 @@ async function main() {
             const lcDir = join(homedir(), ".lossless-claude");
             mkdirSync(lcDir, { recursive: true });
             writeFileSync(join(lcDir, "daemon.pid"), String(child.pid));
-            console.log(`lossless-claude daemon started in background (PID ${child.pid})`);
+            console.log(`lcm daemon started in background (PID ${child.pid})`);
           }
           exit(0);
         }
@@ -52,7 +52,7 @@ async function main() {
         const { homedir } = await import("node:os");
         const config = loadDaemonConfig(join(homedir(), ".lossless-claude", "config.json"));
         const daemon = await createDaemon(config);
-        console.log(`lossless-claude daemon started on port ${daemon.address().port}`);
+        console.log(`lcm daemon started on port ${daemon.address().port}`);
         process.on("SIGTERM", () => exit(0));
         process.on("SIGINT", () => exit(0));
       }
@@ -100,7 +100,7 @@ async function main() {
       const { install } = await import("../installer/install.js");
       if (dryRun) {
         const { DryRunServiceDeps } = await import("../installer/dry-run-deps.js");
-        console.log("\n  lossless-claude install --dry-run\n");
+        console.log("\n  lcm install --dry-run\n");
         await install(new DryRunServiceDeps());
         console.log("\n  No changes written.");
       } else {
@@ -113,7 +113,7 @@ async function main() {
       const { uninstall } = await import("../installer/uninstall.js");
       if (dryRun) {
         const { DryRunServiceDeps } = await import("../installer/dry-run-deps.js");
-        console.log("\n  lossless-claude uninstall --dry-run\n");
+        console.log("\n  lcm uninstall --dry-run\n");
         await uninstall(new DryRunServiceDeps());
         console.log("\n  No changes written.");
       } else {
@@ -156,7 +156,7 @@ async function main() {
       break;
     }
     default:
-      console.error("Usage: lossless-claude <daemon|compact|restore|session-end|user-prompt|mcp|install|uninstall|doctor|status|stats> [--dry-run|-v]");
+      console.error("Usage: lcm <daemon|compact|restore|session-end|user-prompt|mcp|install|uninstall|doctor|status|stats> [--dry-run|-v]");
       exit(1);
   }
 }

@@ -30,9 +30,10 @@ These rules apply to **new and changed code** in the PR. Do not flag pre-existin
 - Hooks must never crash Claude Code, even if the daemon is unreachable
 
 ### Database Safety
-- New `DatabaseSync()` calls should have a matching `db.close()` in a `finally` block
-- New database connections should set `PRAGMA busy_timeout = 5000` before queries
-- `--dry-run` commands must not call `runLcmMigrations()` or otherwise write to disk
+- For new or modified database code, prefer using existing helpers (e.g., `getLcmConnection`) rather than constructing raw connections directly.
+- For new or modified call sites that use `new DatabaseSync()`, ensure there is a matching `db.close()` in a `finally` block
+- For new or modified database initialization code, ensure `PRAGMA busy_timeout = 5000` is set before queries
+- For new or modified CLI commands that support `--dry-run`, ensure they do not call `runLcmMigrations()` or otherwise write to disk
 
 ### Import Discipline
 - Required dependencies are listed in `package.json` `dependencies` (not `devDependencies`)

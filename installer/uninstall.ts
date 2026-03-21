@@ -10,6 +10,10 @@ export function removeClaudeSettings(existing: any): any {
   settings.mcpServers = (settings.mcpServers && typeof settings.mcpServers === "object" && !Array.isArray(settings.mcpServers)) ? settings.mcpServers : {};
 
   const LC_COMMANDS = new Set(REQUIRED_HOOKS.map(h => h.command));
+  // Also remove legacy lossless-claude commands
+  for (const { command } of REQUIRED_HOOKS) {
+    LC_COMMANDS.add(command.replace(/^lcm /, 'lossless-claude '));
+  }
   for (const event of Object.keys(settings.hooks)) {
     if (!Array.isArray(settings.hooks[event])) continue;
     settings.hooks[event] = settings.hooks[event].filter(

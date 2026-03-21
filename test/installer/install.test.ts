@@ -88,6 +88,30 @@ describe("mergeClaudeSettings", () => {
     const r = mergeClaudeSettings({ hooks: { PreCompact: [{ matcher: "", hooks: [{ type: "command", command: "lcm compact" }] }] } });
     expect(r.hooks.PreCompact).toHaveLength(1);
   });
+
+  it("migrates legacy lossless-claude hooks to lcm", () => {
+    const existing = {
+      hooks: {
+        PreCompact: [{ matcher: "", hooks: [{ type: "command", command: "lossless-claude compact" }] }],
+        SessionStart: [{ matcher: "", hooks: [{ type: "command", command: "lossless-claude restore" }] }],
+      },
+      mcpServers: {
+        "lossless-claude": { command: "lossless-claude", args: ["mcp"] }
+      }
+    };
+    const result = mergeClaudeSettings(existing);
+    // Old hooks should be replaced with new lcm commands
+    for (const { event, command } of REQUIRED_HOOKS) {
+      const entries = result.hooks[event];
+      expect(entries).toBeDefined();
+      const commands = entries.flatMap((e: any) => e.hooks.map((h: any) => h.command));
+      expect(commands).toContain(command); // lcm version
+      expect(commands).not.toContain(command.replace(/^lcm /, 'lossless-claude ')); // old version gone
+    }
+    // Old MCP key should be removed, new one present
+    expect(result.mcpServers["lossless-claude"]).toBeUndefined();
+    expect(result.mcpServers["lcm"]).toBeDefined();
+  });
 });
 
 // ─── resolveBinaryPath ──────────────────────────────────────────────────────

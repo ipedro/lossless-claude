@@ -45,10 +45,7 @@ export function mergeClaudeSettings(existing: any): any {
       }
     }
   }
-  // Migrate old lossless-claude MCP server entry to lcm
-  if (settings.mcpServers["lossless-claude"] && !settings.mcpServers["lcm"]) {
-    settings.mcpServers["lcm"] = settings.mcpServers["lossless-claude"];
-  }
+  // Migrate old lossless-claude MCP server entry: remove legacy key (new key set below)
   delete settings.mcpServers["lossless-claude"];
 
   for (const { event, command } of REQUIRED_HOOKS) {

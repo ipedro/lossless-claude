@@ -10,14 +10,14 @@
 
 ---
 
-## Gaps (all resolved)
+## Prior Gaps (all resolved)
 
-All gaps below have been implemented and merged to main.
+All gaps below were identified before implementation and have since been resolved and merged to main.
 
-- ~~Gap 1~~: SessionEnd now calls `/compact` after `/ingest` when threshold exceeded (`src/hooks/session-end.ts`)
-- ~~Gap 2~~: `/ingest` returns `totalTokens`, enabling threshold-based compaction
-- ~~Gap 3~~: `DaemonConfig.compaction.autoCompactMinTokens` added (default: 10000, 0 disables)
-- ~~Gap 4~~: Tests added in `test/hooks/session-end.test.ts`, `test/daemon/routes/ingest.test.ts`, `test/daemon/routes/compact.test.ts`
+- Gap 1 (resolved): SessionEnd now calls `/compact` after `/ingest` when threshold exceeded (`src/hooks/session-end.ts`)
+- Gap 2 (resolved): `/ingest` returns `totalTokens`, enabling threshold-based compaction
+- Gap 3 (resolved): `DaemonConfig.compaction.autoCompactMinTokens` added (default: 10000, 0 disables)
+- Gap 4 (resolved): Tests added in `test/hooks/session-end.test.ts`, `test/daemon/routes/ingest.test.ts`, `test/daemon/routes/compact.test.ts`
 
 ---
 
@@ -38,7 +38,7 @@ All gaps below have been implemented and merged to main.
 - Modify: `src/daemon/config.ts`
 - Modify: `test/daemon/config.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```typescript
 // test/daemon/config.test.ts — add to existing describe block
@@ -62,21 +62,21 @@ it("allows disabling auto-compact with autoCompactMinTokens: 0", () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `npx vitest run test/daemon/config.test.ts`
 Expected: FAIL — `autoCompactMinTokens` is undefined
 
-- [ ] **Step 3: Add the field to DaemonConfig type and defaults**
+- [x] **Step 3: Add the field to DaemonConfig type and defaults**
 
 In `src/daemon/config.ts`, add `autoCompactMinTokens: number` to the `compaction` section of `DaemonConfig` type, and set the default to `10000` in `DEFAULTS`.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `npx vitest run test/daemon/config.test.ts`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/daemon/config.ts test/daemon/config.test.ts
@@ -91,7 +91,7 @@ git commit -m "feat: add autoCompactMinTokens config field (default 10000)"
 - Modify: `src/hooks/session-end.ts`
 - Create: `test/hooks/session-end.test.ts`
 
-- [ ] **Step 1: Write failing tests for the auto-compact behavior**
+- [x] **Step 1: Write failing tests for the auto-compact behavior**
 
 ```typescript
 // test/hooks/session-end.test.ts
@@ -200,12 +200,12 @@ describe("handleSessionEnd", () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `npx vitest run test/hooks/session-end.test.ts`
 Expected: FAIL — current handleSessionEnd doesn't return totalTokens or call /compact
 
-- [ ] **Step 3: Modify ingest route to return totalTokens**
+- [x] **Step 3: Modify ingest route to return totalTokens**
 
 In `src/daemon/routes/ingest.ts`, after storing messages, query the total token count for the conversation and include it in the response:
 
@@ -219,7 +219,7 @@ Also return `totalTokens: 0` in the two early-exit paths:
 - Line ~48: `sendJson(res, 200, { ingested: 0, totalTokens: 0 });` (no messages resolved)
 - Line ~68: `sendJson(res, 200, { ingested: 0, totalTokens: 0 });` (no new messages)
 
-- [ ] **Step 4: Implement auto-compact in handleSessionEnd**
+- [x] **Step 4: Implement auto-compact in handleSessionEnd**
 
 Update `src/hooks/session-end.ts`:
 
@@ -280,17 +280,17 @@ export async function handleSessionEnd(
 }
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `npx vitest run test/hooks/session-end.test.ts`
 Expected: PASS
 
-- [ ] **Step 6: Run full test suite**
+- [x] **Step 6: Run full test suite**
 
 Run: `npx vitest run --dir test`
 Expected: All 259+ tests pass
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/hooks/session-end.ts src/daemon/routes/ingest.ts test/hooks/session-end.test.ts
@@ -304,17 +304,17 @@ git commit -m "feat: auto-compact on session end when tokens exceed threshold"
 **Files:**
 - Modify: `dist/` (rebuilt)
 
-- [ ] **Step 1: Build**
+- [x] **Step 1: Build**
 
 Run: `npm run build`
 Expected: Clean build, no errors
 
-- [ ] **Step 2: Run full test suite**
+- [x] **Step 2: Run full test suite**
 
 Run: `npx vitest run --dir test`
 Expected: All tests pass
 
-- [ ] **Step 3: Commit dist**
+- [x] **Step 3: Commit dist**
 
 ```bash
 git add dist/

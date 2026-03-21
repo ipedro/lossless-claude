@@ -10,7 +10,7 @@ This workflow is the default for all non-trivial features. When superpowers brai
 | Visual companion | No (CLI project, no visual questions) |
 | Implementation approach | Parallel tracks — breaking changes isolated from additive work |
 | Registry/config format | TypeScript (type-safe, compile-time checks) |
-| Install behavior | Auto-write files (match brv UX) |
+| Install behavior | Auto-write files (match ByteRover (brv) UX) |
 | State tracking | Filesystem scan (no state files) |
 | Release strategy | Parallel tracks with separate PRs |
 | PR review | Copilot via reviewers list, not @copilot tag |

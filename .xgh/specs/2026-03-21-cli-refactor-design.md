@@ -15,12 +15,12 @@ lossless-claude wraps Codex via `lossless-codex` binary, but this wrapper doesn'
 | Remove codex wrapper | Yes | Wrapper hides TUI, no value |
 | Rename binary | `lossless-claude` → `lcm` | Shorter, matches MCP prefix |
 | Data directory | Keep `~/.lossless-claude/` | No migration needed |
-| Platform coverage | 22 agents (match brv) | Proven market coverage |
-| Connector types | rules, hook, mcp, skill | brv's proven model |
+| Platform coverage | 22 agents (match ByteRover/brv) | Proven market coverage |
+| Connector types | rules, hook, mcp, skill | ByteRover's proven model |
 | Agent registry format | TypeScript in `src/connectors/` | Type-safe, compile-time checks |
-| Install behavior | Auto-write files | Match brv UX |
+| Install behavior | Auto-write files | Match ByteRover UX |
 | Claude Code connector | Skill default, hooks via plugin | Complementary — skill for instructions, hooks for lifecycle |
-| Template format | Markdown sections + `{{var}}` substitution | Simple, proven in brv |
+| Template format | Markdown sections + `{{var}}` substitution | Simple, proven in ByteRover |
 | Release strategy | Parallel tracks | Breaking changes isolated from additive work |
 
 ## Track 1 — Breaking Changes (v1.0.0)
@@ -370,7 +370,7 @@ cat .claude-plugin/plugin.json | grep lcm  # All hooks use 'lcm' command
 ### Track 2
 ```bash
 # After PR D: registry
-npm test -- --grep connectors
+npx vitest run test/connectors/
 
 # After PR E+F: install flow
 node dist/bin/lcm.js connectors list

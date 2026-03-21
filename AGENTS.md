@@ -25,7 +25,19 @@ lcm doctor          # must show 0 failures
 npm test            # must pass
 ```
 
-If anything fails, fix it before starting the next feature. A broken local env wastes time on every subsequent session (stale dist, wrong binary, hook errors).
+Also sync the global plugin cache so Claude Code picks up updated hooks and commands:
+
+```bash
+CACHE=~/.claude/plugins/cache/ipedro/lossless-claude/0.5.0
+rm -rf "$CACHE" && mkdir -p "$CACHE"
+cp .claude-plugin/plugin.json "$CACHE/"
+cp -r .claude-plugin/commands "$CACHE/"
+cp -r .claude-plugin/hooks "$CACHE/"
+```
+
+Then run `/reload-plugins` inside Claude Code to apply the changes.
+
+If anything fails, fix it before starting the next feature. A broken local env wastes time on every subsequent session (stale dist, wrong binary, hook errors, mismatched plugin cache).
 
 ## Bug Triage During Investigation
 

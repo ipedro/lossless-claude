@@ -70,7 +70,7 @@ This document is a living record. **Update it whenever you learn something:**
 1. Push implementation branch, open PR
 2. Request Copilot review (add to reviewers list)
 3. Run review loop (see below)
-4. Merge once Copilot review has no remaining inline comments
+4. Merge once Copilot review loop criteria are met (see Review Loop)
 
 ## Copilot Interaction
 

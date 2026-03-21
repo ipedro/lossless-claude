@@ -2,11 +2,12 @@ import { readFileSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { REQUIRED_HOOKS } from "./install.js";
 export function removeClaudeSettings(existing) {
     const settings = JSON.parse(JSON.stringify(existing));
     settings.hooks = settings.hooks ?? {};
     settings.mcpServers = settings.mcpServers ?? {};
-    const LC_COMMANDS = new Set(["lossless-claude compact", "lossless-claude restore"]);
+    const LC_COMMANDS = new Set(REQUIRED_HOOKS.map(h => h.command));
     for (const event of Object.keys(settings.hooks)) {
         settings.hooks[event] = settings.hooks[event].filter((entry) => !(Array.isArray(entry.hooks) && entry.hooks.some((h) => LC_COMMANDS.has(h.command))));
     }

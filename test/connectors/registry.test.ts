@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { AGENTS, findAgent } from "../../src/connectors/registry.js";
+import { AGENTS, findAgent, getAgentsByCategory } from "../../src/connectors/registry.js";
 import { CONNECTOR_TYPES, requiresRestart } from "../../src/connectors/types.js";
 
 describe("connector registry", () => {
@@ -23,13 +23,26 @@ describe("connector registry", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("configPaths keys match supportedTypes", () => {
+  it("configPaths and supportedTypes are aligned", () => {
     for (const agent of AGENTS) {
-      const configKeys = Object.keys(agent.configPaths);
-      for (const key of configKeys) {
-        expect(agent.supportedTypes).toContain(key);
+      // configPaths keys must be in supportedTypes
+      for (const key of Object.keys(agent.configPaths)) {
+        expect(agent.supportedTypes, `${agent.id}: configPath "${key}" not in supportedTypes`).toContain(key);
+      }
+      // supportedTypes must have a configPath (except hook which is managed by plugin system,
+      // and except mcp when it's the defaultType with no path — means manual configuration)
+      for (const type of agent.supportedTypes) {
+        if (type === 'hook') continue;
+        if (type === 'mcp' && !agent.configPaths['mcp']) continue;
+        expect(agent.configPaths, `${agent.id}: supportedType "${type}" has no configPath`).toHaveProperty(type);
       }
     }
+  });
+
+  it("getAgentsByCategory filters correctly", () => {
+    const cli = getAgentsByCategory("cli");
+    expect(cli.length).toBe(7);
+    expect(cli.every(a => a.category === "cli")).toBe(true);
   });
 
   it("findAgent works by id and name", () => {

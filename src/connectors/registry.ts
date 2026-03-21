@@ -1,4 +1,4 @@
-import { Agent, AgentCategory } from './types.js';
+import type { Agent, AgentCategory } from './types.js';
 
 export const AGENTS: Agent[] = [
   // CLI tools (7)
@@ -33,7 +33,7 @@ export const AGENTS: Agent[] = [
     name: 'Gemini CLI',
     category: 'cli',
     defaultType: 'skill',
-    supportedTypes: ['rules', 'mcp', 'skill'],
+    supportedTypes: ['rules', 'skill'],
     configPaths: {
       rules: 'GEMINI.md',
       skill: '.gemini/skills/',
@@ -44,7 +44,7 @@ export const AGENTS: Agent[] = [
     name: 'OpenCode',
     category: 'cli',
     defaultType: 'skill',
-    supportedTypes: ['rules', 'mcp', 'skill'],
+    supportedTypes: ['rules', 'skill'],
     configPaths: {
       rules: '.opencode/rules.md',
       skill: '.opencode/skills/',
@@ -66,7 +66,7 @@ export const AGENTS: Agent[] = [
     name: 'Warp',
     category: 'cli',
     defaultType: 'skill',
-    supportedTypes: ['rules', 'mcp', 'skill'],
+    supportedTypes: ['rules', 'skill'],
     configPaths: {
       rules: '.warp/rules.md',
       skill: '.warp/skills/',
@@ -77,7 +77,7 @@ export const AGENTS: Agent[] = [
     name: 'Auggie CLI',
     category: 'cli',
     defaultType: 'skill',
-    supportedTypes: ['rules', 'mcp', 'skill'],
+    supportedTypes: ['rules', 'skill'],
     configPaths: {
       rules: '.auggie/rules.md',
       skill: '.auggie/skills/',
@@ -103,7 +103,7 @@ export const AGENTS: Agent[] = [
     name: 'Windsurf',
     category: 'ai-ide',
     defaultType: 'skill',
-    supportedTypes: ['rules', 'mcp', 'skill'],
+    supportedTypes: ['rules', 'skill'],
     configPaths: {
       rules: '.windsurf/rules/lcm.md',
       skill: '.windsurf/skills/',
@@ -126,7 +126,7 @@ export const AGENTS: Agent[] = [
     name: 'Trae.ai',
     category: 'ai-ide',
     defaultType: 'skill',
-    supportedTypes: ['rules', 'mcp', 'skill'],
+    supportedTypes: ['rules', 'skill'],
     configPaths: {
       rules: '.trae/rules/lcm.md',
       skill: '.trae/skills/',
@@ -137,7 +137,7 @@ export const AGENTS: Agent[] = [
     name: 'Qoder',
     category: 'ai-ide',
     defaultType: 'skill',
-    supportedTypes: ['rules', 'mcp', 'skill'],
+    supportedTypes: ['rules', 'skill'],
     configPaths: {
       rules: '.qoder/rules/lcm.md',
       skill: '.qoder/skills/',
@@ -149,7 +149,7 @@ export const AGENTS: Agent[] = [
     name: 'Antigravity',
     category: 'ai-ide',
     defaultType: 'skill',
-    supportedTypes: ['rules', 'mcp', 'skill'],
+    supportedTypes: ['rules', 'skill'],
     configPaths: {
       rules: '.antigravity/rules.md',
       skill: '.antigravity/skills/',
@@ -172,7 +172,7 @@ export const AGENTS: Agent[] = [
     name: 'GitHub Copilot',
     category: 'vscode-ext',
     defaultType: 'skill',
-    supportedTypes: ['rules', 'mcp', 'skill'],
+    supportedTypes: ['rules', 'skill'],
     configPaths: {
       rules: '.github/copilot-instructions.md',
       skill: '.github/skills/',
@@ -184,7 +184,7 @@ export const AGENTS: Agent[] = [
     name: 'Roo Code',
     category: 'vscode-ext',
     defaultType: 'skill',
-    supportedTypes: ['rules', 'mcp', 'skill'],
+    supportedTypes: ['rules', 'skill'],
     configPaths: {
       rules: '.roo/rules/lcm.md',
       skill: '.roo/skills/',
@@ -195,7 +195,7 @@ export const AGENTS: Agent[] = [
     name: 'Kilo Code',
     category: 'vscode-ext',
     defaultType: 'skill',
-    supportedTypes: ['rules', 'mcp', 'skill'],
+    supportedTypes: ['rules', 'skill'],
     configPaths: {
       rules: '.kilo/rules/lcm.md',
       skill: '.kilo/skills/',
@@ -217,7 +217,7 @@ export const AGENTS: Agent[] = [
     name: 'Amp',
     category: 'vscode-ext',
     defaultType: 'skill',
-    supportedTypes: ['rules', 'mcp', 'skill'],
+    supportedTypes: ['rules', 'skill'],
     configPaths: {
       rules: '.amp/rules/lcm.md',
       skill: '.amp/skills/',
@@ -228,7 +228,7 @@ export const AGENTS: Agent[] = [
     name: 'Kiro',
     category: 'vscode-ext',
     defaultType: 'skill',
-    supportedTypes: ['rules', 'mcp', 'skill'],
+    supportedTypes: ['rules', 'skill'],
     configPaths: {
       rules: '.kiro/steering/lcm.md',
       skill: '.kiro/skills/',
@@ -240,7 +240,7 @@ export const AGENTS: Agent[] = [
     name: 'Junie',
     category: 'vscode-ext',
     defaultType: 'skill',
-    supportedTypes: ['rules', 'mcp', 'skill'],
+    supportedTypes: ['rules', 'skill'],
     configPaths: {
       rules: '.junie/rules/lcm.md',
       skill: '.junie/skills/',

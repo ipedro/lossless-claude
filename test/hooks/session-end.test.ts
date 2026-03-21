@@ -74,18 +74,21 @@ describe("handleSessionEnd", () => {
     expect(request).not.toHaveBeenCalled();
   });
 
-  it("resolves promptly even when /compact would never respond (non-blocking regression)", async () => {
-    // fireCompactRequest uses http.request with socket.unref() — it must NOT
-    // block handleSessionEnd waiting for a daemon response.
+  it("calls socket.unref() so the process does not wait for a compact response", async () => {
+    // fireCompactRequest registers a "socket" handler that calls unref() — this is
+    // what prevents the Node.js event loop from staying alive until the daemon responds.
+    const mockSocket = { unref: vi.fn() };
+    mockHttpReq.on.mockImplementation((event: string, cb: (s: unknown) => void) => {
+      if (event === "socket") cb(mockSocket);
+      return mockHttpReq;
+    });
+
     const client = createMockClient({ ingested: 100, totalTokens: 25000 });
     const input = JSON.stringify({ session_id: "s1", cwd: "/tmp" });
-
-    const start = Date.now();
     const result = await handleSessionEnd(input, client, 3737);
-    const elapsed = Date.now() - start;
 
     expect(result.exitCode).toBe(0);
-    expect(elapsed).toBeLessThan(500); // must not block waiting for compact
+    expect(mockSocket.unref).toHaveBeenCalled();
   });
 
   it("fires compact at exact threshold boundary (>=)", async () => {

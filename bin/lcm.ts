@@ -237,7 +237,8 @@ async function main() {
           const { AGENTS } = await import("../src/connectors/registry.js");
           const { listConnectors } = await import("../src/connectors/installer.js");
           const { findAgent } = await import("../src/connectors/registry.js");
-          const agents = agentName ? [findAgent(agentName)].filter(Boolean) : AGENTS;
+          const found = agentName ? findAgent(agentName) : undefined;
+          const agents = found ? [found] : agentName ? [] : AGENTS;
 
           if (agents.length === 0) { console.error(`  Unknown agent: ${agentName}`); exit(1); }
 

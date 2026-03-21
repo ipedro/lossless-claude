@@ -22,17 +22,17 @@ export async function handleSessionEnd(stdin, client, port) {
         if (threshold > 0 &&
             typeof ingestResult.totalTokens === "number" &&
             ingestResult.totalTokens >= threshold) {
-            try {
-                await client.post("/compact", {
-                    session_id: input.session_id,
-                    cwd: input.cwd,
-                    skip_ingest: true,
-                    client: "claude",
-                });
-            }
-            catch {
+            // Fire-and-forget: compact runs async in the daemon, hook must not block
+            client
+                .post("/compact", {
+                session_id: input.session_id,
+                cwd: input.cwd,
+                skip_ingest: true,
+                client: "claude",
+            })
+                .catch(() => {
                 // Non-fatal: compact failure must not break the hook
-            }
+            });
         }
         return { exitCode: 0, stdout: "" };
     }

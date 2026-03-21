@@ -27,6 +27,19 @@ npm test            # must pass
 
 If anything fails, fix it before starting the next feature. A broken local env wastes time on every subsequent session (stale dist, wrong binary, hook errors).
 
+## Bug Triage During Investigation
+
+When you stumble across a bug while working on something else, **stop and file a GitHub issue immediately** before continuing:
+
+```bash
+gh issue create \
+  --title "Short description of bug" \
+  --body "**Observed:** what you saw\n**Expected:** what should happen\n**Root cause:** if known\n**Repro:** steps or code snippet" \
+  --label bug
+```
+
+Then carry on with the original task. This ensures bugs are tracked and can be assigned to another agent without holding up the current work.
+
 ## Release Notes Source Of Truth
 
 - Follow [RELEASING.md](./RELEASING.md) for the repo's full Changesets and publish workflow.

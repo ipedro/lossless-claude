@@ -1,5 +1,7 @@
 # Repository Instructions
 
+@WORKFLOW.md
+
 ## PR Review And Merge
 
 - Before merging a PR, check whether it changes user-facing behavior or should appear in npm release notes.

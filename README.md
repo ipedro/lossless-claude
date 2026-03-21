@@ -1,129 +1,111 @@
-# lossless-claude
+<p align="center">
+  <strong>Lossless context management for Claude Code</strong><br>
+  DAG-based summarization that preserves every message
+</p>
 
-[![npm](https://img.shields.io/npm/v/@ipedro/lossless-claude)](https://www.npmjs.com/package/@ipedro/lossless-claude)
-[![license](https://img.shields.io/github/license/ipedro/lossless-claude)](LICENSE)
-[![node](https://img.shields.io/node/v/@ipedro/lossless-claude)](package.json)
-[![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-7c3aed)](https://github.com/anthropics/claude-code)
+<p align="center">
+  <a href="https://www.npmjs.com/package/@ipedro/lossless-claude"><img src="https://img.shields.io/npm/v/@ipedro/lossless-claude" alt="npm"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/ipedro/lossless-claude" alt="License: MIT"></a>
+  <a href="package.json"><img src="https://img.shields.io/node/v/@ipedro/lossless-claude" alt="Node"></a>
+  <a href="https://github.com/anthropics/claude-code"><img src="https://img.shields.io/badge/Claude_Code-plugin-7c3aed" alt="Claude Code"></a>
+</p>
 
-A fork and reinterpretation of [lossless-claw](https://github.com/Martian-Engineering/lossless-claude) by [Martian Engineering](https://martian.engineering), adapted for [Claude Code](https://github.com/anthropics/claude-code). The core ideas — DAG-based summarization, lossless message retention, and the LCM model from [Voltropy](https://x.com/Voltropy) — are theirs. This fork rewires the integration layer for Claude Code's plugin system and ships as a native Claude Code plugin.
+<p align="center">
+  <a href="https://lossless-claude.com">Website</a> &bull;
+  <a href="#installation">Install</a> &bull;
+  <a href="#hooks">Hooks</a> &bull;
+  <a href="#mcp-tools">MCP Tools</a> &bull;
+  <a href="#cli">CLI</a>
+</p>
 
-Replaces Claude Code's built-in sliding-window compaction with a DAG-based summarization system that preserves every message while keeping active context within model token limits.
+---
 
-## Table of contents
-
-- [What it does](#what-it-does)
-- [Quick start](#quick-start)
-- [Configuration](#configuration)
-- [MCP tools](#mcp-tools)
-- [CLI](#cli)
-- [Development](#development)
-- [License](#license)
-
-## What it does
-
-For a visual explanation, check out [this animated visualization](https://losslesscontext.ai) by [Martian Engineering](https://martian.engineering) (the original lossless-claw authors).
-
-When a conversation grows beyond the model's context window, Claude Code normally truncates older messages. LCM instead:
-
-1. **Persists every message** in a SQLite database, organized by conversation
-2. **Summarizes chunks** of older messages into summaries using your configured LLM
-3. **Condenses summaries** into higher-level nodes as they accumulate, forming a DAG (directed acyclic graph)
-4. **Promotes key decisions** to a cross-session knowledge store (SQLite FTS5)
-5. **Assembles context** each turn by combining summaries + recent raw messages + promoted knowledge
-6. **Provides tools** (`lcm_grep`, `lcm_expand`, `lcm_describe`, `lcm_search`, `lcm_store`, `lcm_stats`, `lcm_doctor`) so agents can search, recall, and diagnose
-
-Nothing is lost. Raw messages stay in the database. Summaries link back to their source messages. Agents can drill into any summary to recover the original detail.
-
-### How compaction is triggered
-
-Compaction is **incremental and post-turn** — not a bulk dump when the window fills up.
-
-After every turn, the engine checks whether there's enough material to compact:
-
-- **Leaf pass:** once `LCM_LEAF_MIN_FANOUT` (default: 8) raw messages accumulate without a summary, they're grouped into a leaf summary
-- **Condensation:** once `LCM_CONDENSED_MIN_FANOUT` (default: 4) leaf summaries accumulate, they condense into a higher-level DAG node — and so on up the tree
-- **Depth:** `LCM_INCREMENTAL_MAX_DEPTH=-1` lets condensation cascade as deep as needed after each pass
-
-The context delivered to the model each turn is **assembled fresh** from summaries + recent raw messages (`LCM_FRESH_TAIL_COUNT`, default: 32) + promoted knowledge. The raw history never accumulates in the context window — it lives in SQLite and is represented by summaries instead.
-
-The result: the context window never "fills up and dumps". It stays within `LCM_CONTEXT_THRESHOLD` (default: 75%) at all times.
+Replaces Claude Code's built-in sliding-window compaction with a DAG-based summarization system. Every message is preserved in SQLite, summaries form a hierarchy, and relevant context from past sessions surfaces automatically.
 
 **It feels like talking to an agent that never forgets. Because it doesn't.**
 
-## Quick start
+This is a fork of [lossless-claw](https://github.com/Martian-Engineering/lossless-claude) by [Martian Engineering](https://martian.engineering), rewired for Claude Code's plugin system. The DAG architecture and the LCM model come from the [Voltropy paper](https://papers.voltropy.com/LCM). For a visual explanation, see [losslesscontext.ai](https://losslesscontext.ai).
+
+## How It Works
+
+| Step | What happens |
+|------|-------------|
+| **Persist** | Every message stored in SQLite, organized by conversation |
+| **Summarize** | Older messages grouped into leaf summaries via your configured LLM |
+| **Condense** | Summaries roll up into higher-level DAG nodes as they accumulate |
+| **Promote** | Key decisions promoted to a cross-session knowledge store (FTS5) |
+| **Restore** | Each session assembles context from summaries + recent messages + promoted knowledge |
+| **Recall** | Agents search, drill into, and recover any detail on demand |
+
+Nothing is lost. Raw messages stay in the database. Summaries link back to their sources. Agents can drill into any summary to recover the original detail.
+
+## Installation
 
 ### Prerequisites
 
 - Claude Code
 - Node.js 22+
 
-### Install
-
-**Via marketplace (recommended):**
+### Marketplace (recommended)
 
 ```bash
 claude plugin marketplace add ipedro/xgh-marketplace
 claude plugin install lossless-claude
 ```
 
-**Standalone:**
+### Standalone
 
 ```bash
 claude plugin add github:ipedro/lossless-claude
 ```
 
-Both methods register the plugin's hooks (PreCompact, SessionStart, SessionEnd, UserPromptSubmit) and MCP server automatically.
+### Setup
 
-Then run the setup wizard to configure your summarizer:
+Both methods register hooks and MCP server automatically. Then run the setup wizard:
 
 ```bash
 lossless-claude install
 ```
 
-## Configuration
+## Hooks
 
-LCM is configured through environment variables. All are optional — defaults work well out of the box.
+Four hooks manage the full conversation lifecycle. All hooks auto-heal: each validates that all 4 are registered in `settings.json` before executing, silently repairing any that were removed.
 
-### Environment variables
+| Hook | Command | What it does |
+|------|---------|-------------|
+| **PreCompact** | `lossless-claude compact` | Intercepts compaction, runs LLM summarization into a DAG, returns the summary |
+| **SessionStart** | `lossless-claude restore` | Restores project context + recent summaries + promoted memories |
+| **SessionEnd** | `lossless-claude session-end` | Ingests the session transcript for future recall |
+| **UserPromptSubmit** | `lossless-claude user-prompt` | Searches promoted memory, surfaces relevant `<memory-context>` hints |
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `LCM_ENABLED` | `true` | Enable/disable the plugin |
-| `LCM_CONTEXT_THRESHOLD` | `0.75` | Fraction of context window that triggers compaction (0.0-1.0) |
-| `LCM_FRESH_TAIL_COUNT` | `32` | Number of recent messages protected from compaction |
-| `LCM_LEAF_MIN_FANOUT` | `8` | Minimum raw messages per leaf summary |
-| `LCM_CONDENSED_MIN_FANOUT` | `4` | Minimum summaries per condensed node |
-| `LCM_CONDENSED_MIN_FANOUT_HARD` | `2` | Relaxed fanout for forced compaction sweeps |
-| `LCM_INCREMENTAL_MAX_DEPTH` | `0` | How deep incremental compaction goes (0 = leaf only, -1 = unlimited) |
-| `LCM_LEAF_CHUNK_TOKENS` | `20000` | Max source tokens per leaf compaction chunk |
-| `LCM_LEAF_TARGET_TOKENS` | `1200` | Target token count for leaf summaries |
-| `LCM_CONDENSED_TARGET_TOKENS` | `2000` | Target token count for condensed summaries |
-| `LCM_MAX_EXPAND_TOKENS` | `4000` | Token cap for sub-agent expansion queries |
-| `LCM_LARGE_FILE_TOKEN_THRESHOLD` | `25000` | File blocks above this size are stored separately |
-| `LCM_SUMMARY_MODEL` | `claude-haiku-4-5` | Model for summarization |
-| `LCM_SUMMARY_PROVIDER` | `claude-cli` | Provider: `claude-cli`, `anthropic`, or `openai` |
-| `LCM_AUTOCOMPACT_DISABLED` | `false` | Disable automatic compaction after turns |
-
-### Recommended starting configuration
+### Lifecycle
 
 ```
-LCM_FRESH_TAIL_COUNT=32
-LCM_INCREMENTAL_MAX_DEPTH=-1
-LCM_CONTEXT_THRESHOLD=0.75
+SessionStart ──→ conversation ──→ UserPromptSubmit (each turn)
+                                         │
+                               PreCompact (when context fills)
+                                         │
+                              SessionEnd (conversation exits)
 ```
 
-- **freshTailCount=32** protects the last 32 messages from compaction, giving the model enough recent context for continuity.
-- **incrementalMaxDepth=-1** enables unlimited automatic condensation after each compaction pass — the DAG cascades as deep as needed.
-- **contextThreshold=0.75** triggers compaction when context reaches 75% of the model's window, leaving headroom for the response.
+### Compaction
 
-## MCP tools
+Compaction is **incremental** — not a bulk dump when the window fills up.
+
+- **Leaf pass:** once enough raw messages accumulate, they're grouped into a leaf summary
+- **Condensation:** leaf summaries roll up into higher-level DAG nodes
+- **Depth:** condensation cascades as deep as needed after each pass
+
+The context window stays within threshold at all times. The raw history lives in SQLite, represented by summaries.
+
+## MCP Tools
 
 | Tool | Description |
 |------|-------------|
+| `lcm_search` | Search across episodic and promoted knowledge |
 | `lcm_grep` | Search conversation history by keyword or regex |
 | `lcm_expand` | Drill into a summary to recover original messages |
 | `lcm_describe` | Describe the current DAG structure |
-| `lcm_search` | Search across episodic and promoted knowledge |
 | `lcm_store` | Write to the promoted knowledge store |
 | `lcm_stats` | Memory inventory, compression ratios, and usage statistics |
 | `lcm_doctor` | Diagnostics — checks daemon, hooks, MCP, and summarizer |
@@ -131,20 +113,36 @@ LCM_CONTEXT_THRESHOLD=0.75
 ## CLI
 
 ```bash
-lossless-claude install          # Setup wizard (summarizer config + doctor)
-lossless-claude doctor           # Run diagnostics
-lossless-claude stats            # Memory and compression overview
-lossless-claude stats -v         # Per-conversation breakdown
-lossless-claude status           # Daemon and provider status
-lossless-claude daemon start     # Start daemon (foreground)
+lossless-claude install                # Setup wizard
+lossless-claude doctor                 # Run diagnostics
+lossless-claude stats                  # Memory and compression overview
+lossless-claude stats -v               # Per-conversation breakdown
+lossless-claude status                 # Daemon and provider status
 lossless-claude daemon start --detach  # Start daemon (background)
-lossless-claude mcp              # Start MCP server (used by plugin system)
-lossless-claude compact          # Handle PreCompact hook (stdin)
-lossless-claude restore          # Handle SessionStart hook (stdin)
-lossless-claude session-end      # Handle SessionEnd hook (stdin)
-lossless-claude user-prompt      # Handle UserPromptSubmit hook (stdin)
-lossless-claude -v               # Version
+lossless-claude compact                # PreCompact hook handler
+lossless-claude restore                # SessionStart hook handler
+lossless-claude session-end            # SessionEnd hook handler
+lossless-claude user-prompt            # UserPromptSubmit hook handler
+lossless-claude mcp                    # Start MCP server
+lossless-claude -v                     # Version
 ```
+
+## Configuration
+
+All environment variables are optional — defaults work well out of the box.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LCM_CONTEXT_THRESHOLD` | `0.75` | Context fill ratio that triggers compaction |
+| `LCM_FRESH_TAIL_COUNT` | `32` | Recent messages protected from compaction |
+| `LCM_LEAF_MIN_FANOUT` | `8` | Minimum raw messages per leaf summary |
+| `LCM_CONDENSED_MIN_FANOUT` | `4` | Minimum summaries per condensed node |
+| `LCM_INCREMENTAL_MAX_DEPTH` | `0` | Condensation depth (0 = leaf only, -1 = unlimited) |
+| `LCM_LEAF_CHUNK_TOKENS` | `20000` | Max source tokens per leaf chunk |
+| `LCM_LEAF_TARGET_TOKENS` | `1200` | Target tokens for leaf summaries |
+| `LCM_CONDENSED_TARGET_TOKENS` | `2000` | Target tokens for condensed summaries |
+| `LCM_SUMMARY_MODEL` | `claude-haiku-4-5` | Model for summarization |
+| `LCM_SUMMARY_PROVIDER` | `claude-cli` | Provider: `claude-cli`, `anthropic`, or `openai` |
 
 ## Development
 
@@ -155,57 +153,47 @@ npx vitest           # Run tests
 npx tsc --noEmit     # Type check
 ```
 
-### Project structure
+### Project Structure
 
 ```
 bin/
   lossless-claude.ts          # CLI entry point
 src/
-  assembler.ts                # Context assembly (summaries + messages -> model context)
   compaction.ts               # CompactionEngine — leaf passes, condensation, sweeps
   summarize.ts                # Depth-aware prompt generation and LLM summarization
-  retrieval.ts                # RetrievalEngine — grep, describe, expand operations
-  expansion.ts                # DAG expansion logic for lcm_expand
-  large-files.ts              # File interception, storage, and exploration summaries
-  integrity.ts                # DAG integrity checks and repair utilities
+  expansion.ts                # DAG expansion for lcm_expand
   stats.ts                    # Memory and compression statistics
   daemon/
     server.ts                 # HTTP daemon (routes, lifecycle)
-    config.ts                 # DaemonConfig type and loader
-    client.ts                 # HTTP client for daemon communication
+    config.ts                 # Configuration loader
+    client.ts                 # HTTP client for daemon
     lifecycle.ts              # ensureDaemon() — lazy daemon spawning
-    project.ts                # Project path and ID resolution
-    routes/                   # Route handlers (compact, search, store, restore, etc.)
+    routes/                   # Route handlers
   db/
     migration.ts              # SQLite schema migrations
     promoted.ts               # PromotedStore — cross-session knowledge (FTS5)
-  doctor/
-    doctor.ts                 # Installation diagnostics
   hooks/
     auto-heal.ts              # Hook validation and auto-repair
-    compact.ts                # PreCompact hook handler
+    compact.ts                # PreCompact handler
     dispatch.ts               # Hook dispatcher with auto-heal wiring
-    restore.ts                # SessionStart hook handler
-    session-end.ts            # SessionEnd hook handler
-    user-prompt.ts            # UserPromptSubmit hook handler
+    restore.ts                # SessionStart handler
+    session-end.ts            # SessionEnd handler
+    user-prompt.ts            # UserPromptSubmit handler
   mcp/
     server.ts                 # MCP server (stdio transport)
     tools/                    # MCP tool definitions
-  promotion/
-    detector.ts               # Decides what summaries to promote to cross-session store
   store/
-    conversation-store.ts     # Message persistence and retrieval
+    conversation-store.ts     # Message persistence
     summary-store.ts          # Summary DAG persistence
-    fts5-sanitize.ts          # FTS5 query sanitization
-  llm/
-    anthropic.ts              # Anthropic API provider
-    openai.ts                 # OpenAI-compatible provider
 installer/
   install.ts                  # Setup wizard
   uninstall.ts                # Cleanup
 test/                         # Vitest test suite
 .claude-plugin/
-  plugin.json                 # Claude Code plugin manifest
+  plugin.json                 # Plugin manifest
+  hooks/                      # Hook documentation
+  skills/                     # Plugin skills
+  commands/                   # Slash commands
 ```
 
 ## Acknowledgments

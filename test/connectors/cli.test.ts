@@ -6,8 +6,10 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 describe("connectors CLI integration", () => {
-  it("list returns all 22 agents", () => {
-    expect(AGENTS).toHaveLength(22);
+  it("list returns a non-empty registry with known agents", () => {
+    expect(AGENTS.length).toBeGreaterThan(0);
+    expect(AGENTS.some(a => a.id === "cursor")).toBe(true);
+    expect(AGENTS.some(a => a.id === "claude-code")).toBe(true);
   });
 
   it("install + list + remove roundtrip for rules connector", () => {

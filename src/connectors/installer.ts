@@ -59,7 +59,9 @@ function installMcpJson(filePath: string): void {
     try { existing = JSON.parse(readFileSync(filePath, 'utf-8')); } catch { existing = {}; }
   }
   if (typeof existing !== 'object' || existing === null) existing = {};
-  existing.mcpServers = existing.mcpServers || {};
+  if (typeof existing.mcpServers !== 'object' || existing.mcpServers === null || Array.isArray(existing.mcpServers)) {
+    existing.mcpServers = {};
+  }
   existing.mcpServers.lcm = { type: 'stdio', command: 'lcm', args: ['mcp'] };
   writeFileSync(filePath, JSON.stringify(existing, null, 2) + '\n');
 }
@@ -67,7 +69,8 @@ function installMcpJson(filePath: string): void {
 function removeMcpJson(filePath: string): boolean {
   if (filePath.endsWith('.toml')) return false; // TOML removal not supported
   if (!existsSync(filePath)) return false;
-  const config = JSON.parse(readFileSync(filePath, 'utf-8'));
+  let config: any;
+  try { config = JSON.parse(readFileSync(filePath, 'utf-8')); } catch { return false; }
   if (!config.mcpServers?.lcm) return false;
   delete config.mcpServers.lcm;
   writeFileSync(filePath, JSON.stringify(config, null, 2) + '\n');

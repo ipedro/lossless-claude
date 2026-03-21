@@ -1,5 +1,12 @@
 # @ipedro/lossless-claude
 
+## 0.7.0
+
+### Minor Changes
+
+- f1c30b0: Default summarization to `auto`, which uses `claude-process` for Claude sessions and `codex-process` for Codex sessions, and add the new `codex-process` summarizer provider.
+- 670075a: Add `lossless-codex`, a Codex wrapper that shares the LCM project database and promoted memory with Claude Code sessions.
+
 ## 0.6.0
 
 ### Minor Changes

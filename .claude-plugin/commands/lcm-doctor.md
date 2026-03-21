@@ -1,6 +1,7 @@
 ---
 name: lcm-doctor
 description: Run lossless-claude diagnostics — checks daemon, hooks, MCP server, and summarizer health.
+user_invocable: true
 ---
 
 # /lcm-doctor

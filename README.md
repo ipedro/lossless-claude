@@ -72,7 +72,7 @@ claude plugin install lossless-claude
 claude plugin add github:ipedro/lossless-claude
 ```
 
-Both methods register the plugin's hooks (PreCompact, SessionStart) and MCP server automatically.
+Both methods register the plugin's hooks (PreCompact, SessionStart, SessionEnd, UserPromptSubmit) and MCP server automatically.
 
 Then run the setup wizard to configure your summarizer:
 
@@ -141,6 +141,8 @@ lossless-claude daemon start --detach  # Start daemon (background)
 lossless-claude mcp              # Start MCP server (used by plugin system)
 lossless-claude compact          # Handle PreCompact hook (stdin)
 lossless-claude restore          # Handle SessionStart hook (stdin)
+lossless-claude session-end      # Handle SessionEnd hook (stdin)
+lossless-claude user-prompt      # Handle UserPromptSubmit hook (stdin)
 lossless-claude -v               # Version
 ```
 
@@ -180,8 +182,12 @@ src/
   doctor/
     doctor.ts                 # Installation diagnostics
   hooks/
+    auto-heal.ts              # Hook validation and auto-repair
     compact.ts                # PreCompact hook handler
+    dispatch.ts               # Hook dispatcher with auto-heal wiring
     restore.ts                # SessionStart hook handler
+    session-end.ts            # SessionEnd hook handler
+    user-prompt.ts            # UserPromptSubmit hook handler
   mcp/
     server.ts                 # MCP server (stdio transport)
     tools/                    # MCP tool definitions

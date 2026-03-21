@@ -74,3 +74,32 @@ jobs:
         run: |
           tag="v${{ steps.package.outputs.version }}"
           gh release create "$tag" --generate-notes --verify-tag
+
+      - name: Update marketplace entry
+        env:
+          GH_TOKEN: ${{ secrets.MARKETPLACE_TOKEN }}
+        run: |
+          version="${{ steps.package.outputs.version }}"
+          description="$(node -p "require('./package.json').description")"
+
+          # Fetch current file + SHA
+          response=$(gh api repos/ipedro/xgh-marketplace/contents/.claude-plugin/marketplace.json)
+          sha=$(echo "$response" | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).sha)")
+          current=$(echo "$response" | node -e "process.stdout.write(Buffer.from(JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).content,'base64').toString())")
+
+          # Patch version + description for lossless-claude entry
+          updated=$(echo "$current" | node -e "
+            const chunks=[]; process.stdin.on('data',c=>chunks.push(c)); process.stdin.on('end',()=>{
+              const m=JSON.parse(chunks.join(''));
+              const p=m.plugins.find(p=>p.name==='lossless-claude');
+              if(p){ p.version=process.env.VERSION; p.description=process.env.DESCRIPTION; }
+              process.stdout.write(JSON.stringify(m,null,2)+'\n');
+            });
+          " VERSION="$version" DESCRIPTION="$description")
+
+          encoded=$(echo "$updated" | base64 -w 0)
+          gh api repos/ipedro/xgh-marketplace/contents/.claude-plugin/marketplace.json \
+            --method PUT \
+            --field message="chore: bump lossless-claude to $version" \
+            --field content="$encoded" \
+            --field sha="$sha"

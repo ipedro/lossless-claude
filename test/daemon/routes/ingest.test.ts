@@ -117,8 +117,12 @@ describe("POST /ingest", () => {
 
     // Verify the stored content was scrubbed
     const db = new DatabaseSync(projectDbPath(tempDir));
-    const row = db.prepare("SELECT content FROM messages LIMIT 1").get() as { content: string } | undefined;
-    db.close();
+    let row: { content: string } | undefined;
+    try {
+      row = db.prepare("SELECT content FROM messages LIMIT 1").get() as { content: string } | undefined;
+    } finally {
+      db.close();
+    }
     expect(row?.content).toContain("[REDACTED]");
     expect(row?.content).not.toContain("MY_PROJECT_SECRET");
   });

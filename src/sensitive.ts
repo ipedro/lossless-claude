@@ -167,8 +167,19 @@ async function sensitiveRemove(
     };
   }
 
-  const updated = existing.filter((p) => p !== pattern);
-  await writeFile(patternsFile, updated.map((p) => p + "\n").join(""), "utf-8");
+  // Read the raw file and remove only lines matching the pattern, preserving comments and blanks
+  let raw = "";
+  try {
+    raw = await readFile(patternsFile, "utf-8");
+  } catch {
+    // file disappeared between load and remove — treat as already removed
+  }
+  const updatedLines = raw
+    .split("\n")
+    .filter((line) => line.trim() !== pattern);
+  // Ensure single trailing newline
+  const updatedContent = updatedLines.join("\n").replace(/\n+$/, "") + "\n";
+  await writeFile(patternsFile, updatedContent, "utf-8");
 
   return { exitCode: 0, stdout: `Removed project pattern: ${pattern}\n` };
 }

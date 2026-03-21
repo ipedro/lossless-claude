@@ -19,7 +19,7 @@ function fmtN(n) {
         return (n / 1_000).toFixed(1) + "K";
     return String(n);
 }
-function buildCompactionMessage(p) {
+export function buildCompactionMessage(p) {
     const saved = p.tokensBefore - p.tokensAfter;
     const ratio = p.tokensAfter > 0 ? (p.tokensBefore / p.tokensAfter).toFixed(1) : "–";
     const pct = p.tokensBefore > 0

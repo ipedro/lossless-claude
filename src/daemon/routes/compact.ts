@@ -21,7 +21,7 @@ function fmtN(n: number): string {
   return String(n);
 }
 
-function buildCompactionMessage(p: {
+export function buildCompactionMessage(p: {
   tokensBefore: number; tokensAfter: number;
   messageCount: number; summaryCount: number;
   maxDepth: number; promotedCount: number;

@@ -12,3 +12,4 @@ data/
 tui/lcm-tui
 tui/dist/
 tui/tui
+lossless-claw*.db

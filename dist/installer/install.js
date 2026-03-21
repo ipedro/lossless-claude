@@ -17,8 +17,8 @@ function hasHookCommand(entries, command) {
 }
 export function mergeClaudeSettings(existing) {
     const settings = JSON.parse(JSON.stringify(existing));
-    settings.hooks = settings.hooks ?? {};
-    settings.mcpServers = settings.mcpServers ?? {};
+    settings.hooks = (settings.hooks && typeof settings.hooks === "object" && !Array.isArray(settings.hooks)) ? settings.hooks : {};
+    settings.mcpServers = (settings.mcpServers && typeof settings.mcpServers === "object" && !Array.isArray(settings.mcpServers)) ? settings.mcpServers : {};
     for (const { event, command } of REQUIRED_HOOKS) {
         const entries = Array.isArray(settings.hooks[event]) ? settings.hooks[event] : [];
         settings.hooks[event] = entries;

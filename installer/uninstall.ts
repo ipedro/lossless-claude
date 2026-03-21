@@ -6,11 +6,12 @@ import { REQUIRED_HOOKS } from "./install.js";
 
 export function removeClaudeSettings(existing: any): any {
   const settings = JSON.parse(JSON.stringify(existing));
-  settings.hooks = settings.hooks ?? {};
-  settings.mcpServers = settings.mcpServers ?? {};
+  settings.hooks = (settings.hooks && typeof settings.hooks === "object" && !Array.isArray(settings.hooks)) ? settings.hooks : {};
+  settings.mcpServers = (settings.mcpServers && typeof settings.mcpServers === "object" && !Array.isArray(settings.mcpServers)) ? settings.mcpServers : {};
 
   const LC_COMMANDS = new Set(REQUIRED_HOOKS.map(h => h.command));
   for (const event of Object.keys(settings.hooks)) {
+    if (!Array.isArray(settings.hooks[event])) continue;
     settings.hooks[event] = settings.hooks[event].filter(
       (entry: any) => !(Array.isArray(entry.hooks) && entry.hooks.some((h: any) => LC_COMMANDS.has(h.command)))
     );

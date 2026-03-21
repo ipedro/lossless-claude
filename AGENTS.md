@@ -28,11 +28,14 @@ npm test            # must pass
 Also sync the global plugin cache so Claude Code picks up updated hooks and commands:
 
 ```bash
-CACHE=~/.claude/plugins/cache/ipedro/lossless-claude/0.5.0
-rm -rf "$CACHE" && mkdir -p "$CACHE"
-cp .claude-plugin/plugin.json "$CACHE/"
-cp -r .claude-plugin/commands "$CACHE/"
-cp -r .claude-plugin/hooks "$CACHE/"
+# Find the cached plugin directory (version and owner may vary)
+CACHE=$(ls -d ~/.claude/plugins/cache/*/lossless-claude/*/ 2>/dev/null | head -1)
+if [ -n "$CACHE" ]; then
+  rm -rf "$CACHE" && mkdir -p "$CACHE"
+  cp .claude-plugin/plugin.json "$CACHE/"
+  cp -r .claude-plugin/commands "$CACHE/"
+  cp -r .claude-plugin/hooks "$CACHE/"
+fi
 ```
 
 Then run `/reload-plugins` inside Claude Code to apply the changes.

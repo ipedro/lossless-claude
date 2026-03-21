@@ -70,11 +70,15 @@ A pure, stateless module that merges pattern sources and applies redaction.
 **`sensitive-patterns.txt` format:**
 
 ```
-# One regex per line. Lines starting with # are comments.
-# Patterns are applied as case-sensitive JavaScript RegExp.
+# One pattern per line. Lines starting with # are comments.
+# Patterns are plain regex strings (no /.../ delimiters, no flags).
+# Applied as: new RegExp(line)  — case-sensitive, single-line.
+# To enable case-insensitivity, use (?i) inline flag: (?i)my_token
 MY_INTERNAL_TOKEN_[A-Z0-9]+
 internal\.corp\.example\.com
 ```
+
+The same no-delimiter format applies to `sensitivePatterns` in `config.json` and to built-in patterns in `src/scrub.ts`. The `/pattern/` notation shown in the built-in patterns table is documentation shorthand only — the actual values stored are plain strings.
 
 ### 2. `lcm sensitive` CLI subcommand
 
@@ -139,7 +143,7 @@ Default: `security: { sensitivePatterns: [] }`
 Full data handling policy covering:
 
 - **What is stored:** conversation messages, tool outputs, LLM summaries — all in `~/.lossless-claude/projects/{hash}/db.sqlite`
-- **What leaves the machine:** only chunks sent to Claude LLM for summarization. lossless-claude uses the local `claude` CLI subprocess (`claude-process`) — summarization runs through Claude Code's own process, not a separate network call. No data is sent to external servers by lcm itself.
+- **What leaves the machine:** chunks sent to Claude LLM for summarization. The default summarizer (`claude-process`) uses the local `claude` CLI subprocess — no separate network call is made by lcm. If an optional OpenAI or Anthropic provider is configured in `config.json`, conversation chunks are sent to that provider's API over the network. lcm makes no outbound connections of its own beyond the configured LLM provider.
 - **What is never stored externally:** raw messages, tool results, file contents — only summaries persist beyond the LLM call
 - **Scrubbing:** built-in patterns + user-defined patterns applied before storage and before LLM calls
 - **Retention:** no automatic expiry; user controls deletion via `lcm sensitive purge`

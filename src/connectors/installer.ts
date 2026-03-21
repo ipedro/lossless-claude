@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
-import type { Agent, ConnectorType } from "./types.js";
+import type { ConnectorType } from "./types.js";
 import { requiresRestart } from "./types.js";
 import { LCM_MARKERS } from "./constants.js";
 import { generateContent } from "./template-service.js";
@@ -54,15 +54,23 @@ function installMarkdown(content: string, filePath: string, writeMode: 'append' 
 // Strategy 2: Structured targets (MCP JSON)
 function installMcpJson(filePath: string): void {
   mkdirSync(dirname(filePath), { recursive: true });
-  const existing = existsSync(filePath) ? JSON.parse(readFileSync(filePath, 'utf-8')) : {};
-  existing.mcpServers = existing.mcpServers ?? {};
+  let existing: any = {};
+  if (existsSync(filePath)) {
+    try { existing = JSON.parse(readFileSync(filePath, 'utf-8')); } catch { existing = {}; }
+  }
+  if (typeof existing !== 'object' || existing === null) existing = {};
+  if (typeof existing.mcpServers !== 'object' || existing.mcpServers === null || Array.isArray(existing.mcpServers)) {
+    existing.mcpServers = {};
+  }
   existing.mcpServers.lcm = { type: 'stdio', command: 'lcm', args: ['mcp'] };
   writeFileSync(filePath, JSON.stringify(existing, null, 2) + '\n');
 }
 
 function removeMcpJson(filePath: string): boolean {
+  if (filePath.endsWith('.toml')) return false; // TOML removal not supported
   if (!existsSync(filePath)) return false;
-  const config = JSON.parse(readFileSync(filePath, 'utf-8'));
+  let config: any;
+  try { config = JSON.parse(readFileSync(filePath, 'utf-8')); } catch { return false; }
   if (!config.mcpServers?.lcm) return false;
   delete config.mcpServers.lcm;
   writeFileSync(filePath, JSON.stringify(config, null, 2) + '\n');
@@ -88,6 +96,10 @@ export function installConnector(agentIdOrName: string, type?: ConnectorType, cw
   }
 
   const configPath = agent.configPaths[connectorType];
+
+  if (connectorType === 'mcp' && !configPath) {
+    return { success: true, path: '', requiresRestart: true, manual: `Add the lcm MCP server to ${agent.name} manually:\n\nServer name: lcm\nCommand: lcm\nArgs: mcp` };
+  }
   if (!configPath) throw new Error(`No config path defined for ${agent.name} with type ${connectorType}`);
 
   const resolvedPath = resolveConfigPath(configPath, cwd);
@@ -166,6 +178,7 @@ export function listConnectors(cwd: string = process.cwd()): InstalledConnector[
       const resolvedPath = resolveConfigPath(configPath, cwd);
 
       if (type === 'mcp') {
+        if (resolvedPath.endsWith('.toml')) continue; // Skip TOML files
         if (existsSync(resolvedPath)) {
           try {
             const config = JSON.parse(readFileSync(resolvedPath, 'utf-8'));

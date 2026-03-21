@@ -155,8 +155,115 @@ async function main() {
       exit(failures.length > 0 ? 1 : 0);
       break;
     }
+    case "connectors": {
+      const sub = argv[3];
+      switch (sub) {
+        case "list": {
+          const format = argv.includes("--format") ? argv[argv.indexOf("--format") + 1] : "text";
+          const { listConnectors } = await import("../src/connectors/installer.js");
+          const { AGENTS } = await import("../src/connectors/registry.js");
+          const installed = listConnectors();
+
+
+          if (format === "json") {
+            const result = AGENTS.map(a => ({
+              id: a.id,
+              name: a.name,
+              category: a.category,
+              defaultType: a.defaultType,
+              supportedTypes: a.supportedTypes,
+              installed: installed.filter(c => c.agentId === a.id).map(c => c.type),
+            }));
+            stdout.write(JSON.stringify({ agents: result }, null, 2) + "\n");
+          } else {
+            console.log("\n  Available agents:\n");
+            console.log("  %-20s %-15s %-15s %s", "Agent", "Installed", "Default", "Supported");
+            console.log("  " + "─".repeat(70));
+            for (const agent of AGENTS) {
+              const agentInstalled = installed.filter(c => c.agentId === agent.id);
+              const installedStr = agentInstalled.length > 0
+                ? agentInstalled.map(c => c.type).join(", ")
+                : "-";
+              console.log("  %-20s %-15s %-15s %s",
+                agent.name, installedStr, agent.defaultType, agent.supportedTypes.join(", "));
+            }
+            console.log();
+          }
+          break;
+        }
+        case "install": {
+          const agentName = argv.slice(4).filter(a => !a.startsWith("--")).join(" ");
+          if (!agentName) { console.error("Usage: lcm connectors install <agent> [--type rules|mcp|skill]"); exit(1); }
+          const typeIdx = argv.indexOf("--type");
+          const type = typeIdx !== -1 ? argv[typeIdx + 1] as any : undefined;
+          const { installConnector } = await import("../src/connectors/installer.js");
+          try {
+            const result = installConnector(agentName, type);
+            if (result.manual) {
+              console.log(`\n  ${result.manual}\n`);
+            } else {
+              console.log(`\n  ✓ Installed ${type ?? "default"} connector for ${agentName}`);
+              console.log(`    Path: ${result.path}`);
+              if (result.requiresRestart) console.log("    Restart the agent to activate.");
+              console.log();
+            }
+          } catch (err: any) {
+            console.error(`  Error: ${err.message}`);
+            exit(1);
+          }
+          break;
+        }
+        case "remove": {
+          const agentName = argv.slice(4).filter(a => !a.startsWith("--")).join(" ");
+          if (!agentName) { console.error("Usage: lcm connectors remove <agent> [--type rules|mcp|skill]"); exit(1); }
+          const typeIdx = argv.indexOf("--type");
+          const type = typeIdx !== -1 ? argv[typeIdx + 1] as any : undefined;
+          const { removeConnector } = await import("../src/connectors/installer.js");
+          try {
+            const removed = removeConnector(agentName, type);
+            if (removed) {
+              console.log(`\n  ✓ Removed connector for ${agentName}\n`);
+            } else {
+              console.log(`\n  No connector found for ${agentName}\n`);
+            }
+          } catch (err: any) {
+            console.error(`  Error: ${err.message}`);
+            exit(1);
+          }
+          break;
+        }
+        case "doctor": {
+          const agentName = argv.slice(4).filter(a => !a.startsWith("--")).join(" ");
+          const { AGENTS } = await import("../src/connectors/registry.js");
+          const { listConnectors } = await import("../src/connectors/installer.js");
+          const { findAgent } = await import("../src/connectors/registry.js");
+          const agents = agentName ? [findAgent(agentName)].filter(Boolean) : AGENTS;
+
+          if (agents.length === 0) { console.error(`  Unknown agent: ${agentName}`); exit(1); }
+
+          const installed = listConnectors();
+          console.log("\n  Connector health:\n");
+          for (const agent of agents) {
+            const agentConnectors = installed.filter((c: any) => c.agentId === agent.id);
+            if (agentConnectors.length === 0) {
+              console.log(`  ⚠ ${agent.name}: no connectors installed`);
+            } else {
+              for (const c of agentConnectors) {
+                console.log(`  ✓ ${agent.name}: ${c.type} at ${c.path}`);
+              }
+            }
+          }
+          console.log();
+          break;
+        }
+        default:
+          console.error("Usage: lcm connectors <list|install|remove|doctor> [options]");
+          exit(1);
+      }
+      break;
+    }
     default:
-      console.error("Usage: lcm <daemon|compact|restore|session-end|user-prompt|mcp|install|uninstall|doctor|status|stats> [--dry-run|-v]");
+      console.error("Usage: lcm <daemon|compact|restore|session-end|user-prompt|mcp|install|uninstall|doctor|status|stats|connectors> [options]");
       exit(1);
   }
 }

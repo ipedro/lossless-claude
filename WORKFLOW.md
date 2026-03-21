@@ -2,6 +2,20 @@
 
 This workflow is the default for all non-trivial features. When superpowers brainstorming asks design questions, these defaults apply unless the user overrides.
 
+## Continuous Improvement
+
+This document is a living record. **Update it whenever you learn something:**
+
+- A step that failed or caused rework → add it to Common Pitfalls
+- A new default answer that proved correct → add it to the Defaults table
+- A Copilot interaction pattern that worked (or didn't) → update the Copilot section
+- A phase that needed reordering or an extra step → revise the phase
+- A new tool, command, or technique that saved time → document it
+
+**When to update:** At the end of every feature cycle (after the implementation PR merges), review this doc against what actually happened. If reality diverged from the doc, fix the doc — not reality.
+
+**How to update:** Create a `docs/workflow-*` branch, push, get Copilot review, merge. Same flow as any other docs change.
+
 ## Defaults (predefined answers for brainstorming)
 
 | Question | Default Answer |
@@ -27,20 +41,22 @@ This workflow is the default for all non-trivial features. When superpowers brai
 
 ## Phase 2: Spec Review via PR
 
-1. Create `docs/<topic>` branch from main
-2. Ensure only documentation files are in the diff — specs, plans, workflow docs (push main first if it has unpushed code commits)
-3. Push and open PR
-4. Request Copilot review (add `copilot-pull-request-reviewer[bot]` to reviewers)
-5. Address any Copilot findings
-6. Merge once Copilot has no issues
+1. **Sync first:** `git push origin main` if there are unpushed local commits — stale diffs cause Copilot to review unrelated code
+2. Create `docs/<topic>` branch from main
+3. Ensure only documentation files are in the diff — specs, plans, workflow docs
+4. Push and open PR
+5. Request Copilot review (add `copilot-pull-request-reviewer[bot]` to reviewers)
+6. Run review loop (see Copilot Review Loop below)
+7. Merge once Copilot has no issues (max 3 rounds — see Review Loop)
 
 ## Phase 3: Implementation (Sonnet subagents)
 
-1. Create `feat/<topic>` branch from main
-2. Dispatch Sonnet-model subagents for each independent task in the plan
-3. Each subagent works in an isolated worktree
-4. Subagents follow the plan, write code + tests
-5. All work merged back to the feature branch
+1. **Sync first:** `git pull origin main` to get latest (including merged specs)
+2. Dispatch `model: sonnet` subagents with `isolation: worktree` for each task in the plan
+3. **Independent tasks** → launch in parallel (e.g., PR A: delete files, PR D: add new module)
+4. **Sequential tasks** → launch one at a time; after merging upstream PR, rebase downstream branch: `git fetch origin main && git rebase origin/main`
+5. Each subagent: implement code + tests, run `npm test`, commit (do NOT push)
+6. After subagent completes: review the diff, push, open PR, request Copilot review
 
 ## Phase 4: Final Review (Opus, max effort)
 
@@ -53,7 +69,7 @@ This workflow is the default for all non-trivial features. When superpowers brai
 
 1. Push implementation branch, open PR
 2. Request Copilot review (add to reviewers list)
-3. Address Copilot comments (reply inline with `@copilot`, push fixes, re-request review)
+3. Run review loop (see below)
 4. Merge once Copilot approves
 
 ## Copilot Interaction
@@ -95,7 +111,7 @@ gh pr view {n} --json reviewRequests --jq '.reviewRequests[].login'
 gh api repos/{owner}/{repo}/pulls/{n}/reviews --jq '. | length'
 
 # 3. Most reliable: check timeline for reviewed event:
-gh api repos/{owner}/{repo}/issues/{n}/timeline \
+gh api 'repos/{owner}/{repo}/issues/{n}/timeline?per_page=100' \
   --jq '[.[] | select(.event == "review_requested" or .event == "reviewed")] | .[-2:]'
 # If last event is "reviewed" → review complete.
 # If last event is "review_requested" → still in progress.
@@ -109,16 +125,22 @@ gh api repos/{owner}/{repo}/pulls/{n}/comments \
   --jq '[.[] | select(.created_at > "TIMESTAMP")] | .[] | {path: .path, line: .line, body: .body[:250]}'
 ```
 
-### Review Loop Procedure
+### Copilot Review Loop
 
 1. Request review (POST to requested_reviewers)
-2. Launch background command: `sleep 120 && <check review count>`
-3. When notified, check latest review state and comments
-4. If comments found: fix issues, commit, push, re-trigger review (DELETE + POST)
-5. Repeat until review has 0 new comments or state is not CHANGES_REQUESTED
+2. Launch ONE background command: `sleep 180 && <check review count + comments>`
+3. When notified, check latest review state and new comments
+4. If comments found:
+   a. **Batch ALL fixes** into a single commit (do not fix-push-review one at a time)
+   b. Push once
+   c. Re-trigger review (DELETE + POST)
+5. **Max 3 rounds.** After round 3, if remaining comments are minor nits (1-2 editorial suggestions), merge. Do not chase zero comments indefinitely.
+6. Review is "clean" when: 0 new comments, or only context-specific nits that Copilot can't understand (e.g., Claude Code conventions)
 
 ### Common Pitfalls
 
-- **Stale diff**: If main has unpushed commits, push main first or the PR diff will include unrelated code
+- **Stale diff**: Always push main before creating branches. If main has unpushed commits, the PR diff includes unrelated code and Copilot reviews the wrong things.
 - **@copilot in comments**: Opens a new PR instead of triggering review. Always use the reviewers API.
 - **DELETE 422**: Expected when Copilot already consumed the request. Ignore and POST.
+- **Code in docs PRs**: Cherry-pick only docs commits if the branch has mixed content. Use `git checkout -B <clean-branch> origin/main && git cherry-pick <docs-commits>`.
+- **Sequential PR chains**: After merging PR A, rebase PR B onto updated main before pushing: `git fetch origin main && git rebase origin/main`.

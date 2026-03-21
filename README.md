@@ -92,6 +92,12 @@ flowchart TD
 
 ### Claude Code
 
+Install the `lcm` binary first:
+
+```bash
+npm install -g @ipedro/lossless-claude  # provides the `lcm` command
+```
+
 Marketplace:
 
 ```bash
@@ -118,7 +124,7 @@ Plain `codex` can still use LCM, but this is advisory fallback mode rather than 
 Add this to `~/.codex/config.toml`:
 
 ```toml
-[mcp_servers.lossless-claude]
+[mcp_servers.lcm]
 command = "lcm"
 args = ["mcp"]
 ```
@@ -146,16 +152,16 @@ Restart Codex after registering the MCP server or changing `AGENTS.md`.
 
 - access to LCM MCP tools from plain `codex`
 - prompt-level guidance to search/store memory before claiming context is unavailable
-- a usable manual fallback when the wrapper is not being used
+- a usable manual fallback when hook-based automatic mode is not available
 
 ### What it does not give you
 
 - automatic restore before each turn
 - automatic turn ingestion
 - automatic post-turn compaction
-- wrapper-level reliability
+- hook-based reliability
 
-Plain Codex support is intentionally weaker and documented as fallback mode. Hook-based clients (Claude Code) get full automatic memory management.
+Plain Codex support is intentionally weaker and documented as manual fallback mode. Hook-based clients (Claude Code) get full automatic memory management.
 
 ## Hooks
 

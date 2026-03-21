@@ -5,7 +5,7 @@ const DEFAULTS = {
     version: 1,
     daemon: { port: 3737, socketPath: join(homedir(), ".lossless-claude", "daemon.sock"), logLevel: "info", logMaxSizeMB: 10, logRetentionDays: 7, idleTimeoutMs: 1800000 },
     compaction: {
-        leafTokens: 1000, maxDepth: 5,
+        leafTokens: 1000, maxDepth: 5, autoCompactMinTokens: 10000,
         promotionThresholds: {
             minDepth: 2, compressionRatio: 0.3,
             keywords: { decision: ["decided", "agreed", "will use", "going with", "chosen"], fix: ["fixed", "root cause", "workaround", "resolved"] },

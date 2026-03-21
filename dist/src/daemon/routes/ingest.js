@@ -34,7 +34,7 @@ export function createIngestHandler(_config) {
         }
         const parsed = resolveMessages(input);
         if (parsed.length === 0) {
-            sendJson(res, 200, { ingested: 0 });
+            sendJson(res, 200, { ingested: 0, totalTokens: 0 });
             return;
         }
         const dbPath = projectDbPath(cwd);
@@ -48,7 +48,7 @@ export function createIngestHandler(_config) {
             const storedCount = await conversationStore.getMessageCount(conversation.conversationId);
             const newMessages = parsed.slice(storedCount);
             if (newMessages.length === 0) {
-                sendJson(res, 200, { ingested: 0 });
+                sendJson(res, 200, { ingested: 0, totalTokens: 0 });
                 return;
             }
             const inputs = newMessages.map((m, i) => ({
@@ -60,7 +60,8 @@ export function createIngestHandler(_config) {
             }));
             const records = await conversationStore.createMessagesBulk(inputs);
             await summaryStore.appendContextMessages(conversation.conversationId, records.map((r) => r.messageId));
-            sendJson(res, 200, { ingested: records.length });
+            const totalTokens = await summaryStore.getContextTokenCount(conversation.conversationId);
+            sendJson(res, 200, { ingested: records.length, totalTokens });
         }
         finally {
             db.close();

@@ -11,6 +11,7 @@ export type DaemonConfig = {
     compaction: {
         leafTokens: number;
         maxDepth: number;
+        autoCompactMinTokens: number;
         promotionThresholds: {
             minDepth: number;
             compressionRatio: number;

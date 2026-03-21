@@ -104,7 +104,12 @@ async function sensitiveAdd(
     // Read config.json, add to security.sensitivePatterns
     let raw: any = {};
     try {
-      raw = JSON.parse(await readFile(configPath, "utf-8"));
+      const parsed = JSON.parse(await readFile(configPath, "utf-8"));
+      // Guard against non-object JSON values (arrays, primitives) that would
+      // silently drop non-index property assignments on JSON.stringify.
+      if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+        raw = parsed;
+      }
     } catch {
       // file doesn't exist yet or invalid JSON — start fresh
     }

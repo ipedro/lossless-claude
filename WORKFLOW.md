@@ -89,7 +89,7 @@ Copilot reviews take 1-3 minutes. Do NOT sleep-poll in a loop. Use background co
 ```bash
 # 1. Check if review request is still pending (Copilot hasn't started):
 gh pr view {n} --json reviewRequests --jq '.reviewRequests[].login'
-# Empty = Copilot picked it up. "Copilot" = still pending.
+# Empty = Copilot picked it up. "copilot-pull-request-reviewer[bot]" = still pending.
 
 # 2. Check review count (compare before/after):
 gh api repos/{owner}/{repo}/pulls/{n}/reviews --jq '. | length'

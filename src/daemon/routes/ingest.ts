@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import type { DaemonConfig } from "../config.js";
-import { projectDbPath, projectDir, ensureProjectDir } from "../project.js";
+import { projectDbPath, projectDir, projectId, ensureProjectDir } from "../project.js";
 import { sendJson } from "../server.js";
 import type { RouteHandler } from "../server.js";
 import { runLcmMigrations } from "../../db/migration.js";
@@ -32,6 +32,22 @@ function resolveMessages(input: { messages?: unknown; transcript_path?: string }
   }
 
   return [];
+}
+
+function upsertRedactionCounts(
+  db: DatabaseSync,
+  pid: string,
+  counts: { builtIn: number; global: number; project: number },
+): void {
+  if (counts.builtIn === 0 && counts.global === 0 && counts.project === 0) return;
+  const upsert = db.prepare(`
+    INSERT INTO redaction_stats (project_id, category, count)
+    VALUES (?, ?, ?)
+    ON CONFLICT(project_id, category) DO UPDATE SET count = count + excluded.count
+  `);
+  if (counts.builtIn > 0) upsert.run(pid, "built_in", counts.builtIn);
+  if (counts.global > 0) upsert.run(pid, "global", counts.global);
+  if (counts.project > 0) upsert.run(pid, "project", counts.project);
 }
 
 export function createIngestHandler(config: DaemonConfig): RouteHandler {
@@ -75,13 +91,22 @@ export function createIngestHandler(config: DaemonConfig): RouteHandler {
         return;
       }
 
-      const inputs = newMessages.map((m, i) => ({
-        conversationId: conversation.conversationId,
-        seq: storedCount + i,
-        role: m.role as "user" | "assistant" | "system" | "tool",
-        content: scrubber.scrub(m.content),
-        tokenCount: m.tokenCount,
-      }));
+      const pid = projectId(cwd);
+      const totalCounts = { builtIn: 0, global: 0, project: 0 };
+      const inputs = newMessages.map((m, i) => {
+        const { text: scrubbedContent, builtIn, global, project } = scrubber.scrubWithCounts(m.content);
+        totalCounts.builtIn += builtIn;
+        totalCounts.global += global;
+        totalCounts.project += project;
+        return {
+          conversationId: conversation.conversationId,
+          seq: storedCount + i,
+          role: m.role as "user" | "assistant" | "system" | "tool",
+          content: scrubbedContent,
+          tokenCount: m.tokenCount,
+        };
+      });
+      upsertRedactionCounts(db, pid, totalCounts);
       const records = await conversationStore.createMessagesBulk(inputs);
       await summaryStore.appendContextMessages(conversation.conversationId, records.map((r) => r.messageId));
 

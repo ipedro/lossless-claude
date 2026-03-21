@@ -496,6 +496,16 @@ export function runLcmMigrations(
   backfillSummaryDepths(db);
   backfillSummaryMetadata(db);
 
+  // Redaction stats (counts of secrets scrubbed per project per category)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS redaction_stats (
+      project_id TEXT NOT NULL,
+      category TEXT NOT NULL CHECK(category IN ('built_in', 'global', 'project')),
+      count INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (project_id, category)
+    );
+  `);
+
   // Session instructions (CLAUDE.md captured on startup)
   db.exec(`
     CREATE TABLE IF NOT EXISTS session_instructions (

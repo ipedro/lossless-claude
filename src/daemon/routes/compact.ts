@@ -18,6 +18,22 @@ import { parseTranscript } from "../../transcript.js";
 import type { LcmSummarizeFn } from "../../llm/types.js";
 import { ScrubEngine } from "../../scrub.js";
 
+function upsertRedactionCounts(
+  db: DatabaseSync,
+  pid: string,
+  counts: { builtIn: number; global: number; project: number },
+): void {
+  if (counts.builtIn === 0 && counts.global === 0 && counts.project === 0) return;
+  const upsert = db.prepare(`
+    INSERT INTO redaction_stats (project_id, category, count)
+    VALUES (?, ?, ?)
+    ON CONFLICT(project_id, category) DO UPDATE SET count = count + excluded.count
+  `);
+  if (counts.builtIn > 0) upsert.run(pid, "built_in", counts.builtIn);
+  if (counts.global > 0) upsert.run(pid, "global", counts.global);
+  if (counts.project > 0) upsert.run(pid, "project", counts.project);
+}
+
 function fmtN(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
   if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
@@ -172,13 +188,21 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
       const storedCount = await conversationStore.getMessageCount(conversation.conversationId);
       const newMessages = parsed.slice(storedCount);
       if (newMessages.length > 0) {
-        const inputs = newMessages.map((m, i) => ({
-          conversationId: conversation.conversationId,
-          seq: storedCount + i,
-          role: m.role as "user" | "assistant" | "system",
-          content: scrubber.scrub(m.content),
-          tokenCount: m.tokenCount,
-        }));
+        const ingestCounts = { builtIn: 0, global: 0, project: 0 };
+        const inputs = newMessages.map((m, i) => {
+          const { text: scrubbedContent, builtIn, global, project } = scrubber.scrubWithCounts(m.content);
+          ingestCounts.builtIn += builtIn;
+          ingestCounts.global += global;
+          ingestCounts.project += project;
+          return {
+            conversationId: conversation.conversationId,
+            seq: storedCount + i,
+            role: m.role as "user" | "assistant" | "system",
+            content: scrubbedContent,
+            tokenCount: m.tokenCount,
+          };
+        });
+        upsertRedactionCounts(db, pid, ingestCounts);
         const records = await conversationStore.createMessagesBulk(inputs);
         await summaryStore.appendContextMessages(conversation.conversationId, records.map((r) => r.messageId));
       }

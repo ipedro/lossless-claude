@@ -15,6 +15,13 @@ interface ConversationStats {
   promotedCount: number;
 }
 
+export interface RedactionCounts {
+  builtIn: number;
+  global: number;
+  project: number;
+  total: number;
+}
+
 interface OverallStats {
   projects: number;
   conversations: number;
@@ -27,6 +34,7 @@ interface OverallStats {
   ratio: number;
   promotedCount: number;
   conversationDetails: ConversationStats[];
+  redactionCounts: RedactionCounts;
 }
 
 function queryProjectStats(dbPath: string): Omit<OverallStats, "projects"> {
@@ -45,6 +53,18 @@ function queryProjectStats(dbPath: string): Omit<OverallStats, "projects"> {
     const promoted = db.prepare(
       `SELECT COUNT(*) as count FROM promoted`
     ).get() as { count: number };
+
+    const redactionRows = db.prepare(
+      `SELECT category, COALESCE(SUM(count), 0) as count FROM redaction_stats GROUP BY category`
+    ).all() as { category: string; count: number }[];
+    const redactionMap = Object.fromEntries(redactionRows.map((r) => [r.category, r.count]));
+    const redactionCounts: RedactionCounts = {
+      builtIn: redactionMap["built_in"] ?? 0,
+      global: redactionMap["global"] ?? 0,
+      project: redactionMap["project"] ?? 0,
+      total: 0,
+    };
+    redactionCounts.total = redactionCounts.builtIn + redactionCounts.global + redactionCounts.project;
 
     const convRows = db.prepare(`
       SELECT
@@ -93,6 +113,7 @@ function queryProjectStats(dbPath: string): Omit<OverallStats, "projects"> {
       ratio: compactedSum > 0 && compactedRaw > 0 ? compactedRaw / compactedSum : 0,
       promotedCount: promoted.count,
       conversationDetails,
+      redactionCounts,
     };
   } finally {
     db.close();
@@ -189,6 +210,21 @@ export function printStats(stats: OverallStats, verbose: boolean): void {
     console.log(`    ${" ".repeat(cLabelWidth)}  ${barColor}${bar}${reset}`);
   }
 
+  // Security section (always shown)
+  {
+    const rc = stats.redactionCounts;
+    console.log();
+    console.log(sectionHeader("Security"));
+    console.log();
+
+    if (rc.total === 0) {
+      console.log(`    ${dim}redactions${reset}  0`);
+    } else {
+      const detail = `(built-in: ${rc.builtIn}  global: ${rc.global}  project: ${rc.project})`;
+      console.log(`    ${dim}redactions${reset}  ${rc.total} total  ${dim}${detail}${reset}`);
+    }
+  }
+
   // Per Conversation (verbose only, compacted only)
   if (verbose) {
     const compactedDetails = stats.conversationDetails.filter((c) => c.summaries > 0);
@@ -232,6 +268,7 @@ export function collectStats(): OverallStats {
       projects: 0, conversations: 0, compactedConversations: 0, messages: 0, summaries: 0,
       maxDepth: 0, rawTokens: 0, summaryTokens: 0, ratio: 0,
       promotedCount: 0, conversationDetails: [],
+      redactionCounts: { builtIn: 0, global: 0, project: 0, total: 0 },
     };
   }
 
@@ -245,6 +282,7 @@ export function collectStats(): OverallStats {
   let totalSummaryTokens = 0;
   let totalPromoted = 0;
   let allDetails: ConversationStats[] = [];
+  const totalRedactions: RedactionCounts = { builtIn: 0, global: 0, project: 0, total: 0 };
 
   for (const entry of readdirSync(baseDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
@@ -265,6 +303,10 @@ export function collectStats(): OverallStats {
       totalSummaryTokens += projStats.summaryTokens;
       totalPromoted += projStats.promotedCount;
       allDetails = allDetails.concat(projStats.conversationDetails);
+      totalRedactions.builtIn += projStats.redactionCounts.builtIn;
+      totalRedactions.global += projStats.redactionCounts.global;
+      totalRedactions.project += projStats.redactionCounts.project;
+      totalRedactions.total += projStats.redactionCounts.total;
     } catch {
       // skip corrupt databases
     }
@@ -282,5 +324,6 @@ export function collectStats(): OverallStats {
     ratio: totalSummaryTokens > 0 ? totalRawTokens / totalSummaryTokens : 0,
     promotedCount: totalPromoted,
     conversationDetails: allDetails,
+    redactionCounts: totalRedactions,
   };
 }

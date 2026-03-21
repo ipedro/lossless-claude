@@ -36,22 +36,118 @@ function isSpanningPattern(source: string): boolean {
 export class ScrubEngine {
   private readonly spanningPatterns: Array<{ source: string; regex: RegExp }> = [];
   private readonly tokenPatterns: Array<{ source: string; regex: RegExp }> = [];
+  /** Original index (into the combined [builtIn, global, project] array) for each spanning pattern. */
+  private readonly _spanningOrigIdx: number[] = [];
+  /** Original index for each token pattern. */
+  private readonly _tokenOrigIdx: number[] = [];
+  /** Number of global patterns (for category accounting). */
+  readonly _globalPatternCount: number;
   readonly invalidPatterns: string[] = [];
 
   constructor(globalPatterns: string[], projectPatterns: string[]) {
+    this._globalPatternCount = globalPatterns.length;
     const all = [...BUILT_IN_PATTERNS, ...globalPatterns, ...projectPatterns];
-    for (const source of all) {
+    for (let i = 0; i < all.length; i++) {
+      const source = all[i];
       try {
         const regex = new RegExp(source, "g");
         if (isSpanningPattern(source)) {
           this.spanningPatterns.push({ source, regex });
+          this._spanningOrigIdx.push(i);
         } else {
           this.tokenPatterns.push({ source, regex });
+          this._tokenOrigIdx.push(i);
         }
       } catch {
         this.invalidPatterns.push(source);
       }
     }
+  }
+
+  /**
+   * Redact all matching patterns in text, returning the scrubbed text along
+   * with per-category counts of how many redactions were made.
+   *
+   * Strategy:
+   * - "Spanning" patterns (those that can match across whitespace) are applied
+   *   to the full text via a multi-range merge to avoid one pattern consuming
+   *   another's matches.
+   * - "Token" patterns (no whitespace/dot in source) are applied token-by-token
+   *   so that greedy `.*`-style patterns in one token don't eat adjacent tokens.
+   */
+  scrubWithCounts(text: string): { text: string; builtIn: number; global: number; project: number } {
+    const builtInCount = BUILT_IN_PATTERNS.length;
+    const globalCount = this._globalPatternCount;
+
+    // Step 1: collect ranges from spanning patterns applied to full text
+    type TaggedRange = { range: [number, number]; idx: number };
+    const taggedRanges: TaggedRange[] = [];
+    for (let pi = 0; pi < this.spanningPatterns.length; pi++) {
+      const { regex } = this.spanningPatterns[pi];
+      regex.lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while ((m = regex.exec(text)) !== null) {
+        taggedRanges.push({ range: [m.index, m.index + m[0].length], idx: this._spanningOrigIdx[pi] });
+        if (m[0].length === 0) regex.lastIndex++;
+      }
+    }
+
+    // Step 2: apply token patterns per whitespace-separated segment
+    const segments = text.split(/(\s+)/);
+    let offset = 0;
+    for (const seg of segments) {
+      if (!/^\s+$/.test(seg) && this.tokenPatterns.length > 0) {
+        for (let pi = 0; pi < this.tokenPatterns.length; pi++) {
+          const { regex } = this.tokenPatterns[pi];
+          regex.lastIndex = 0;
+          let m: RegExpExecArray | null;
+          while ((m = regex.exec(seg)) !== null) {
+            taggedRanges.push({ range: [offset + m.index, offset + m.index + m[0].length], idx: this._tokenOrigIdx[pi] });
+            if (m[0].length === 0) regex.lastIndex++;
+          }
+        }
+      }
+      offset += seg.length;
+    }
+
+    if (taggedRanges.length === 0) return { text, builtIn: 0, global: 0, project: 0 };
+
+    // Sort by start position
+    taggedRanges.sort((a, b) => a.range[0] - b.range[0]);
+
+    // Merge overlapping ranges, tracking which category "wins" (first match)
+    const merged: Array<{ range: [number, number]; idx: number }> = [];
+    let cur = taggedRanges[0];
+    for (let i = 1; i < taggedRanges.length; i++) {
+      const next = taggedRanges[i];
+      if (next.range[0] <= cur.range[1]) {
+        cur = { range: [cur.range[0], Math.max(cur.range[1], next.range[1])], idx: cur.idx };
+      } else {
+        merged.push(cur);
+        cur = next;
+      }
+    }
+    merged.push(cur);
+
+    // Count redactions by category
+    let builtIn = 0;
+    let global = 0;
+    let project = 0;
+    for (const { idx } of merged) {
+      if (idx < builtInCount) builtIn++;
+      else if (idx < builtInCount + globalCount) global++;
+      else project++;
+    }
+
+    // Build result string
+    let result = "";
+    let pos = 0;
+    for (const { range: [s, e] } of merged) {
+      result += text.slice(pos, s) + "[REDACTED]";
+      pos = e;
+    }
+    result += text.slice(pos);
+    return { text: result, builtIn, global, project };
   }
 
   /**
@@ -65,65 +161,7 @@ export class ScrubEngine {
    *   so that greedy `.*`-style patterns in one token don't eat adjacent tokens.
    */
   scrub(text: string): string {
-    // Step 1: collect ranges from spanning patterns applied to full text
-    const ranges: Array<[number, number]> = [];
-    for (const { regex } of this.spanningPatterns) {
-      regex.lastIndex = 0;
-      let m: RegExpExecArray | null;
-      while ((m = regex.exec(text)) !== null) {
-        ranges.push([m.index, m.index + m[0].length]);
-        if (m[0].length === 0) regex.lastIndex++;
-      }
-    }
-
-    // Step 2: apply token patterns per whitespace-separated segment
-    // Split text into alternating [content, separator] pairs
-    const segments = text.split(/(\s+)/);
-    const tokenRanges: Array<[number, number]> = [];
-    let offset = 0;
-    for (const seg of segments) {
-      // Only apply token patterns to non-whitespace segments
-      if (!/^\s+$/.test(seg) && this.tokenPatterns.length > 0) {
-        for (const { regex } of this.tokenPatterns) {
-          regex.lastIndex = 0;
-          let m: RegExpExecArray | null;
-          while ((m = regex.exec(seg)) !== null) {
-            tokenRanges.push([offset + m.index, offset + m.index + m[0].length]);
-            if (m[0].length === 0) regex.lastIndex++;
-          }
-        }
-      }
-      offset += seg.length;
-    }
-
-    const allRanges = [...ranges, ...tokenRanges];
-    if (allRanges.length === 0) return text;
-
-    // Sort and merge overlapping ranges
-    allRanges.sort((a, b) => a[0] - b[0]);
-    const merged: Array<[number, number]> = [];
-    let [curStart, curEnd] = allRanges[0];
-    for (let i = 1; i < allRanges.length; i++) {
-      const [s, e] = allRanges[i];
-      if (s <= curEnd) {
-        curEnd = Math.max(curEnd, e);
-      } else {
-        merged.push([curStart, curEnd]);
-        curStart = s;
-        curEnd = e;
-      }
-    }
-    merged.push([curStart, curEnd]);
-
-    // Build result
-    let result = "";
-    let pos = 0;
-    for (const [s, e] of merged) {
-      result += text.slice(pos, s) + "[REDACTED]";
-      pos = e;
-    }
-    result += text.slice(pos);
-    return result;
+    return this.scrubWithCounts(text).text;
   }
 
   /** Parse a sensitive-patterns.txt file. Returns empty array if file is absent. */

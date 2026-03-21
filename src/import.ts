@@ -117,15 +117,15 @@ export async function importSessions(
         });
         if (res.ingested === 0 && res.totalTokens === 0) {
           result.skippedEmpty++;
-          if (options.verbose) console.log(`  \u2298 ${sessionId}: empty`);
+          if (options.verbose) console.log(`  \u2298 ${sessionId}: empty or already ingested`);
         } else {
           result.imported++;
           result.totalMessages += res.ingested;
           if (options.verbose) console.log(`  \u2713 ${sessionId}: ${res.ingested} messages`);
         }
-      } catch {
+      } catch (err) {
         result.failed++;
-        if (options.verbose) console.log(`  \u2717 ${sessionId}: failed`);
+        if (options.verbose) console.log(`  \u2717 ${sessionId}: ${err instanceof Error ? err.message : "failed"}`);
       }
     }
   }

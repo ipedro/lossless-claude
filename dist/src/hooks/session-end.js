@@ -17,7 +17,7 @@ import { Buffer } from "node:buffer";
 export function fireCompactRequest(port, body) {
     const json = JSON.stringify(body);
     const req = request({
-        hostname: "localhost",
+        hostname: "127.0.0.1",
         port,
         path: "/compact",
         method: "POST",

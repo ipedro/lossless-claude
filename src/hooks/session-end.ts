@@ -22,7 +22,7 @@ export function fireCompactRequest(
 ): void {
   const json = JSON.stringify(body);
   const req = request({
-    hostname: "localhost",
+    hostname: "127.0.0.1",
     port,
     path: "/compact",
     method: "POST",

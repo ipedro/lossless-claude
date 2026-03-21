@@ -1,7 +1,7 @@
 # Security & Privacy Design
 
 **Date:** 2026-03-21
-**Status:** Draft
+**Status:** Approved
 **Scope:** Secrets scrubbing pipeline, `lcm sensitive` CLI, and transparency documentation
 
 ---
@@ -71,9 +71,11 @@ A pure, stateless module that merges pattern sources and applies redaction.
 
 ```
 # One pattern per line. Lines starting with # are comments.
-# Patterns are plain regex strings (no /.../ delimiters, no flags).
-# Applied as: new RegExp(line)  — case-sensitive, single-line.
-# To enable case-insensitivity, use (?i) inline flag: (?i)my_token
+# Patterns are plain regex strings (no /.../ delimiters). Flags are NOT supported.
+# Applied as: new RegExp(line) — JavaScript RegExp, case-sensitive, no flags.
+# Inline flag syntax like (?i) is NOT supported by JavaScript RegExp.
+# For case-insensitive matches, encode the desired cases in the pattern itself
+# (e.g., [Mm][Yy]_[Tt][Oo][Kk][Ee][Nn]) or use a character class.
 MY_INTERNAL_TOKEN_[A-Z0-9]+
 internal\.corp\.example\.com
 ```
@@ -153,7 +155,7 @@ Full data handling policy covering:
 
 A short **Privacy** section (3–4 sentences) linking to `docs/privacy.md` with the key assurance:
 
-> "Conversation data is stored locally in `~/.lossless-claude/` and never sent to external servers. When summarizing, only conversation chunks are sent to Claude (the same model powering Claude Code). Built-in redaction scrubs common secret patterns before storage or summarization. See [docs/privacy.md](docs/privacy.md) for the full policy and instructions to add custom patterns."
+> "Conversation data is stored locally in `~/.lossless-claude/`. By default, only conversation chunks are sent to Claude (the same model powering Claude Code) for summarization — no other outbound connections are made by lcm itself. If you configure an optional OpenAI or Anthropic provider, chunks are sent to that provider's API. Built-in redaction scrubs common secret patterns before storage or summarization. See [docs/privacy.md](docs/privacy.md) for the full policy and instructions to add custom patterns."
 
 ---
 

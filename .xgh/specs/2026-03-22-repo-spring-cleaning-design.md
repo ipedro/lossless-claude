@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-22
 **Status:** Approved
-**Branch:** `docs/lcm-rebranding-spec`
+**Branch:** `feat/redaction-stats-v2`
 
 ---
 

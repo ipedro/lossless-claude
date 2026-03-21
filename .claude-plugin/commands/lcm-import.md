@@ -4,7 +4,7 @@ description: Import Claude Code session transcripts into lcm memory
 user_invocable: true
 ---
 
-# /lossless-claude-import
+# /lcm-import
 
 Import Claude Code session transcripts into lcm memory.
 

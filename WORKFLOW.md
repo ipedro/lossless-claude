@@ -23,7 +23,7 @@ This workflow is the default for all non-trivial features. When superpowers brai
 4. Present design sections incrementally, get user approval
 5. Write design spec to `.xgh/specs/`
 6. Run spec review loop (code-reviewer agent + user review)
-7. Write implementation plan to `.claude/plans/`
+7. Write implementation plan to `.xgh/specs/`
 
 ## Phase 2: Spec Review via PR
 
@@ -58,11 +58,15 @@ This workflow is the default for all non-trivial features. When superpowers brai
 
 ## Copilot Interaction
 
+### Actions
+
 - **Trigger code review:** Add `copilot-pull-request-reviewer[bot]` to PR reviewers list via REST API
 - **Re-trigger review** (after pushing fixes): Remove then re-add Copilot from reviewers list
 - **Delegate work** (have Copilot open a PR): Tag `@copilot` in a PR comment
 - **Reply to Copilot comments:** Start inline replies with `@copilot`
 - **Never** tag `@copilot` in comments when you want a review — it opens a new PR instead
+
+### Exact Commands
 
 ```bash
 # Request review
@@ -75,3 +79,46 @@ gh api -X DELETE repos/{owner}/{repo}/pulls/{n}/requested_reviewers \
 gh api -X POST repos/{owner}/{repo}/pulls/{n}/requested_reviewers \
   -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
 ```
+
+Note: the DELETE may return 422 if Copilot already consumed the request. That's fine — proceed with the POST.
+
+### Polling for Review Completion
+
+Copilot reviews take 1-3 minutes. Do NOT sleep-poll in a loop. Use background commands.
+
+```bash
+# 1. Check if review request is still pending (Copilot hasn't started):
+gh pr view {n} --json reviewRequests --jq '.reviewRequests[].login'
+# Empty = Copilot picked it up. "Copilot" = still pending.
+
+# 2. Check review count (compare before/after):
+gh api repos/{owner}/{repo}/pulls/{n}/reviews --jq '. | length'
+
+# 3. Most reliable: check timeline for reviewed event:
+gh api repos/{owner}/{repo}/issues/{n}/timeline \
+  --jq '[.[] | select(.event == "review_requested" or .event == "reviewed")] | .[-2:]'
+# If last event is "reviewed" → review complete.
+# If last event is "review_requested" → still in progress.
+
+# 4. Get latest review details:
+gh api repos/{owner}/{repo}/pulls/{n}/reviews \
+  --jq '.[-1] | {state: .state, body: .body[:300]}'
+
+# 5. Get new inline comments (after a timestamp):
+gh api repos/{owner}/{repo}/pulls/{n}/comments \
+  --jq '[.[] | select(.created_at > "TIMESTAMP")] | .[] | {path: .path, line: .line, body: .body[:250]}'
+```
+
+### Review Loop Procedure
+
+1. Request review (POST to requested_reviewers)
+2. Launch background command: `sleep 120 && <check review count>`
+3. When notified, check latest review state and comments
+4. If comments found: fix issues, commit, push, re-trigger review (DELETE + POST)
+5. Repeat until review has 0 new comments or state is not CHANGES_REQUESTED
+
+### Common Pitfalls
+
+- **Stale diff**: If main has unpushed commits, push main first or the PR diff will include unrelated code
+- **@copilot in comments**: Opens a new PR instead of triggering review. Always use the reviewers API.
+- **DELETE 422**: Expected when Copilot already consumed the request. Ignore and POST.

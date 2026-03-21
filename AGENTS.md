@@ -1,6 +1,7 @@
 # Repository Instructions
 
-@WORKFLOW.md
+<!-- Claude Code include: @WORKFLOW.md -->
+See [WORKFLOW.md](./WORKFLOW.md) for the full development workflow.
 
 ## PR Review And Merge
 

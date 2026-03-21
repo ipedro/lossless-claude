@@ -10,25 +10,14 @@
 
 ---
 
-## Current Gaps
+## Gaps (all resolved)
 
-### Gap 1: SessionEnd only ingests, never compacts
-- `src/hooks/session-end.ts` calls `POST /ingest` and returns
-- The ingest route (`src/daemon/routes/ingest.ts`) stores messages but never triggers compaction
-- Result: 35 of 38 conversations have raw messages but zero summaries
+All gaps below have been implemented and merged to main.
 
-### Gap 2: Compaction only triggers on context overflow
-- `POST /compact` is only called by the PreCompact hook (`src/hooks/compact.ts`)
-- PreCompact only fires when Claude Code's context window overflows mid-session
-- Short/medium sessions that end cleanly are never compacted
-
-### Gap 3: No configurable threshold for auto-compact
-- `DaemonConfig.compaction` has `leafTokens` and `maxDepth` but no session-end trigger threshold
-- No way for users to control when auto-compaction kicks in
-
-### Gap 4: No test coverage for session-end or ingest hooks
-- No test files matching `*session*`, `*ingest*`, or `*compact*` in `test/`
-- These critical lifecycle paths are untested
+- ~~Gap 1~~: SessionEnd now calls `/compact` after `/ingest` when threshold exceeded (`src/hooks/session-end.ts`)
+- ~~Gap 2~~: `/ingest` returns `totalTokens`, enabling threshold-based compaction
+- ~~Gap 3~~: `DaemonConfig.compaction.autoCompactMinTokens` added (default: 10000, 0 disables)
+- ~~Gap 4~~: Tests added in `test/hooks/session-end.test.ts`, `test/daemon/routes/ingest.test.ts`, `test/daemon/routes/compact.test.ts`
 
 ---
 

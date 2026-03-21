@@ -1,14 +1,14 @@
-# lossless-claude — shared memory fallback for plain Codex
+# lossless-claude — shared memory manual fallback for plain Codex
 
-If you are running plain `codex` instead of `lossless-codex`, shared project memory is available through LCM MCP tools.
+Plain `codex` can access shared project memory through LCM MCP tools.
 
-This is fallback mode, not full automatic memory.
+This is manual fallback mode, not full automatic memory. Hook-based clients (Claude Code) get full automatic memory management.
 
 ## Important constraints
 
 - Plain `codex` does not automatically restore, ingest, or compact turns.
 - Do not claim that shared memory is automatic in this mode.
-- If the user wants automatic shared-memory behavior across turns, recommend `lossless-codex`, which wraps Codex with LCM retrieval and writeback.
+- If the user wants automatic shared-memory behavior across turns, use a hook-based client such as Claude Code with LCM installed.
 
 ## How to use LCM in plain Codex
 

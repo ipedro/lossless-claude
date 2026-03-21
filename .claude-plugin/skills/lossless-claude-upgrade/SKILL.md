@@ -7,7 +7,7 @@ description: |
 user-invocable: true
 ---
 
-# lossless-claude Upgrade
+# lossless-claude Upgrade (lcm)
 
 Rebuild from source, restart daemon, and verify installation.
 

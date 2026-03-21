@@ -58,7 +58,28 @@ async function main() {
       }
       break;
     }
-    case "compact":
+    case "compact": {
+      if (argv.includes("--all")) {
+        const { batchCompact } = await import("../src/batch-compact.js");
+        const { loadDaemonConfig } = await import("../src/daemon/config.js");
+        const { join } = await import("node:path");
+        const { homedir } = await import("node:os");
+        const { ensureDaemon } = await import("../src/daemon/lifecycle.js");
+        const config = loadDaemonConfig(join(homedir(), ".lossless-claude", "config.json"));
+        const port = config.daemon?.port ?? 3737;
+        const pidFilePath = join(homedir(), ".lossless-claude", "daemon.pid");
+        const { connected } = await ensureDaemon({ port, pidFilePath, spawnTimeoutMs: 10000 });
+        if (!connected) {
+          console.error("Could not connect to daemon. Start it with: lossless-claude daemon start --detach");
+          exit(1);
+        }
+        const dryRun = argv.includes("--dry-run");
+        const minTokens = config.compaction.autoCompactMinTokens;
+        await batchCompact({ minTokens, dryRun, port });
+        break;
+      }
+    }
+    // falls through to hook dispatch
     case "restore":
     case "session-end":
     case "user-prompt": {

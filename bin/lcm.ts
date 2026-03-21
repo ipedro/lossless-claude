@@ -263,8 +263,38 @@ async function main() {
       }
       break;
     }
+    case "import": {
+      const all = argv.includes("--all");
+      const verbose = argv.includes("--verbose");
+      const dryRun = argv.includes("--dry-run");
+
+      const { ensureDaemon } = await import("../src/daemon/lifecycle.js");
+      const { DaemonClient } = await import("../src/daemon/client.js");
+      const { loadDaemonConfig } = await import("../src/daemon/config.js");
+      const { importSessions } = await import("../src/import.js");
+      const { join } = await import("node:path");
+      const { homedir } = await import("node:os");
+
+      const config = loadDaemonConfig(join(homedir(), ".lossless-claude", "config.json"));
+      const port = config.daemon?.port ?? 3737;
+      const pidFilePath = join(homedir(), ".lossless-claude", "daemon.pid");
+      const { connected } = await ensureDaemon({ port, pidFilePath, spawnTimeoutMs: 5000 });
+      if (!connected) { console.error("  Daemon not available"); exit(1); }
+
+      const client = new DaemonClient(`http://127.0.0.1:${port}`);
+      console.log(`\n  Importing Claude Code sessions${all ? " (all projects)" : ""}...\n`);
+
+      const result = await importSessions(client, { all, verbose, dryRun });
+
+      if (dryRun) console.log("  [dry-run] No changes written.\n");
+      console.log(`  ${result.imported} sessions imported (${result.totalMessages} messages)`);
+      if (result.skippedEmpty > 0) console.log(`  ${result.skippedEmpty} skipped (empty transcript)`);
+      if (result.failed > 0) console.log(`  ${result.failed} failed`);
+      console.log();
+      break;
+    }
     default:
-      console.error("Usage: lcm <daemon|compact|restore|session-end|user-prompt|mcp|install|uninstall|doctor|status|stats|connectors> [options]");
+      console.error("Usage: lcm <daemon|compact|import|restore|session-end|user-prompt|mcp|install|uninstall|doctor|status|stats|connectors> [options]");
       exit(1);
   }
 }

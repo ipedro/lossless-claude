@@ -5,6 +5,8 @@ import { spawnSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import type { CheckResult, DoctorDeps } from "./types.js";
 import { mergeClaudeSettings, REQUIRED_HOOKS } from "../../installer/install.js";
+import { BUILT_IN_PATTERNS, ScrubEngine } from "../scrub.js";
+import { projectDir } from "../daemon/project.js";
 
 const COLORS = {
   green: "\x1b[0;32m",
@@ -264,6 +266,48 @@ export async function runDoctor(overrides?: Partial<DoctorDeps>): Promise<CheckR
       results.push(mcpResult);
     } catch {
       results.push({ name: "mcp-handshake-lcm", category: "MCP Servers", status: "warn", message: "Could not test MCP handshake" });
+    }
+  }
+
+  // ── Security ──
+  results.push({
+    name: "built-in-patterns",
+    category: "Security",
+    status: "pass",
+    message: `built-in patterns   ${BUILT_IN_PATTERNS.length} active`,
+  });
+
+  const cwd = deps.cwd ?? process.cwd();
+  const patternsFile = join(projectDir(cwd), "sensitive-patterns.txt");
+  const projectPatterns = await ScrubEngine.loadProjectPatterns(patternsFile);
+
+  if (projectPatterns.length === 0) {
+    results.push({
+      name: "project-patterns",
+      category: "Security",
+      status: "warn",
+      message: 'project patterns   none configured\n     Run: lcm sensitive add "<pattern>" to protect project-specific secrets',
+    });
+  } else {
+    // Check for invalid patterns
+    const invalidPatterns: string[] = [];
+    for (const pat of projectPatterns) {
+      try { new RegExp(pat); } catch { invalidPatterns.push(pat); }
+    }
+    if (invalidPatterns.length > 0) {
+      results.push({
+        name: "project-patterns",
+        category: "Security",
+        status: "warn",
+        message: `project patterns   ${projectPatterns.length} configured (${invalidPatterns.length} invalid regex — will be skipped)`,
+      });
+    } else {
+      results.push({
+        name: "project-patterns",
+        category: "Security",
+        status: "pass",
+        message: `project patterns   ${projectPatterns.length} configured`,
+      });
     }
   }
 

@@ -16,9 +16,13 @@ When reviewing changes, consult the relevant sources of truth:
 | Daemon routes | `src/daemon/routes/*.ts` |
 | Config type & defaults | `src/daemon/config.ts` (`DaemonConfig`) |
 
+## Review Scope
+
+Always review every file in the PR diff, including documentation, specs, plans, configs, and markdown files — not just code. If a PR contains design specs (`.xgh/specs/`), implementation plans, workflow docs, or instruction files, review them for clarity, correctness, internal consistency, and alignment with existing project conventions.
+
 ## Code Review Checklist
 
-When reviewing pull requests, verify these invariants:
+When reviewing pull requests that include code, verify these invariants:
 
 ### Hook Safety
 - All hook handlers in `src/hooks/*.ts` must return `{ exitCode: 0 }` on error — never throw or return non-zero

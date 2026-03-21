@@ -1,239 +1,316 @@
 <p align="center">
-  <strong>Lossless context management for Claude Code and Codex</strong><br>
-  DAG-based summarization that preserves every message
+  <strong>lossless-claude</strong><br>
+  Shared memory infrastructure for Claude Code and Codex
+</p>
+
+<p align="center">
+  DAG-based summarization, SQLite-backed message persistence, promoted long-term memory, MCP retrieval tools
 </p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@ipedro/lossless-claude"><img src="https://img.shields.io/npm/v/@ipedro/lossless-claude" alt="npm"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/ipedro/lossless-claude" alt="License: MIT"></a>
   <a href="package.json"><img src="https://img.shields.io/node/v/@ipedro/lossless-claude" alt="Node"></a>
-  <a href="https://github.com/anthropics/claude-code"><img src="https://img.shields.io/badge/Claude_Code-plugin-7c3aed" alt="Claude Code"></a>
+  <a href="https://github.com/anthropics/claude-code"><img src="https://img.shields.io/badge/Claude_Code-hooks%20%2B%20MCP-7c3aed" alt="Claude Code"></a>
 </p>
 
 <p align="center">
   <a href="https://lossless-claude.com">Website</a> &bull;
-  <a href="#installation">Install</a> &bull;
-  <a href="#hooks">Hooks</a> &bull;
+  <a href="#runtime-model">Runtime Model</a> &bull;
+  <a href="#installation">Installation</a> &bull;
+  <a href="#codex-fallback-without-the-wrapper">Plain Codex Fallback</a> &bull;
   <a href="#mcp-tools">MCP Tools</a> &bull;
-  <a href="#cli">CLI</a>
+  <a href="#development">Development</a>
 </p>
 
 ---
 
-Replaces Claude Code's built-in sliding-window compaction with a DAG-based summarization system. Every message is preserved in SQLite, summaries form a hierarchy, and relevant context from past sessions surfaces automatically.
+`lossless-claude` replaces sliding-window forgetfulness with a persistent memory runtime for both humans and agents.
 
-The backend memory model now supports both Claude Code and Codex. Claude still integrates through hooks and transcript ingestion; Codex uses the `lossless-codex` wrapper for live structured turn ingestion into the same project memory.
+- Every message is stored in a project SQLite database.
+- Older context is compacted into a DAG of summaries instead of being dropped.
+- Durable decisions and findings are promoted into cross-session memory.
+- Claude Code and Codex can both read and write the same project memory.
 
-**It feels like talking to an agent that never forgets. Because it doesn't.**
+Humans and agents use the same backend. The integration surface differs by client, but the memory model is shared.
 
-This is a fork of [lossless-claw](https://github.com/Martian-Engineering/lossless-claude) by [Martian Engineering](https://martian.engineering), rewired for Claude Code's plugin system. The DAG architecture and the LCM model come from the [Voltropy paper](https://papers.voltropy.com/LCM). For a visual explanation, see [losslesscontext.ai](https://losslesscontext.ai).
+This repo started as a fork of [lossless-claw](https://github.com/Martian-Engineering/lossless-claude) by [Martian Engineering](https://martian.engineering), adapted for Claude Code and extended to support Codex. The LCM model and DAG architecture originate from the [Voltropy paper](https://papers.voltropy.com/LCM).
 
-## How It Works
+## Runtime Model
 
-| Step | What happens |
-|------|-------------|
-| **Persist** | Every message stored in SQLite, organized by conversation |
-| **Summarize** | Older messages grouped into leaf summaries via your configured LLM |
-| **Condense** | Summaries roll up into higher-level DAG nodes as they accumulate |
-| **Promote** | Key decisions promoted to a cross-session knowledge store (FTS5) |
-| **Restore** | Each session assembles context from summaries + recent messages + promoted knowledge |
-| **Recall** | Agents search, drill into, and recover any detail on demand |
+```mermaid
+flowchart LR
+  subgraph Clients["Clients"]
+    CC["Claude Code<br/>hooks + MCP"]
+    LC["lossless-codex<br/>wrapper + writeback"]
+    PC["plain codex<br/>MCP + AGENTS fallback"]
+  end
 
-Nothing is lost. Raw messages stay in the database. Summaries link back to their sources. Agents can drill into any summary to recover the original detail.
+  CC --> D["lossless-claude daemon"]
+  LC --> D
+  PC --> D
+
+  D --> DB[("project SQLite DAG")]
+  D --> PM[("promoted memory FTS5")]
+  D --> TOOLS["MCP tools<br/>search / grep / expand / describe / store / stats / doctor"]
+```
+
+### Capabilities by integration path
+
+| Path | Restore | Prompt hints | Turn writeback | Automatic compaction | Notes |
+|---|---|---|---|---|---|
+| Claude Code | Yes | Yes | Yes, via transcript/hooks | Yes | Primary hook-based integration |
+| `lossless-codex` | Yes | Yes | Yes, live structured ingestion | Yes | Primary Codex integration |
+| Plain `codex` + MCP | Manual | Manual | Manual | Manual | Fallback mode only |
+
+### Why the wrapper exists
+
+`lossless-codex` exists because plain `codex` does not have the same hook path Claude Code has in this repo's integration model.
+
+The wrapper does four things prompt instructions alone cannot guarantee:
+
+1. Restores memory before the turn.
+2. Injects prompt-time hints from prior project memory.
+3. Captures and normalizes the resulting turn into stored messages.
+4. Compacts stored conversation state back into the DAG.
+
+Without the wrapper, Codex can still query and store memory through MCP tools, but memory use becomes manual rather than automatic.
+
+## LCM Model
+
+| Phase | What happens |
+|---|---|
+| Persist | Raw messages are stored in SQLite per conversation |
+| Summarize | Older messages are grouped into leaf summaries |
+| Condense | Summaries roll up into higher-level DAG nodes |
+| Promote | Durable insights are copied into cross-session memory |
+| Restore | New sessions recover context from summaries and promoted memory |
+| Recall | Agents query, expand, and inspect memory on demand |
+
+Nothing is dropped. Raw messages remain in the database. Summaries point back to their sources. Promoted memory remains searchable across sessions.
+
+```mermaid
+flowchart TD
+  A["conversation / tool output"] --> B["persist raw messages"]
+  B --> C["compact into leaf summaries"]
+  C --> D["condense into deeper DAG nodes"]
+  C --> E["promote durable insights"]
+  D --> F["restore future context"]
+  E --> F
+  F --> G["search / grep / describe / expand / store"]
+```
 
 ## Installation
 
 ### Prerequisites
 
-- Claude Code
-- Codex CLI for `lossless-codex`
 - Node.js 22+
+- Claude Code for hook-based Claude integration
+- Codex CLI for `lossless-codex`
 
-### Marketplace (recommended)
+### Claude Code
+
+Marketplace:
 
 ```bash
 claude plugin marketplace add ipedro/xgh-marketplace
 claude plugin install lossless-claude
-```
-
-### Standalone
-
-```bash
-claude plugin add github:ipedro/lossless-claude
-```
-
-### Setup
-
-Both methods register hooks and MCP server automatically. Then run the setup wizard:
-
-```bash
 lossless-claude install
 ```
 
-### Codex wrapper
+Standalone:
 
-Install the wrapper from this package:
+```bash
+claude plugin add github:ipedro/lossless-claude
+lossless-claude install
+```
+
+`lossless-claude install` writes config, registers hooks, installs slash commands, registers MCP, and verifies the daemon.
+
+### Codex with automatic shared memory
+
+Install the package and the Codex CLI:
 
 ```bash
 npm install -g @ipedro/lossless-claude
+npm install -g @openai/codex
 ```
 
-Make sure the Codex CLI is also installed and available on your `PATH`, then run Codex through the wrapper:
+Run Codex through the wrapper:
 
 ```bash
 lossless-codex "Reply only with OK"
 ```
 
-`lossless-codex` wraps `codex exec` and opportunistically uses `codex exec resume` when a native Codex session ID is available, giving Codex the same shared project memory model used by multiple Claude sessions.
+`lossless-codex` wraps `codex exec`, restores memory before the turn, injects prompt hints, writes the turn back into the project database, and compacts the stored session state after each successful turn.
 
-### Integration model
+## Codex Fallback Without The Wrapper
 
-- Claude Code uses hooks plus Claude transcript ingestion.
-- Codex uses the `lossless-codex` wrapper plus live structured turn ingestion.
-- Both paths write into the same project SQLite database and promoted memory store.
+Plain `codex` can still use LCM, but this is advisory fallback mode rather than full automatic shared memory.
+
+### Step 1: register the MCP server
+
+Add this to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.lossless-claude]
+command = "lossless-claude"
+args = ["mcp"]
+```
+
+### Step 2: copy fallback instructions
+
+Project-local:
+
+```bash
+cp configs/codex/AGENTS.md ./AGENTS.md
+```
+
+Global:
+
+```bash
+mkdir -p ~/.codex
+cp configs/codex/AGENTS.md ~/.codex/AGENTS.md
+```
+
+The fallback prompt lives in [`configs/codex/AGENTS.md`](configs/codex/AGENTS.md).
+
+Restart Codex after registering the MCP server or changing `AGENTS.md`.
+
+### What this gives you
+
+- access to LCM MCP tools from plain `codex`
+- prompt-level guidance to search/store memory before claiming context is unavailable
+- a usable manual fallback when the wrapper is not being used
+
+### What it does not give you
+
+- automatic restore before each turn
+- automatic turn ingestion
+- automatic post-turn compaction
+- wrapper-level reliability
+
+If you want Claude-like automatic shared memory behavior in Codex, use `lossless-codex`.
 
 ## Hooks
 
-Four hooks manage the full conversation lifecycle. All hooks auto-heal: each validates that all 4 are registered in `settings.json` before executing, silently repairing any that were removed.
+Claude Code uses four hooks. All hooks auto-heal: each validates that all required entries remain registered and repairs missing entries before continuing.
 
-| Hook | Command | What it does |
-|------|---------|-------------|
-| **PreCompact** | `lossless-claude compact` | Intercepts compaction, runs LLM summarization into a DAG, returns the summary |
-| **SessionStart** | `lossless-claude restore` | Restores project context + recent summaries + promoted memories |
-| **SessionEnd** | `lossless-claude session-end` | Ingests the session transcript for future recall |
-| **UserPromptSubmit** | `lossless-claude user-prompt` | Searches promoted memory, surfaces relevant `<memory-context>` hints |
+| Hook | Command | Purpose |
+|---|---|---|
+| `PreCompact` | `lossless-claude compact` | Intercepts compaction and writes DAG summaries |
+| `SessionStart` | `lossless-claude restore` | Restores project context, recent summaries, and promoted memory |
+| `SessionEnd` | `lossless-claude session-end` | Ingests the completed Claude transcript |
+| `UserPromptSubmit` | `lossless-claude user-prompt` | Searches memory and injects prompt-time hints |
 
-### Lifecycle
-
+```mermaid
+flowchart LR
+  SS["SessionStart"] --> UP["UserPromptSubmit"]
+  UP --> UP
+  UP --> PC["PreCompact"]
+  PC --> UP
+  UP --> SE["SessionEnd"]
 ```
-SessionStart ──→ conversation ──→ UserPromptSubmit (each turn)
-                                         │
-                               PreCompact (when context fills)
-                                         │
-                              SessionEnd (conversation exits)
-```
-
-### Compaction
-
-Compaction is **incremental** — not a bulk dump when the window fills up.
-
-- **Leaf pass:** once enough raw messages accumulate, they're grouped into a leaf summary
-- **Condensation:** leaf summaries roll up into higher-level DAG nodes
-- **Depth:** condensation cascades as deep as needed after each pass
-
-The context window stays within threshold at all times. The raw history lives in SQLite, represented by summaries.
 
 ## MCP Tools
 
-| Tool | Description |
-|------|-------------|
-| `lcm_search` | Search across episodic and promoted knowledge |
-| `lcm_grep` | Search conversation history by keyword or regex |
-| `lcm_expand` | Drill into a summary to recover original messages |
-| `lcm_describe` | Describe the current DAG structure |
-| `lcm_store` | Write to the promoted knowledge store |
-| `lcm_stats` | Memory inventory, compression ratios, and usage statistics |
-| `lcm_doctor` | Diagnostics — checks daemon, hooks, MCP, and summarizer |
+| Tool | Purpose |
+|---|---|
+| `lcm_search` | Search episodic and promoted knowledge |
+| `lcm_grep` | Regex or full-text search across stored history |
+| `lcm_expand` | Recover deeper detail from compacted history |
+| `lcm_describe` | Inspect a stored summary or file by id |
+| `lcm_store` | Persist durable memory manually |
+| `lcm_stats` | Inspect memory coverage, DAG depth, and compression |
+| `lcm_doctor` | Diagnose daemon, hooks, MCP registration, and summarizer setup |
 
 ## CLI
 
 ```bash
-lossless-claude install                # Setup wizard
-lossless-claude doctor                 # Run diagnostics
-lossless-claude stats                  # Memory and compression overview
-lossless-claude stats -v               # Per-conversation breakdown
-lossless-claude status                 # Daemon and provider status
-lossless-claude daemon start --detach  # Start daemon (background)
+lossless-claude install                # setup wizard
+lossless-claude doctor                 # diagnostics
+lossless-claude stats                  # memory and compression overview
+lossless-claude stats -v               # per-conversation breakdown
+lossless-claude status                 # daemon + summarizer mode
+lossless-claude daemon start --detach  # start daemon in background
 lossless-claude compact                # PreCompact hook handler
 lossless-claude restore                # SessionStart hook handler
 lossless-claude session-end            # SessionEnd hook handler
 lossless-claude user-prompt            # UserPromptSubmit hook handler
-lossless-claude mcp                    # Start MCP server
-lossless-claude -v                     # Version
-lossless-codex "your prompt"           # Run Codex with shared LCM memory
+lossless-claude mcp                    # MCP server
+lossless-claude -v                     # version
+lossless-codex "your prompt"           # Codex wrapper with shared memory
 ```
 
 ## Configuration
 
-All environment variables are optional — defaults work well out of the box.
+All environment variables are optional. The default summarizer mode is `auto`.
 
 | Variable | Default | Description |
-|----------|---------|-------------|
+|---|---|---|
+| `LCM_SUMMARY_PROVIDER` | `auto` | `auto`, `claude-process`, `codex-process`, `anthropic`, `openai`, or `disabled` |
+| `LCM_SUMMARY_MODEL` | unset | Optional model override for the selected summarizer provider |
 | `LCM_CONTEXT_THRESHOLD` | `0.75` | Context fill ratio that triggers compaction |
-| `LCM_FRESH_TAIL_COUNT` | `32` | Recent messages protected from compaction |
+| `LCM_FRESH_TAIL_COUNT` | `32` | Most recent raw messages protected from compaction |
 | `LCM_LEAF_MIN_FANOUT` | `8` | Minimum raw messages per leaf summary |
 | `LCM_CONDENSED_MIN_FANOUT` | `4` | Minimum summaries per condensed node |
-| `LCM_INCREMENTAL_MAX_DEPTH` | `0` | Condensation depth (0 = leaf only, -1 = unlimited) |
-| `LCM_LEAF_CHUNK_TOKENS` | `20000` | Max source tokens per leaf chunk |
-| `LCM_LEAF_TARGET_TOKENS` | `1200` | Target tokens for leaf summaries |
-| `LCM_CONDENSED_TARGET_TOKENS` | `2000` | Target tokens for condensed summaries |
-| `LCM_SUMMARY_MODEL` | `` | Optional model override for the active summarizer provider |
-| `LCM_SUMMARY_PROVIDER` | `auto` | Provider: `auto`, `claude-process`, `codex-process`, `anthropic`, `openai`, or `disabled` |
+| `LCM_INCREMENTAL_MAX_DEPTH` | `0` | Automatic condensation depth |
+| `LCM_LEAF_CHUNK_TOKENS` | `20000` | Maximum source tokens per leaf compaction pass |
+| `LCM_LEAF_TARGET_TOKENS` | `1200` | Target size for leaf summaries |
+| `LCM_CONDENSED_TARGET_TOKENS` | `2000` | Target size for condensed summaries |
 
-`auto` is the default summarizer mode:
+`auto` resolves per caller:
 
-- `lossless-claude` resolves `auto` to `claude-process`
-- `lossless-codex` resolves `auto` to `codex-process`
-- any explicit `llm.provider` or `LCM_SUMMARY_PROVIDER` override applies to both CLIs
+- `lossless-claude` -> `claude-process`
+- `lossless-codex` -> `codex-process`
+- explicit config or `LCM_SUMMARY_PROVIDER` override applies to both
+
+See [`docs/configuration.md`](docs/configuration.md) for tuning notes and deeper operational guidance.
 
 ## Development
 
 ```bash
-npm install          # Install dependencies
-npm run build        # Compile TypeScript
-npx vitest           # Run tests
-npx tsc --noEmit     # Type check
+npm install
+npm run build
+npx vitest
+npx tsc --noEmit
 ```
 
-### Project Structure
+### Repository layout
 
-```
+```text
 bin/
-  lossless-claude.ts          # CLI entry point
-  lossless-codex.ts           # Codex wrapper entry point
+  lossless-claude.ts          CLI entry point
+  lossless-codex.ts           Codex wrapper entry point
+configs/
+  codex/AGENTS.md             Plain Codex fallback instructions
 src/
-  adapters/
-    codex.ts                  # Codex JSONL normalization + session runner
-  compaction.ts               # CompactionEngine — leaf passes, condensation, sweeps
-  summarize.ts                # Depth-aware prompt generation and LLM summarization
-  expansion.ts                # DAG expansion for lcm_expand
-  stats.ts                    # Memory and compression statistics
-  daemon/
-    server.ts                 # HTTP daemon (routes, lifecycle)
-    config.ts                 # Configuration loader
-    client.ts                 # HTTP client for daemon
-    lifecycle.ts              # ensureDaemon() — lazy daemon spawning
-    routes/                   # Route handlers
-  db/
-    migration.ts              # SQLite schema migrations
-    promoted.ts               # PromotedStore — cross-session knowledge (FTS5)
-  hooks/
-    auto-heal.ts              # Hook validation and auto-repair
-    compact.ts                # PreCompact handler
-    dispatch.ts               # Hook dispatcher with auto-heal wiring
-    restore.ts                # SessionStart handler
-    session-end.ts            # SessionEnd handler
-    user-prompt.ts            # UserPromptSubmit handler
-  mcp/
-    server.ts                 # MCP server (stdio transport)
-    tools/                    # MCP tool definitions
-  store/
-    conversation-store.ts     # Message persistence
-    summary-store.ts          # Summary DAG persistence
+  adapters/codex.ts           Codex session runner + JSONL normalization
+  compaction.ts               DAG compaction engine
+  daemon/                     HTTP daemon, lifecycle, config, routes
+  db/                         SQLite schema + promoted memory
+  hooks/                      Claude hook handlers + auto-heal
+  llm/                        summarizer backends
+  mcp/                        MCP server + tool definitions
+  store/                      conversation and summary persistence
 installer/
-  install.ts                  # Setup wizard
-  uninstall.ts                # Cleanup
-test/                         # Vitest test suite
-.claude-plugin/
-  plugin.json                 # Plugin manifest
-  hooks/                      # Hook documentation
-  skills/                     # Plugin skills
-  commands/                   # Slash commands
+  install.ts                  setup wizard
+  uninstall.ts                cleanup
+test/
+  ...                         Vitest suites
 ```
+
+## Technical Notes
+
+- Claude Code integration is hook-first.
+- Codex integration is wrapper-first.
+- Plain Codex support is intentionally weaker and documented as fallback mode.
+- The daemon is shared; the memory backend is not Claude-specific or Codex-specific.
+- The repo still carries the original lossless-claw lineage, but the current runtime is Claude Code + Codex oriented.
 
 ## Acknowledgments
 
-lossless-claude stands on the shoulders of [lossless-claw](https://github.com/Martian-Engineering/lossless-claude), the original implementation by [Martian Engineering](https://martian.engineering). The DAG-based compaction architecture, the LCM memory model, and the foundational design decisions all originate there. This fork would not exist without their work — we're grateful for it and for making it open source.
+`lossless-claude` stands on the shoulders of [lossless-claw](https://github.com/Martian-Engineering/lossless-claude), the original implementation by [Martian Engineering](https://martian.engineering). The DAG-based compaction architecture, the LCM memory model, and the foundational design decisions all originate there.
 
 The underlying theory comes from the [LCM paper](https://papers.voltropy.com/LCM) by [Voltropy](https://x.com/Voltropy).
 

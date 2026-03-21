@@ -1,5 +1,9 @@
 import { rmSync } from "node:fs";
 import { type SpawnSyncReturns } from "node:child_process";
+export declare const REQUIRED_HOOKS: {
+    event: string;
+    command: string;
+}[];
 export declare function mergeClaudeSettings(existing: any): any;
 export interface ServiceDeps {
     spawnSync: (cmd: string, args: string[], opts?: any) => SpawnSyncReturns<string>;

@@ -18,3 +18,6 @@
 - Fix restore handler to include session instructions on all paths
 - Add path traversal guard to template loader
 - Correct dedup archive behavior (no phantom fresh-entry on low confidence)
+- Register all 4 hooks in settings.json (SessionEnd, UserPromptSubmit were missing — conversations not ingested)
+- Auto-heal: every hook CLI entry point validates and repairs missing hooks on each invocation
+- Upgrade skill (`/lossless-claude:upgrade`) for manual rebuild/restart/doctor

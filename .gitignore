@@ -2,6 +2,7 @@ node_modules/
 *.tsbuildinfo
 .DS_Store
 .xgh/.DS_Store
+.brv/
 .worktrees
 .claude/
 data/

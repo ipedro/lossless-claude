@@ -31,4 +31,49 @@ describe("doctor hook validation", () => {
       expect(hookResult?.message).toContain(event);
     }
   });
+
+  it("cleans up duplicate mcpServers.lcm from settings.json", async () => {
+    const settings = JSON.stringify({ mcpServers: { lcm: { command: "lcm", args: ["mcp"] } } });
+    const writtenSettings: string[] = [];
+    const results = await runDoctor({
+      existsSync: () => true,
+      readFileSync: (p: string) => {
+        if (p.endsWith("config.json")) return JSON.stringify({ llm: { provider: "claude-process" } });
+        if (p.endsWith("settings.json")) return settings;
+        if (p.endsWith("package.json")) return JSON.stringify({ version: "0.5.0" });
+        return "{}";
+      },
+      writeFileSync: (_p: string, data: string) => { writtenSettings.push(data); },
+      mkdirSync: vi.fn(),
+      spawnSync: () => ({ status: 0, stdout: "", stderr: "" }),
+      fetch: vi.fn().mockResolvedValue({ ok: false }),
+      homedir: "/tmp/test-home",
+      platform: "darwin",
+    });
+    const mcpResult = results.find(r => r.name === "mcp-lcm");
+    expect(mcpResult?.status).toBe("warn");
+    expect(mcpResult?.message).toContain("Removed duplicate");
+  });
+
+  it("reports pass when mcpServers.lcm is absent from settings.json", async () => {
+    const settings = JSON.stringify({ mcpServers: {} });
+    const results = await runDoctor({
+      existsSync: () => true,
+      readFileSync: (p: string) => {
+        if (p.endsWith("config.json")) return JSON.stringify({ llm: { provider: "claude-process" } });
+        if (p.endsWith("settings.json")) return settings;
+        if (p.endsWith("package.json")) return JSON.stringify({ version: "0.5.0" });
+        return "{}";
+      },
+      writeFileSync: vi.fn(),
+      mkdirSync: vi.fn(),
+      spawnSync: () => ({ status: 0, stdout: "", stderr: "" }),
+      fetch: vi.fn().mockResolvedValue({ ok: false }),
+      homedir: "/tmp/test-home",
+      platform: "darwin",
+    });
+    const mcpResult = results.find(r => r.name === "mcp-lcm");
+    expect(mcpResult?.status).toBe("pass");
+    expect(mcpResult?.message).toContain("No duplicate");
+  });
 });

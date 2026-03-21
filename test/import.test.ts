@@ -8,16 +8,16 @@ import type { DaemonClient } from "../src/daemon/client.js";
 // --- cwdToProjectHash ---
 
 describe("cwdToProjectHash", () => {
-  it("strips leading dash from absolute path", () => {
-    expect(cwdToProjectHash("/home/user/project")).toBe("home-user-project");
+  it("keeps leading dash from absolute path", () => {
+    expect(cwdToProjectHash("/home/user/project")).toBe("-home-user-project");
   });
 
   it("replaces all slashes with dashes", () => {
-    expect(cwdToProjectHash("/a/b/c")).toBe("a-b-c");
+    expect(cwdToProjectHash("/a/b/c")).toBe("-a-b-c");
   });
 
   it("handles root path", () => {
-    expect(cwdToProjectHash("/")).toBe("");
+    expect(cwdToProjectHash("/")).toBe("-");
   });
 
   it("handles path without leading slash", () => {

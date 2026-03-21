@@ -183,30 +183,20 @@ export async function runDoctor(overrides?: Partial<DoctorDeps>): Promise<CheckR
     settingsData = JSON.parse(deps.readFileSync(settingsPath, "utf-8"));
   } catch {}
 
+  // Hooks are owned by plugin.json, not settings.json.
+  // If hooks leaked into settings.json (old installer), clean them up.
   const hooks = settingsData.hooks as Record<string, unknown[]> | undefined;
-  const missingHooks: string[] = [];
-  const presentHooks: string[] = [];
+  const duplicateHooks: string[] = [];
 
   for (const { event, command } of REQUIRED_HOOKS) {
     const entries = hooks?.[event];
     const found = Array.isArray(entries) && entries.some((e: any) =>
       Array.isArray(e?.hooks) && e.hooks.some((h: any) => h.command === command)
     );
-    if (found) {
-      presentHooks.push(event);
-    } else {
-      missingHooks.push(event);
-    }
+    if (found) duplicateHooks.push(event);
   }
 
-  if (missingHooks.length === 0) {
-    results.push({
-      name: "hooks",
-      category: "Settings",
-      status: "pass",
-      message: presentHooks.map(e => `${e} \u2713`).join("  "),
-    });
-  } else {
+  if (duplicateHooks.length > 0) {
     try {
       settingsData = mergeClaudeSettings(settingsData);
       deps.writeFileSync(settingsPath, JSON.stringify(settingsData, null, 2));
@@ -214,17 +204,24 @@ export async function runDoctor(overrides?: Partial<DoctorDeps>): Promise<CheckR
         name: "hooks",
         category: "Settings",
         status: "warn",
-        message: `Missing ${missingHooks.join(", ")} — fixed`,
+        message: `Removed duplicate ${duplicateHooks.join(", ")} from settings.json (plugin.json owns hooks)`,
         fixApplied: true,
       });
     } catch {
       results.push({
         name: "hooks",
         category: "Settings",
-        status: "fail",
-        message: `Missing ${missingHooks.join(", ")} — run: lcm install`,
+        status: "warn",
+        message: `Duplicate hooks in settings.json: ${duplicateHooks.join(", ")} — run: lcm install`,
       });
     }
+  } else {
+    results.push({
+      name: "hooks",
+      category: "Settings",
+      status: "pass",
+      message: REQUIRED_HOOKS.map(h => `${h.event} \u2713`).join("  "),
+    });
   }
 
   const mcpServers = settingsData.mcpServers as Record<string, unknown> | undefined;

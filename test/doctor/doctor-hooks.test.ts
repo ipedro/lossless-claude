@@ -8,12 +8,8 @@ vi.mock("../../src/daemon/lifecycle.js", () => ({
 }));
 
 describe("doctor hook validation", () => {
-  it("reports all 4 hooks as passing when all present", async () => {
-    const allHooks: Record<string, any[]> = {};
-    for (const { event, command } of REQUIRED_HOOKS) {
-      allHooks[event] = [{ matcher: "", hooks: [{ type: "command", command }] }];
-    }
-    const settings = JSON.stringify({ hooks: allHooks, mcpServers: { "lcm": {} } });
+  it("reports hooks as passing when they are absent from settings.json", async () => {
+    const settings = JSON.stringify({ mcpServers: { "lcm": {} } });
     const results = await runDoctor({
       existsSync: () => true,
       readFileSync: (p: string) => {
@@ -31,7 +27,8 @@ describe("doctor hook validation", () => {
     });
     const hookResult = results.find(r => r.name === "hooks");
     expect(hookResult?.status).toBe("pass");
-    expect(hookResult?.message).toContain("SessionEnd");
-    expect(hookResult?.message).toContain("UserPromptSubmit");
+    for (const { event } of REQUIRED_HOOKS) {
+      expect(hookResult?.message).toContain(event);
+    }
   });
 });

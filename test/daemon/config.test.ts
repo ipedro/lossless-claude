@@ -106,4 +106,23 @@ describe("loadDaemonConfig", () => {
       loadDaemonConfig("/nonexistent", {}, { LCM_SUMMARY_PROVIDER: "ollama" })
     ).toThrow('Invalid LCM_SUMMARY_PROVIDER="ollama"');
   });
+
+  it("includes autoCompactMinTokens default of 10000", () => {
+    const c = loadDaemonConfig("/nonexistent/config.json");
+    expect(c.compaction.autoCompactMinTokens).toBe(10000);
+  });
+
+  it("allows overriding autoCompactMinTokens", () => {
+    const c = loadDaemonConfig("/nonexistent/config.json", {
+      compaction: { autoCompactMinTokens: 5000 },
+    });
+    expect(c.compaction.autoCompactMinTokens).toBe(5000);
+  });
+
+  it("allows disabling auto-compact with autoCompactMinTokens: 0", () => {
+    const c = loadDaemonConfig("/nonexistent/config.json", {
+      compaction: { autoCompactMinTokens: 0 },
+    });
+    expect(c.compaction.autoCompactMinTokens).toBe(0);
+  });
 });

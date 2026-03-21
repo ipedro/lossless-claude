@@ -6,7 +6,7 @@ export type DaemonConfig = {
   version: number;
   daemon: { port: number; socketPath: string; logLevel: string; logMaxSizeMB: number; logRetentionDays: number; idleTimeoutMs: number };
   compaction: {
-    leafTokens: number; maxDepth: number;
+    leafTokens: number; maxDepth: number; autoCompactMinTokens: number;
     promotionThresholds: { minDepth: number; compressionRatio: number; keywords: Record<string, string[]>; architecturePatterns: string[]; dedupBm25Threshold: number; mergeMaxEntries: number; confidenceDecayRate: number };
   };
   restoration: { recentSummaries: number; promptSearchMinScore: number; promptSearchMaxResults: number; promptSnippetLength: number; recencyHalfLifeHours: number; crossSessionAffinity: number };
@@ -17,7 +17,7 @@ const DEFAULTS: DaemonConfig = {
   version: 1,
   daemon: { port: 3737, socketPath: join(homedir(), ".lossless-claude", "daemon.sock"), logLevel: "info", logMaxSizeMB: 10, logRetentionDays: 7, idleTimeoutMs: 1800000 },
   compaction: {
-    leafTokens: 1000, maxDepth: 5,
+    leafTokens: 1000, maxDepth: 5, autoCompactMinTokens: 10000,
     promotionThresholds: {
       minDepth: 2, compressionRatio: 0.3,
       keywords: { decision: ["decided", "agreed", "will use", "going with", "chosen"], fix: ["fixed", "root cause", "workaround", "resolved"] },

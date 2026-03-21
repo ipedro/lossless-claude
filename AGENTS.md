@@ -1,5 +1,8 @@
 # Repository Instructions
 
+<!-- Claude Code include: @WORKFLOW.md -->
+See [WORKFLOW.md](./WORKFLOW.md) for the full development workflow.
+
 ## PR Review And Merge
 
 - Before merging a PR, check whether it changes user-facing behavior or should appear in npm release notes.

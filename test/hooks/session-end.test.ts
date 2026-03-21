@@ -80,6 +80,7 @@ describe("handleSessionEnd", () => {
     const mockSocket = { unref: vi.fn() };
     mockHttpReq.on.mockImplementation((event: string, cb: (s: unknown) => void) => {
       if (event === "socket") cb(mockSocket);
+      if (event === "finish") cb(undefined);
       return mockHttpReq;
     });
 

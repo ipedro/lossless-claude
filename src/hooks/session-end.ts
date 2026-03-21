@@ -31,7 +31,11 @@ export function fireCompactRequest(
       "Content-Length": Buffer.byteLength(json),
     },
   });
-  req.on("socket", (s) => s.unref()); // allow process to exit before response arrives
+  req.on("socket", (socket) => {
+    // Defer unref until after the request body is flushed so the /compact
+    // request reliably reaches the daemon before the process is allowed to exit.
+    req.on("finish", () => (socket as import("node:net").Socket).unref());
+  });
   req.on("error", () => {}); // non-fatal
   req.write(json);
   req.end();

@@ -155,6 +155,29 @@ async function main() {
       exit(failures.length > 0 ? 1 : 0);
       break;
     }
+    case "diagnose": {
+      const all = argv.includes("--all");
+      const verbose = argv.includes("--verbose");
+      const json = argv.includes("--json");
+      const daysIndex = argv.indexOf("--days");
+      const daysValue = daysIndex !== -1 ? argv[daysIndex + 1] : undefined;
+      const days = daysValue ? Number(daysValue) : 7;
+
+      if (!Number.isFinite(days) || days <= 0 || !Number.isInteger(days)) {
+        console.error("Usage: lcm diagnose [--all] [--days N] [--verbose] [--json]");
+        exit(1);
+      }
+
+      const { diagnose, formatDiagnoseResult } = await import("../src/diagnose.js");
+      const result = await diagnose({ all, days, verbose });
+
+      if (json) {
+        stdout.write(JSON.stringify(result, null, 2) + "\n");
+      } else {
+        stdout.write(formatDiagnoseResult(result, { days, verbose }));
+      }
+      break;
+    }
     case "connectors": {
       const sub = argv[3];
       switch (sub) {
@@ -294,7 +317,7 @@ async function main() {
       break;
     }
     default:
-      console.error("Usage: lcm <daemon|compact|import|restore|session-end|user-prompt|mcp|install|uninstall|doctor|status|stats|connectors> [options]");
+      console.error("Usage: lcm <daemon|compact|import|restore|session-end|user-prompt|mcp|install|uninstall|doctor|diagnose|status|stats|connectors> [options]");
       exit(1);
   }
 }

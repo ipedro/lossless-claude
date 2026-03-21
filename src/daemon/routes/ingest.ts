@@ -9,6 +9,7 @@ import { ConversationStore } from "../../store/conversation-store.js";
 import { SummaryStore } from "../../store/summary-store.js";
 import { parseTranscript, type ParsedMessage } from "../../transcript.js";
 import { ScrubEngine } from "../../scrub.js";
+import { upsertRedactionCounts } from "../../db/redaction-stats.js";
 
 function isParsedMessage(value: unknown): value is ParsedMessage {
   if (!value || typeof value !== "object") return false;
@@ -32,22 +33,6 @@ function resolveMessages(input: { messages?: unknown; transcript_path?: string }
   }
 
   return [];
-}
-
-function upsertRedactionCounts(
-  db: DatabaseSync,
-  pid: string,
-  counts: { builtIn: number; global: number; project: number },
-): void {
-  if (counts.builtIn === 0 && counts.global === 0 && counts.project === 0) return;
-  const upsert = db.prepare(`
-    INSERT INTO redaction_stats (project_id, category, count)
-    VALUES (?, ?, ?)
-    ON CONFLICT(project_id, category) DO UPDATE SET count = count + excluded.count
-  `);
-  if (counts.builtIn > 0) upsert.run(pid, "built_in", counts.builtIn);
-  if (counts.global > 0) upsert.run(pid, "global", counts.global);
-  if (counts.project > 0) upsert.run(pid, "project", counts.project);
 }
 
 export function createIngestHandler(config: DaemonConfig): RouteHandler {
@@ -106,8 +91,8 @@ export function createIngestHandler(config: DaemonConfig): RouteHandler {
           tokenCount: m.tokenCount,
         };
       });
-      upsertRedactionCounts(db, pid, totalCounts);
       const records = await conversationStore.createMessagesBulk(inputs);
+      upsertRedactionCounts(db, pid, totalCounts);
       await summaryStore.appendContextMessages(conversation.conversationId, records.map((r) => r.messageId));
 
       const totalTokens = await summaryStore.getContextTokenCount(conversation.conversationId);

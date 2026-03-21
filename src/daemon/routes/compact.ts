@@ -17,22 +17,7 @@ import { deduplicateAndInsert } from "../../promotion/dedup.js";
 import { parseTranscript } from "../../transcript.js";
 import type { LcmSummarizeFn } from "../../llm/types.js";
 import { ScrubEngine } from "../../scrub.js";
-
-function upsertRedactionCounts(
-  db: DatabaseSync,
-  pid: string,
-  counts: { builtIn: number; global: number; project: number },
-): void {
-  if (counts.builtIn === 0 && counts.global === 0 && counts.project === 0) return;
-  const upsert = db.prepare(`
-    INSERT INTO redaction_stats (project_id, category, count)
-    VALUES (?, ?, ?)
-    ON CONFLICT(project_id, category) DO UPDATE SET count = count + excluded.count
-  `);
-  if (counts.builtIn > 0) upsert.run(pid, "built_in", counts.builtIn);
-  if (counts.global > 0) upsert.run(pid, "global", counts.global);
-  if (counts.project > 0) upsert.run(pid, "project", counts.project);
-}
+import { upsertRedactionCounts } from "../../db/redaction-stats.js";
 
 function fmtN(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
@@ -204,8 +189,8 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
             tokenCount: m.tokenCount,
           };
         });
-        upsertRedactionCounts(db, pid, ingestCounts);
         const records = await conversationStore.createMessagesBulk(inputs);
+        upsertRedactionCounts(db, pid, ingestCounts);
         await summaryStore.appendContextMessages(conversation.conversationId, records.map((r) => r.messageId));
       }
     }

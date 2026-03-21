@@ -41,7 +41,7 @@ export class ScrubEngine {
   /** Original index for each token pattern. */
   private readonly _tokenOrigIdx: number[] = [];
   /** Number of global patterns (for category accounting). */
-  readonly _globalPatternCount: number;
+  private readonly _globalPatternCount: number;
   readonly invalidPatterns: string[] = [];
 
   constructor(globalPatterns: string[], projectPatterns: string[]) {

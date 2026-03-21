@@ -43,6 +43,14 @@ export function mergeClaudeSettings(existing: any): any {
           h.command = OLD_TO_NEW[h.command];
         }
       }
+      // Deduplicate commands within each hook entry after migration
+      const seen = new Set<string>();
+      entry.hooks = entry.hooks.filter((h: any) => {
+        const key = h.command ?? '';
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
     }
   }
   // Migrate old lossless-claude MCP server entry: remove legacy key (new key set below)

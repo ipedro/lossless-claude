@@ -86,7 +86,7 @@ export async function uninstall(deps: TeardownDeps = defaultDeps): Promise<void>
   // 1. Stop and remove the daemon service
   teardownDaemonService(deps);
 
-  // 2. Remove lossless-claude entries from ~/.claude/settings.json
+  // 2. Remove lcm and legacy lossless-claude entries from ~/.claude/settings.json
   const settingsPath = join(homedir(), ".claude", "settings.json");
   if (deps.existsSync(settingsPath)) {
     try {

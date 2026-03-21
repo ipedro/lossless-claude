@@ -271,7 +271,7 @@ export async function runDoctor(overrides?: Partial<DoctorDeps>): Promise<CheckR
 }
 
 export function printResults(results: CheckResult[]): void {
-  console.log(`\n${COLORS.bold}🧠 lossless-claude${COLORS.nc}`);
+  console.log(`\n${COLORS.bold}🧠 lcm${COLORS.nc}`);
 
   let currentCategory = "";
 

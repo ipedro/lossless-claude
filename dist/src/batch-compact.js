@@ -28,6 +28,9 @@ export function findUncompacted(minTokens) {
             continue;
         const db = new DatabaseSync(dbPath);
         try {
+            db.exec("PRAGMA journal_mode = WAL");
+            db.exec("PRAGMA busy_timeout = 5000");
+            db.exec("PRAGMA foreign_keys = ON");
             runLcmMigrations(db);
             const rows = db.prepare(`
         SELECT

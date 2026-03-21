@@ -4,7 +4,7 @@ import { join, dirname } from "node:path";
 import { spawnSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import type { CheckResult, DoctorDeps } from "./types.js";
-import { mergeClaudeSettings } from "../../installer/install.js";
+import { mergeClaudeSettings, REQUIRED_HOOKS } from "../../installer/install.js";
 
 const COLORS = {
   green: "\x1b[0;32m",
@@ -162,23 +162,46 @@ export async function runDoctor(overrides?: Partial<DoctorDeps>): Promise<CheckR
   } catch {}
 
   const hooks = settingsData.hooks as Record<string, unknown[]> | undefined;
-  const hasCompactHook = hooks?.PreCompact?.some((e: unknown) =>
-    JSON.stringify(e).includes("lossless-claude compact")
-  ) ?? false;
-  const hasRestoreHook = hooks?.SessionStart?.some((e: unknown) =>
-    JSON.stringify(e).includes("lossless-claude restore")
-  ) ?? false;
+  const missingHooks: string[] = [];
+  const presentHooks: string[] = [];
 
-  if (hasCompactHook && hasRestoreHook) {
-    results.push({ name: "hooks", category: "Settings", status: "pass", message: "PreCompact \u2713  SessionStart \u2713" });
+  for (const { event, command } of REQUIRED_HOOKS) {
+    const entries = hooks?.[event];
+    const found = Array.isArray(entries) && entries.some((e: unknown) =>
+      JSON.stringify(e).includes(command)
+    );
+    if (found) {
+      presentHooks.push(event);
+    } else {
+      missingHooks.push(event);
+    }
+  }
+
+  if (missingHooks.length === 0) {
+    results.push({
+      name: "hooks",
+      category: "Settings",
+      status: "pass",
+      message: presentHooks.map(e => `${e} \u2713`).join("  "),
+    });
   } else {
-    // Auto-fix: merge hooks
     try {
       const merged = mergeClaudeSettings(settingsData);
       deps.writeFileSync(settingsPath, JSON.stringify(merged, null, 2));
-      results.push({ name: "hooks", category: "Settings", status: "warn", message: "Hooks missing — fixed", fixApplied: true });
+      results.push({
+        name: "hooks",
+        category: "Settings",
+        status: "warn",
+        message: `Missing ${missingHooks.join(", ")} — fixed`,
+        fixApplied: true,
+      });
     } catch {
-      results.push({ name: "hooks", category: "Settings", status: "fail", message: "Hooks missing — run: lossless-claude install" });
+      results.push({
+        name: "hooks",
+        category: "Settings",
+        status: "fail",
+        message: `Missing ${missingHooks.join(", ")} — run: lossless-claude install`,
+      });
     }
   }
 

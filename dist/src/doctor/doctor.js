@@ -171,8 +171,8 @@ export async function runDoctor(overrides) {
     }
     else {
         try {
-            const merged = mergeClaudeSettings(settingsData);
-            deps.writeFileSync(settingsPath, JSON.stringify(merged, null, 2));
+            settingsData = mergeClaudeSettings(settingsData);
+            deps.writeFileSync(settingsPath, JSON.stringify(settingsData, null, 2));
             results.push({
                 name: "hooks",
                 category: "Settings",

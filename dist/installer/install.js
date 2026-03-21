@@ -20,9 +20,10 @@ export function mergeClaudeSettings(existing) {
     settings.hooks = settings.hooks ?? {};
     settings.mcpServers = settings.mcpServers ?? {};
     for (const { event, command } of REQUIRED_HOOKS) {
-        settings.hooks[event] = settings.hooks[event] ?? [];
-        if (!hasHookCommand(settings.hooks[event], command)) {
-            settings.hooks[event].push(makeHookEntry(command));
+        const entries = Array.isArray(settings.hooks[event]) ? settings.hooks[event] : [];
+        settings.hooks[event] = entries;
+        if (!hasHookCommand(entries, command)) {
+            entries.push(makeHookEntry(command));
         }
     }
     settings.mcpServers["lossless-claude"] = LC_MCP;

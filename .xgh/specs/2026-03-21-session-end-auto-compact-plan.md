@@ -1,6 +1,6 @@
 # Session-End Auto-Compact Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status: IMPLEMENTED** — All tasks completed and merged to main (2026-03-21). This plan is retained as a historical record.
 
 **Goal:** Auto-compact conversations on SessionEnd when they exceed a configurable token threshold, so every meaningful conversation gets summarized without requiring a context window overflow.
 

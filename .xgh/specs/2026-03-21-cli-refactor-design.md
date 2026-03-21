@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-21
 **Status:** Draft
-**Depends on:** [CLI-First Connectors Design](.xgh/specs/2026-03-21-cli-first-connectors-design.md)
+**Depends on:** [CLI-First Connectors Design](2026-03-21-cli-first-connectors-design.md)
 
 ## Context
 

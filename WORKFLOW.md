@@ -28,7 +28,7 @@ This workflow is the default for all non-trivial features. When superpowers brai
 ## Phase 2: Spec Review via PR
 
 1. Create `docs/<topic>` branch from main
-2. Ensure only spec/plan files are in the diff (push main first if it has unpushed commits)
+2. Ensure only documentation files are in the diff — specs, plans, workflow docs (push main first if it has unpushed code commits)
 3. Push and open PR
 4. Request Copilot review (add `copilot-pull-request-reviewer[bot]` to reviewers)
 5. Address any Copilot findings

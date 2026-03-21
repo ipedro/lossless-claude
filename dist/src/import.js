@@ -2,7 +2,9 @@ import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join, basename } from "node:path";
 import { homedir } from "node:os";
 export function cwdToProjectHash(cwd) {
-    return cwd.replace(/\//g, '-').replace(/^-/, '');
+    // Claude Code uses the cwd with slashes replaced by dashes, keeping the leading dash
+    // e.g. /Users/pedro/Developer/lossless-claude → -Users-pedro-Developer-lossless-claude
+    return cwd.replace(/\//g, '-');
 }
 function buildProjectMap(lcmDir) {
     const lcmProjectsDir = join(lcmDir ?? join(homedir(), '.lossless-claude'), 'projects');
@@ -96,7 +98,7 @@ export async function importSessions(client, options = {}) {
                 if (res.ingested === 0 && res.totalTokens === 0) {
                     result.skippedEmpty++;
                     if (options.verbose)
-                        console.log(`  \u2298 ${sessionId}: empty`);
+                        console.log(`  \u2298 ${sessionId}: empty or already ingested`);
                 }
                 else {
                     result.imported++;
@@ -105,10 +107,10 @@ export async function importSessions(client, options = {}) {
                         console.log(`  \u2713 ${sessionId}: ${res.ingested} messages`);
                 }
             }
-            catch {
+            catch (err) {
                 result.failed++;
                 if (options.verbose)
-                    console.log(`  \u2717 ${sessionId}: failed`);
+                    console.log(`  \u2717 ${sessionId}: ${err instanceof Error ? err.message : "failed"}`);
             }
         }
     }

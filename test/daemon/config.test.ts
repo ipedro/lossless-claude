@@ -125,4 +125,16 @@ describe("loadDaemonConfig", () => {
     });
     expect(c.compaction.autoCompactMinTokens).toBe(0);
   });
+
+  it("defaults security.sensitivePatterns to empty array", () => {
+    const config = loadDaemonConfig("/nonexistent/config.json");
+    expect(config.security).toEqual({ sensitivePatterns: [] });
+  });
+
+  it("merges user-defined sensitivePatterns from config file", () => {
+    const c = loadDaemonConfig("/nonexistent/config.json", {
+      security: { sensitivePatterns: ["MY_TOKEN_.*"] },
+    });
+    expect(c.security.sensitivePatterns).toEqual(["MY_TOKEN_.*"]);
+  });
 });

@@ -169,28 +169,17 @@ export async function runDoctor(overrides) {
         settingsData = JSON.parse(deps.readFileSync(settingsPath, "utf-8"));
     }
     catch { }
+    // Hooks are owned by plugin.json, not settings.json.
+    // If hooks leaked into settings.json (old installer), clean them up.
     const hooks = settingsData.hooks;
-    const missingHooks = [];
-    const presentHooks = [];
+    const duplicateHooks = [];
     for (const { event, command } of REQUIRED_HOOKS) {
         const entries = hooks?.[event];
         const found = Array.isArray(entries) && entries.some((e) => Array.isArray(e?.hooks) && e.hooks.some((h) => h.command === command));
-        if (found) {
-            presentHooks.push(event);
-        }
-        else {
-            missingHooks.push(event);
-        }
+        if (found)
+            duplicateHooks.push(event);
     }
-    if (missingHooks.length === 0) {
-        results.push({
-            name: "hooks",
-            category: "Settings",
-            status: "pass",
-            message: presentHooks.map(e => `${e} \u2713`).join("  "),
-        });
-    }
-    else {
+    if (duplicateHooks.length > 0) {
         try {
             settingsData = mergeClaudeSettings(settingsData);
             deps.writeFileSync(settingsPath, JSON.stringify(settingsData, null, 2));
@@ -198,7 +187,7 @@ export async function runDoctor(overrides) {
                 name: "hooks",
                 category: "Settings",
                 status: "warn",
-                message: `Missing ${missingHooks.join(", ")} — fixed`,
+                message: `Removed duplicate ${duplicateHooks.join(", ")} from settings.json (plugin.json owns hooks)`,
                 fixApplied: true,
             });
         }
@@ -206,25 +195,39 @@ export async function runDoctor(overrides) {
             results.push({
                 name: "hooks",
                 category: "Settings",
-                status: "fail",
-                message: `Missing ${missingHooks.join(", ")} — run: lcm install`,
+                status: "warn",
+                message: `Duplicate hooks in settings.json: ${duplicateHooks.join(", ")} — run: lcm install`,
             });
         }
     }
-    const mcpServers = settingsData.mcpServers;
-    if (mcpServers?.["lcm"]) {
-        results.push({ name: "mcp-lcm", category: "Settings", status: "pass", message: "lcm MCP \u2713" });
-    }
     else {
-        // Auto-fix
+        results.push({
+            name: "hooks",
+            category: "Settings",
+            status: "pass",
+            message: REQUIRED_HOOKS.map(h => `${h.event} \u2713`).join("  "),
+        });
+    }
+    // Re-read settings in case the hooks cleanup branch already modified the file
+    let currentSettings = {};
+    try {
+        currentSettings = JSON.parse(deps.readFileSync(settingsPath, "utf-8"));
+    }
+    catch { }
+    const mcpServers = currentSettings.mcpServers;
+    // MCP server is owned by plugin.json — if leaked into settings.json, clean up
+    if (mcpServers?.["lcm"]) {
         try {
-            const merged = mergeClaudeSettings(settingsData);
+            const merged = mergeClaudeSettings(currentSettings);
             deps.writeFileSync(settingsPath, JSON.stringify(merged, null, 2));
-            results.push({ name: "mcp-lcm", category: "Settings", status: "warn", message: "MCP entry missing — fixed", fixApplied: true });
+            results.push({ name: "mcp-lcm", category: "Settings", status: "warn", message: "Removed duplicate lcm MCP from settings.json (plugin.json owns it)", fixApplied: true });
         }
         catch {
-            results.push({ name: "mcp-lcm", category: "Settings", status: "fail", message: "MCP entry missing — run: lcm install" });
+            results.push({ name: "mcp-lcm", category: "Settings", status: "warn", message: "Duplicate lcm MCP in settings.json — run: lcm install" });
         }
+    }
+    else {
+        results.push({ name: "mcp-lcm", category: "Settings", status: "pass", message: "No duplicate MCP in settings.json (plugin.json owns it)" });
     }
     // ── Summarizer (conditional) ──
     if (config.summarizer === "auto") {
@@ -258,7 +261,7 @@ export async function runDoctor(overrides) {
     return results;
 }
 export function printResults(results) {
-    console.log(`\n${COLORS.bold}🧠 lossless-claude${COLORS.nc}`);
+    console.log(`\n${COLORS.bold}🧠 lcm${COLORS.nc}`);
     let currentCategory = "";
     for (const r of results) {
         if (r.category !== currentCategory) {

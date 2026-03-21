@@ -18,17 +18,20 @@ function hasHookCommand(entries, command) {
 }
 export function validateAndFixHooks(deps = defaultDeps()) {
     try {
-        let settings = {};
-        if (deps.existsSync(deps.settingsPath)) {
-            settings = JSON.parse(deps.readFileSync(deps.settingsPath, "utf-8"));
-        }
+        if (!deps.existsSync(deps.settingsPath))
+            return;
+        const settings = JSON.parse(deps.readFileSync(deps.settingsPath, "utf-8"));
+        // Hooks are owned by plugin.json — if they leaked into settings.json
+        // (from old installer or manual edits), remove them to prevent double-firing.
         const hooks = settings.hooks ?? {};
-        const allPresent = REQUIRED_HOOKS.every(({ event, command }) => {
+        const hasDuplicates = REQUIRED_HOOKS.some(({ event, command }) => {
             const entries = hooks[event];
             return Array.isArray(entries) && hasHookCommand(entries, command);
         });
-        if (allPresent)
+        const hasManagedMcpServer = !!settings.mcpServers?.lcm;
+        if (!hasDuplicates && !hasManagedMcpServer)
             return;
+        // Clean up: remove lcm hooks and MCP config from settings.json
         const merged = mergeClaudeSettings(settings);
         deps.mkdirSync(dirname(deps.settingsPath), { recursive: true });
         deps.writeFileSync(deps.settingsPath, JSON.stringify(merged, null, 2));

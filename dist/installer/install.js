@@ -8,13 +8,6 @@ export const REQUIRED_HOOKS = [
     { event: "SessionEnd", command: "lcm session-end" },
     { event: "UserPromptSubmit", command: "lcm user-prompt" },
 ];
-const LC_MCP = { command: "lcm", args: ["mcp"] };
-function makeHookEntry(command) {
-    return { matcher: "", hooks: [{ type: "command", command }] };
-}
-function hasHookCommand(entries, command) {
-    return entries.some((entry) => Array.isArray(entry.hooks) && entry.hooks.some((h) => h.command === command));
-}
 export function mergeClaudeSettings(existing) {
     const settings = JSON.parse(JSON.stringify(existing));
     settings.hooks = (settings.hooks && typeof settings.hooks === "object" && !Array.isArray(settings.hooks)) ? settings.hooks : {};
@@ -37,21 +30,43 @@ export function mergeClaudeSettings(existing) {
                     h.command = OLD_TO_NEW[h.command];
                 }
             }
+            // Deduplicate commands within each hook entry after migration
+            const seen = new Set();
+            entry.hooks = entry.hooks.filter((h) => {
+                const key = h.command ?? '';
+                if (seen.has(key))
+                    return false;
+                seen.add(key);
+                return true;
+            });
         }
     }
-    // Migrate old lossless-claude MCP server entry to lcm
-    if (settings.mcpServers["lossless-claude"] && !settings.mcpServers["lcm"]) {
-        settings.mcpServers["lcm"] = settings.mcpServers["lossless-claude"];
-    }
+    // Remove legacy MCP server entries
     delete settings.mcpServers["lossless-claude"];
+    // Remove lcm hooks from settings.json — plugin.json owns them.
+    // Having hooks in both causes double-firing.
     for (const { event, command } of REQUIRED_HOOKS) {
-        const entries = Array.isArray(settings.hooks[event]) ? settings.hooks[event] : [];
-        settings.hooks[event] = entries;
-        if (!hasHookCommand(entries, command)) {
-            entries.push(makeHookEntry(command));
-        }
+        if (!Array.isArray(settings.hooks[event]))
+            continue;
+        settings.hooks[event] = settings.hooks[event]
+            .map((entry) => {
+            if (!Array.isArray(entry.hooks))
+                return entry;
+            return {
+                ...entry,
+                hooks: entry.hooks.filter((h) => h.command !== command),
+            };
+        })
+            .filter((entry) => !Array.isArray(entry.hooks) || entry.hooks.length > 0);
+        if (settings.hooks[event].length === 0)
+            delete settings.hooks[event];
     }
-    settings.mcpServers["lcm"] = LC_MCP;
+    if (Object.keys(settings.hooks).length === 0)
+        delete settings.hooks;
+    // MCP server also owned by plugin.json — remove from settings.json
+    delete settings.mcpServers["lcm"];
+    if (Object.keys(settings.mcpServers).length === 0)
+        delete settings.mcpServers;
     return settings;
 }
 async function readlinePrompt(question) {

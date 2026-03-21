@@ -3,19 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>lossless-claude — permanent memory for Claude Code</title>
-  <meta name="description" content="DAG-based summarization that preserves every message. Zero external dependencies. Installs as a native Claude Code plugin.">
+  <title>lossless-claude — shared memory for agent workflows</title>
+  <meta name="description" content="Claude-first shared memory for agent workflows. Persist project history in SQLite, compact it into a DAG, and hand context across Claude Code and Codex sessions.">
   <link rel="canonical" href="https://lossless-claude.com">
 
   <meta property="og:type" content="website">
-  <meta property="og:title" content="lossless-claude — permanent memory for Claude Code">
-  <meta property="og:description" content="DAG-based summarization that preserves every message. Zero external dependencies. Installs as a native Claude Code plugin.">
+  <meta property="og:title" content="lossless-claude — shared memory for agent workflows">
+  <meta property="og:description" content="Claude-first shared memory for agent workflows, with Codex support on the same LCM runtime.">
   <meta property="og:url" content="https://lossless-claude.com">
   <meta property="og:image" content="https://lossless-claude.com/og-image.svg">
 
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="lossless-claude — permanent memory for Claude Code">
-  <meta name="twitter:description" content="DAG-based summarization that preserves every message. Zero external dependencies. Installs as a native Claude Code plugin.">
+  <meta name="twitter:title" content="lossless-claude — shared memory for agent workflows">
+  <meta name="twitter:description" content="Claude-first shared memory for agent workflows, with Codex support on the same LCM runtime.">
   <meta name="twitter:image" content="https://lossless-claude.com/og-image.svg">
 
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -26,6 +26,12 @@
   <header class="site-header">
     <div class="container header-inner">
       <span class="site-logo">🧠 lossless-claude</span>
+      <nav class="header-nav">
+        <a href="#modes">Modes</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#install">Install</a>
+        <a href="#tools">Tools</a>
+      </nav>
       <a href="https://github.com/ipedro/lossless-claude" class="header-github" target="_blank" rel="noopener">
         <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
         GitHub
@@ -34,45 +40,78 @@
   </header>
 
   <main>
-
-    <!-- Hero -->
     <section class="hero">
       <div class="hero-glow"></div>
-      <div class="container hero-content">
-        <div class="hero-badge">Native Claude Code plugin</div>
-        <h1>Claude Code forgets.<br><span class="gradient-text">lossless-claude</span> doesn't.</h1>
-        <p class="hero-sub">Every message, every session — persisted in SQLite, summarized into a DAG, recalled on demand. Zero external dependencies.</p>
-        <div class="terminal-block">
-          <div class="terminal-dots"><span></span><span></span><span></span></div>
-          <div class="terminal-body">
-            <span class="terminal-prompt">$</span>
-            <code>claude plugin add github:ipedro/lossless-claude</code>
-            <button class="copy-btn" data-copy="claude plugin add github:ipedro/lossless-claude" aria-label="Copy command">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-              <span>Copy</span>
-            </button>
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <div class="hero-badge">Claude-first integration • Codex support • shared memory backend</div>
+          <h1>Shared memory for <span class="gradient-text">agent workflows</span>.</h1>
+          <p class="hero-sub">
+            Keep Claude Code prominent, add Codex when needed, and let both operate on the same persistent project memory.
+            Messages stay in SQLite, summaries form a DAG, and important decisions survive session boundaries and agent handoffs.
+          </p>
+          <div class="hero-actions">
+            <div class="terminal-block">
+              <div class="terminal-dots"><span></span><span></span><span></span></div>
+              <div class="terminal-body">
+                <span class="terminal-prompt">$</span>
+                <code>claude plugin install lossless-claude</code>
+                <button class="copy-btn" data-copy="claude plugin install lossless-claude" aria-label="Copy command">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+            </div>
+            <p class="hero-hint">Then run <code class="inline-code">lossless-claude install</code>. Codex support is available via <code class="inline-code">lossless-codex</code>.</p>
           </div>
         </div>
-        <p class="hero-hint">Then run <code class="inline-code">lossless-claude install</code> to configure your summarizer.</p>
+
+        <div class="hero-panel">
+          <div class="panel-header">Runtime topology</div>
+          <div class="panel-clients">
+            <div class="panel-card">
+              <span class="panel-label">Claude Code</span>
+              <strong>hooks + MCP</strong>
+              <small>primary path</small>
+            </div>
+            <div class="panel-card">
+              <span class="panel-label">lossless-codex</span>
+              <strong>wrapper + writeback</strong>
+              <small>automatic Codex path</small>
+            </div>
+            <div class="panel-card panel-muted">
+              <span class="panel-label">plain codex</span>
+              <strong>MCP + AGENTS.md</strong>
+              <small>manual fallback</small>
+            </div>
+          </div>
+          <div class="panel-backend">
+            <div class="panel-core">lossless-claude daemon</div>
+            <div class="panel-storage">
+              <div class="storage-card">project SQLite DAG</div>
+              <div class="storage-card">promoted memory FTS5</div>
+            </div>
+            <div class="panel-tools">MCP tools: search • grep • expand • describe • store • stats • doctor</div>
+          </div>
+        </div>
       </div>
     </section>
 
-    <!-- Stats bar -->
     <section class="stats-bar">
       <div class="container stats-inner">
         <div class="stat">
-          <span class="stat-value">35x</span>
-          <span class="stat-label">compression</span>
+          <span class="stat-value">Claude</span>
+          <span class="stat-label">primary integration</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat">
-          <span class="stat-value">0</span>
-          <span class="stat-label">external deps</span>
+          <span class="stat-value">Codex</span>
+          <span class="stat-label">supported runtime</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat">
           <span class="stat-value">SQLite</span>
-          <span class="stat-label">only storage</span>
+          <span class="stat-label">persistent memory</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat">
@@ -82,17 +121,20 @@
       </div>
     </section>
 
-    <!-- Problem / Solution -->
     <section class="problem-solution">
       <div class="container">
+        <div class="section-heading">
+          <h2>Why agent handoffs usually fail</h2>
+          <p class="section-sub">The problem is not just context length. It is continuity across sessions, tools, and agents.</p>
+        </div>
         <div class="ps-grid">
           <div class="ps-card ps-before">
-            <div class="ps-label">Without lossless-claude</div>
+            <div class="ps-label">Typical workflow</div>
             <ul class="ps-list">
-              <li>Context fills up &rarr; oldest messages truncated</li>
-              <li>Re-explain architecture every few sessions</li>
-              <li>Agent loses track of past decisions and bugs</li>
-              <li>Long conversations become unreliable</li>
+              <li>Agent A discovers architecture and bug history</li>
+              <li>Session ends and high-signal context evaporates</li>
+              <li>Agent B repeats grep, diffs, and reconstruction work</li>
+              <li>Decisions survive only in chat scrollback</li>
             </ul>
           </div>
           <div class="ps-arrow">
@@ -101,138 +143,214 @@
           <div class="ps-card ps-after">
             <div class="ps-label">With lossless-claude</div>
             <ul class="ps-list">
-              <li>Every message stored verbatim in SQLite forever</li>
-              <li>DAG summaries keep context window lean</li>
-              <li>Decisions and architecture recalled across sessions</li>
-              <li>Sessions run indefinitely without degradation</li>
+              <li>Raw messages persist in SQLite</li>
+              <li>DAG summaries keep the active window lean</li>
+              <li>Durable decisions are promoted into shared memory</li>
+              <li>Next agent resumes from stored project context</li>
             </ul>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- How It Works -->
-    <section class="how-it-works">
+    <section class="handoff-section">
       <div class="container">
-        <h2>How it works</h2>
-        <p class="section-sub">Compaction runs automatically when Claude Code's context is nearly full — no manual intervention needed.</p>
-        <div class="steps">
-          <div class="step" data-step="1">
-            <div class="step-num">1</div>
-            <div class="step-content">
-              <h4>Messages arrive</h4>
-              <p>Every message stored verbatim in a local SQLite database. Nothing discarded.</p>
-            </div>
+        <div class="section-heading">
+          <h2>Agent handoff flow</h2>
+          <p class="section-sub">Different agents, one memory runtime.</p>
+        </div>
+        <div class="handoff-grid">
+          <div class="handoff-step">
+            <span class="handoff-num">01</span>
+            <h3>Agent A works</h3>
+            <p>Claude or Codex explores the codebase, uses tools, and accumulates project-specific context.</p>
           </div>
-          <div class="step-connector"></div>
-          <div class="step" data-step="2">
-            <div class="step-num">2</div>
-            <div class="step-content">
-              <h4>Leaf compaction</h4>
-              <p>When context fills up, lossless-claude intercepts the compaction hook and summarizes message chunks using a headless Claude process (Haiku).</p>
-            </div>
+          <div class="handoff-step">
+            <span class="handoff-num">02</span>
+            <h3>Memory is persisted</h3>
+            <p>Messages are stored, compacted into DAG summaries, and high-signal outcomes are promoted into durable memory.</p>
           </div>
-          <div class="step-connector"></div>
-          <div class="step" data-step="3">
-            <div class="step-num">3</div>
-            <div class="step-content">
-              <h4>DAG condensation</h4>
-              <p>Leaf summaries condense into higher-level nodes, forming a directed acyclic graph of your full project history.</p>
-            </div>
-          </div>
-          <div class="step-connector"></div>
-          <div class="step" data-step="4">
-            <div class="step-num">4</div>
-            <div class="step-content">
-              <h4>Knowledge promotion</h4>
-              <p>High-signal nodes — decisions, bug fixes, architecture — promoted to a persistent FTS5 knowledge store, searchable across sessions.</p>
-            </div>
-          </div>
-          <div class="step-connector"></div>
-          <div class="step" data-step="5">
-            <div class="step-num">5</div>
-            <div class="step-content">
-              <h4>Context restoration</h4>
-              <p>At session start, recent summaries + promoted knowledge are injected as context. Full project history, minimal tokens.</p>
-            </div>
+          <div class="handoff-step">
+            <span class="handoff-num">03</span>
+            <h3>Agent B resumes</h3>
+            <p>A later session restores relevant summaries, searches promoted memory, and continues without reconstructing the same history from scratch.</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- MCP Tools -->
-    <section class="tools-section">
+    <section class="modes-section" id="modes">
       <div class="container">
-        <h2>7 MCP tools, available in every session</h2>
-        <p class="section-sub">Claude calls these directly — no slash commands, no manual invocation required.</p>
+        <div class="section-heading">
+          <h2>Integration modes</h2>
+          <p class="section-sub">Claude remains the first-class interface. Codex shares the same backend through a separate adapter path.</p>
+        </div>
+        <div class="modes-grid">
+          <article class="mode-card mode-primary">
+            <div class="mode-topline">Recommended</div>
+            <h3>Claude Code</h3>
+            <p>Hook-driven restore, prompt hints, transcript ingestion, compaction interception, and MCP access.</p>
+            <ul class="mode-list">
+              <li>Automatic restore</li>
+              <li>Automatic writeback</li>
+              <li>Automatic compaction</li>
+              <li>Highest integration fidelity</li>
+            </ul>
+          </article>
+          <article class="mode-card">
+            <div class="mode-topline">Codex support</div>
+            <h3><code>lossless-codex</code></h3>
+            <p>Wrapper path for Codex that restores memory, injects hints, records the turn, and compacts stored state after the turn completes.</p>
+            <ul class="mode-list">
+              <li>Automatic restore</li>
+              <li>Structured live ingestion</li>
+              <li>Automatic post-turn compaction</li>
+              <li>Same SQLite memory backend</li>
+            </ul>
+          </article>
+          <article class="mode-card mode-muted">
+            <div class="mode-topline">Fallback only</div>
+            <h3>Plain Codex</h3>
+            <p>MCP tools plus an advisory <code>AGENTS.md</code> prompt. Useful, but not equivalent to the wrapper.</p>
+            <ul class="mode-list">
+              <li>Manual retrieval</li>
+              <li>Manual storage</li>
+              <li>No automatic writeback</li>
+              <li>No hook-equivalent enforcement</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="architecture-section" id="architecture">
+      <div class="container">
+        <div class="section-heading">
+          <h2>Architecture</h2>
+          <p class="section-sub">LCM keeps raw history, summarised history, and promoted memory in one local runtime.</p>
+        </div>
+        <div class="architecture-board">
+          <div class="arch-row arch-clients">
+            <div class="arch-box">Claude Code<br><span>hooks + MCP</span></div>
+            <div class="arch-box">lossless-codex<br><span>wrapper + writeback</span></div>
+            <div class="arch-box arch-box-dim">plain codex<br><span>MCP + fallback prompt</span></div>
+          </div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-core">lossless-claude daemon</div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-row">
+            <div class="arch-box">project SQLite DAG<br><span>raw messages + summaries</span></div>
+            <div class="arch-box">promoted memory FTS5<br><span>cross-session recall</span></div>
+          </div>
+          <div class="arch-footer">MCP tools expose search, grep, expand, describe, store, stats, and doctor across the same memory runtime.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="install-section" id="install">
+      <div class="container">
+        <div class="section-heading">
+          <h2>Install paths</h2>
+          <p class="section-sub">Claude-first on the surface, shared memory underneath.</p>
+        </div>
+        <div class="install-grid">
+          <div class="install-card">
+            <h3>Claude Code</h3>
+            <div class="code-block">
+              <pre><code>claude plugin marketplace add ipedro/xgh-marketplace
+claude plugin install lossless-claude
+lossless-claude install</code></pre>
+            </div>
+            <p>Use this when Claude Code is your primary agent interface and you want full hook-driven behavior.</p>
+          </div>
+          <div class="install-card">
+            <h3>Codex</h3>
+            <div class="code-block">
+              <pre><code>npm install -g @ipedro/lossless-claude
+npm install -g @openai/codex
+lossless-codex "your prompt"</code></pre>
+            </div>
+            <p>Use this when you want Codex on the same shared-memory backend with automatic restore and writeback.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="tools-section" id="tools">
+      <div class="container">
+        <div class="section-heading">
+          <h2>MCP tools</h2>
+          <p class="section-sub">Shared memory is queryable and writable from the agent layer.</p>
+        </div>
         <div class="tools-grid">
           <div class="tool-card">
+            <span class="tool-name">lcm_search</span>
+            <span class="tool-desc">Search episodic and promoted knowledge across the project memory runtime.</span>
+          </div>
+          <div class="tool-card">
             <span class="tool-name">lcm_grep</span>
-            <span class="tool-desc">Search conversation history by keyword or regex</span>
+            <span class="tool-desc">Find exact terms, identifiers, file paths, and message fragments in stored history.</span>
           </div>
           <div class="tool-card">
             <span class="tool-name">lcm_expand</span>
-            <span class="tool-desc">Drill into a summary to recover original messages</span>
+            <span class="tool-desc">Recover deeper detail from compacted history when summaries are too compressed.</span>
           </div>
           <div class="tool-card">
             <span class="tool-name">lcm_describe</span>
-            <span class="tool-desc">Describe the current DAG structure</span>
-          </div>
-          <div class="tool-card">
-            <span class="tool-name">lcm_search</span>
-            <span class="tool-desc">Search episodic and promoted knowledge</span>
+            <span class="tool-desc">Inspect a stored summary or file by id.</span>
           </div>
           <div class="tool-card">
             <span class="tool-name">lcm_store</span>
-            <span class="tool-desc">Write to the promoted knowledge store</span>
+            <span class="tool-desc">Persist durable project memory such as decisions, fixes, and conventions.</span>
           </div>
           <div class="tool-card">
             <span class="tool-name">lcm_stats</span>
-            <span class="tool-desc">Memory inventory and compression ratios</span>
+            <span class="tool-desc">Inspect memory coverage, DAG depth, and compression state.</span>
           </div>
           <div class="tool-card">
             <span class="tool-name">lcm_doctor</span>
-            <span class="tool-desc">Diagnostics — daemon, hooks, MCP, summarizer</span>
+            <span class="tool-desc">Diagnose daemon status, hooks, MCP setup, and summarizer mode.</span>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Lineage -->
     <section class="lineage">
       <div class="container">
-        <h2>Built on lossless-claw</h2>
+        <div class="section-heading">
+          <h2>Lineage</h2>
+          <p class="section-sub">The architecture is inherited. The current runtime model is not the original one.</p>
+        </div>
         <div class="lineage-blocks">
           <div class="lineage-block">
-            <h3>What we inherited</h3>
-            <p>The DAG-based compaction architecture, lossless message retention, and the LCM memory model — all from <a href="https://github.com/Martian-Engineering/lossless-claude" target="_blank" rel="noopener">lossless-claw</a> by <a href="https://martian.engineering" target="_blank" rel="noopener">Martian Engineering</a>. The underlying theory comes from the <a href="https://papers.voltropy.com/LCM" target="_blank" rel="noopener">LCM paper</a> by <a href="https://x.com/Voltropy" target="_blank" rel="noopener">Voltropy</a>.</p>
+            <h3>Inherited from lossless-claw</h3>
+            <p>The DAG-based compaction architecture, lossless message retention, and the LCM memory model come from <a href="https://github.com/Martian-Engineering/lossless-claude" target="_blank" rel="noopener">lossless-claw</a> by <a href="https://martian.engineering" target="_blank" rel="noopener">Martian Engineering</a>, grounded in the <a href="https://papers.voltropy.com/LCM" target="_blank" rel="noopener">LCM paper</a> by <a href="https://x.com/Voltropy" target="_blank" rel="noopener">Voltropy</a>.</p>
           </div>
           <div class="lineage-block">
-            <h3>What this fork adds</h3>
+            <h3>This fork adds</h3>
             <ul class="lineage-list">
-              <li>Cross-session knowledge store — FTS5 SQLite, zero external deps</li>
-              <li>Smart promotion engine — detects decisions, bugs, architecture</li>
-              <li>Background daemon with lazy auto-spawning</li>
-              <li>Native Claude Code plugin — hooks, MCP, one install command</li>
-              <li>Headless Claude subprocess for summarization — no API keys needed</li>
+              <li>Claude Code hook integration</li>
+              <li>Codex wrapper integration with shared writeback</li>
+              <li>Promoted cross-session memory on SQLite FTS5</li>
+              <li>Local daemon runtime and MCP tool surface</li>
+              <li>Auto provider resolution across Claude and Codex</li>
             </ul>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- CTA -->
     <section class="cta-section">
       <div class="cta-glow"></div>
       <div class="container cta-content">
-        <h2>Start remembering everything</h2>
-        <p class="cta-sub">One command. No servers. No API keys required to get started.</p>
+        <h2>Build workflows that survive agent boundaries</h2>
+        <p class="cta-sub">Start with Claude Code. Add Codex when you need it. Keep one shared memory runtime underneath both.</p>
         <div class="terminal-block">
           <div class="terminal-dots"><span></span><span></span><span></span></div>
           <div class="terminal-body">
             <span class="terminal-prompt">$</span>
-            <code>claude plugin add github:ipedro/lossless-claude</code>
-            <button class="copy-btn" data-copy="claude plugin add github:ipedro/lossless-claude" aria-label="Copy command">
+            <code>claude plugin install lossless-claude</code>
+            <button class="copy-btn" data-copy="claude plugin install lossless-claude" aria-label="Copy command">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               <span>Copy</span>
             </button>
@@ -244,7 +362,6 @@
         </a>
       </div>
     </section>
-
   </main>
 
   <footer class="site-footer">
@@ -266,14 +383,6 @@
       }
     });
   });
-  if ('IntersectionObserver' in window) {
-    var obs = new IntersectionObserver(function(entries) {
-      entries.forEach(function(e) { if (e.isIntersecting) e.target.classList.add('active'); });
-    }, { threshold: 0.35 });
-    document.querySelectorAll('.step').forEach(function(s) { obs.observe(s); });
-  } else {
-    document.querySelectorAll('.step').forEach(function(s) { s.classList.add('active'); });
-  }
   </script>
 </body>
 </html>

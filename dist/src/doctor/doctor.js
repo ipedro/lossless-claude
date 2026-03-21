@@ -153,7 +153,7 @@ export async function runDoctor(overrides) {
     const presentHooks = [];
     for (const { event, command } of REQUIRED_HOOKS) {
         const entries = hooks?.[event];
-        const found = Array.isArray(entries) && entries.some((e) => JSON.stringify(e).includes(command));
+        const found = Array.isArray(entries) && entries.some((e) => Array.isArray(e?.hooks) && e.hooks.some((h) => h.command === command));
         if (found) {
             presentHooks.push(event);
         }

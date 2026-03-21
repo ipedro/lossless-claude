@@ -167,8 +167,8 @@ export async function runDoctor(overrides?: Partial<DoctorDeps>): Promise<CheckR
 
   for (const { event, command } of REQUIRED_HOOKS) {
     const entries = hooks?.[event];
-    const found = Array.isArray(entries) && entries.some((e: unknown) =>
-      JSON.stringify(e).includes(command)
+    const found = Array.isArray(entries) && entries.some((e: any) =>
+      Array.isArray(e?.hooks) && e.hooks.some((h: any) => h.command === command)
     );
     if (found) {
       presentHooks.push(event);

@@ -2,6 +2,11 @@ import { describe, it, expect, vi } from "vitest";
 import { runDoctor } from "../../src/doctor/doctor.js";
 import { REQUIRED_HOOKS } from "../../installer/install.js";
 
+// Mock ensureDaemon to prevent spawning real processes when daemon appears down
+vi.mock("../../src/daemon/lifecycle.js", () => ({
+  ensureDaemon: vi.fn().mockResolvedValue({ connected: false }),
+}));
+
 describe("doctor hook validation", () => {
   it("reports all 4 hooks as passing when all present", async () => {
     const allHooks: Record<string, any[]> = {};

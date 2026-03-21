@@ -205,11 +205,12 @@ Claude Code uses four hooks. All hooks auto-heal: each validates that all requir
 
 ```mermaid
 flowchart LR
-  SS["SessionStart"] --> UP["UserPromptSubmit"]
-  UP --> UP
-  UP --> PC["PreCompact"]
-  PC --> UP
-  UP --> SE["SessionEnd"]
+  SS["SessionStart"] --> CONV["Conversation"]
+  CONV --> UP["UserPromptSubmit<br/>(each prompt)"]
+  UP --> CONV
+  CONV --> PC["PreCompact<br/>(if context fills)"]
+  PC --> CONV
+  CONV --> SE["SessionEnd"]
 ```
 
 ## MCP Tools

@@ -29,6 +29,8 @@ export async function dispatchHook(command, stdinText) {
             const { handleUserPromptSubmit } = await import("./user-prompt.js");
             return handleUserPromptSubmit(stdinText, client, port);
         }
+        default:
+            throw new Error(`Unknown hook command: ${command}`);
     }
 }
 //# sourceMappingURL=dispatch.js.map

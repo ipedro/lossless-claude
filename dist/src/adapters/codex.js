@@ -5,6 +5,13 @@ import { join } from "node:path";
 import { DaemonClient } from "../daemon/client.js";
 import { ensureDaemon } from "../daemon/lifecycle.js";
 import { estimateTokens } from "../transcript.js";
+function getMissingCodexCliMessage() {
+    return [
+        "Codex CLI is not installed or not on PATH.",
+        "Install it first, for example: npm install -g @openai/codex",
+        "Then run lossless-codex again.",
+    ].join("\n");
+}
 function stripMarkup(text) {
     return text.replace(/<\/?[\w-]+>/g, "").trim();
 }
@@ -197,7 +204,24 @@ export async function runLosslessCodexTurn(session, userPrompt, deps = createRun
     const args = session.codexSessionId
         ? ["exec", "resume", session.codexSessionId, "--json", prompt]
         : ["exec", "--json", prompt];
-    const { exitCode, stdout, stderr } = await runCodexCommand("codex", args, session.cwd, deps);
+    let commandResult;
+    try {
+        commandResult = await runCodexCommand("codex", args, session.cwd, deps);
+    }
+    catch (error) {
+        if (error instanceof Error &&
+            "code" in error &&
+            error.code === "ENOENT") {
+            return {
+                exitCode: 1,
+                stdout: "",
+                stderr: getMissingCodexCliMessage(),
+                assistantText: "",
+            };
+        }
+        throw error;
+    }
+    const { exitCode, stdout, stderr } = commandResult;
     if (exitCode !== 0) {
         return {
             exitCode,

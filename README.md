@@ -72,6 +72,14 @@ lossless-claude install
 
 ### Codex wrapper
 
+Install the wrapper from this package:
+
+```bash
+npm install -g @ipedro/lossless-claude
+```
+
+Make sure the Codex CLI is also installed and available on your `PATH`, then run Codex through the wrapper:
+
 ```bash
 lossless-codex "Reply only with OK"
 ```

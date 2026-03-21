@@ -161,6 +161,25 @@ describe("runLosslessCodexTurn", () => {
     expect(deps.client.post).not.toHaveBeenCalledWith("/ingest", expect.anything());
   });
 
+  it("returns a friendly error when the Codex CLI is missing", async () => {
+    const deps = makeDeps({
+      spawn: vi.fn().mockImplementation(() => {
+        throw Object.assign(new Error("spawn codex ENOENT"), { code: "ENOENT" });
+      }),
+    });
+    const session: LosslessCodexSession = {
+      lcmSessionId: createLosslessCodexSessionId(),
+      cwd: "/tmp/project",
+      restoreLoaded: false,
+    };
+
+    const result = await runLosslessCodexTurn(session, "hello", deps);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Codex CLI is not installed or not on PATH");
+    expect(result.stderr).toContain("npm install -g @openai/codex");
+  });
+
   it("calls restore once, prompt-search every turn, ingest every turn, and compact with skip_ingest", async () => {
     const deps = makeDeps();
     const session: LosslessCodexSession = {

@@ -167,8 +167,14 @@ All environment variables are optional — defaults work well out of the box.
 | `LCM_LEAF_CHUNK_TOKENS` | `20000` | Max source tokens per leaf chunk |
 | `LCM_LEAF_TARGET_TOKENS` | `1200` | Target tokens for leaf summaries |
 | `LCM_CONDENSED_TARGET_TOKENS` | `2000` | Target tokens for condensed summaries |
-| `LCM_SUMMARY_MODEL` | `claude-haiku-4-5` | Model for summarization |
-| `LCM_SUMMARY_PROVIDER` | `claude-cli` | Provider: `claude-cli`, `anthropic`, or `openai` |
+| `LCM_SUMMARY_MODEL` | `` | Optional model override for the active summarizer provider |
+| `LCM_SUMMARY_PROVIDER` | `auto` | Provider: `auto`, `claude-process`, `codex-process`, `anthropic`, `openai`, or `disabled` |
+
+`auto` is the default summarizer mode:
+
+- `lossless-claude` resolves `auto` to `claude-process`
+- `lossless-codex` resolves `auto` to `codex-process`
+- any explicit `llm.provider` or `LCM_SUMMARY_PROVIDER` override applies to both CLIs
 
 ## Development
 

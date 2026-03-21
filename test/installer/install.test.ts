@@ -137,7 +137,7 @@ describe("install", () => {
     process.env.ANTHROPIC_API_KEY = originalApiKey;
   });
 
-  it("writes config.json with provider=claude-process and empty apiKey in non-TTY mode", async () => {
+  it("writes config.json with provider=auto and empty apiKey in non-TTY mode", async () => {
     const originalApiKey = process.env.ANTHROPIC_API_KEY;
     process.env.ANTHROPIC_API_KEY = "test-key";
     const writeFileMock = vi.fn();
@@ -148,7 +148,7 @@ describe("install", () => {
     const configWriteCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
     expect(configWriteCall).toBeDefined();
     const written = JSON.parse(configWriteCall![1]);
-    expect(written.llm.provider).toBe("claude-process");
+    expect(written.llm.provider).toBe("auto");
     expect(written.llm.apiKey).toBe("");
     process.env.ANTHROPIC_API_KEY = originalApiKey;
   });
@@ -187,7 +187,7 @@ describe("summarizer picker", () => {
     Object.defineProperty(process.stdin, "isTTY", { value: originalIsTTY, writable: true });
   });
 
-  it("option 1 (Claude Max / Pro): writes provider=claude-process to config.json", async () => {
+  it("option 1 (native CLI default): writes provider=auto to config.json", async () => {
     Object.defineProperty(process.stdin, "isTTY", { value: true, writable: true });
     const writeFileMock = vi.fn();
     const deps = makeDeps({
@@ -201,7 +201,7 @@ describe("summarizer picker", () => {
     const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
     expect(configCall).toBeDefined();
     const written = JSON.parse(configCall![1]);
-    expect(written.llm.provider).toBe("claude-process");
+    expect(written.llm.provider).toBe("auto");
     expect(written.llm.apiKey).toBeFalsy();
   });
 
@@ -247,7 +247,7 @@ describe("summarizer picker", () => {
     expect(written.llm.model).toBe("my-model");
   });
 
-  it("invalid input re-prompts once then defaults to option 1 (claude-cli)", async () => {
+  it("invalid input re-prompts once then defaults to option 1 (auto)", async () => {
     Object.defineProperty(process.stdin, "isTTY", { value: true, writable: true });
     const writeFileMock = vi.fn();
     const deps = makeDeps({
@@ -262,10 +262,10 @@ describe("summarizer picker", () => {
     warnSpy.mockRestore();
     const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
     const written = JSON.parse(configCall![1]);
-    expect(written.llm.provider).toBe("claude-process");
+    expect(written.llm.provider).toBe("auto");
   });
 
-  it("non-TTY (process.stdin.isTTY is false): skips picker and defaults to claude-process", async () => {
+  it("non-TTY (process.stdin.isTTY is false): skips picker and defaults to auto", async () => {
     Object.defineProperty(process.stdin, "isTTY", { value: false, writable: true });
     const writeFileMock = vi.fn();
     const promptUserMock = vi.fn();
@@ -280,7 +280,7 @@ describe("summarizer picker", () => {
     expect(promptUserMock).not.toHaveBeenCalled(); // picker was skipped
     const configCall = writeFileMock.mock.calls.find((c: any[]) => c[0].endsWith("config.json"));
     const written = JSON.parse(configCall![1]);
-    expect(written.llm.provider).toBe("claude-process");
+    expect(written.llm.provider).toBe("auto");
     expect(written.llm.apiKey).toBe("");
   });
 });

@@ -256,6 +256,7 @@ export async function runLosslessCodexTurn(session, userPrompt, deps = createRun
                 session_id: session.lcmSessionId,
                 cwd: session.cwd,
                 skip_ingest: true,
+                client: "codex",
             });
         }
         catch {

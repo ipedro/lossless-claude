@@ -115,7 +115,11 @@ async function main() {
                     daemonStatus = "up";
             }
             catch { }
-            console.log(`daemon: ${daemonStatus} · provider: ${config.llm?.provider ?? "unknown"}`);
+            const provider = config.llm?.provider ?? "unknown";
+            const providerDisplay = provider === "auto"
+                ? "auto (Claude->claude-process, Codex->codex-process)"
+                : provider;
+            console.log(`daemon: ${daemonStatus} · provider: ${providerDisplay}`);
             break;
         }
         case "stats": {

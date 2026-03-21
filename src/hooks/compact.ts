@@ -11,7 +11,10 @@ export async function handlePreCompact(stdin: string, client: DaemonClient, port
 
   try {
     const input = JSON.parse(stdin || "{}");
-    const result = await client.post<{ summary: string }>("/compact", input);
+    const result = await client.post<{ summary: string }>("/compact", {
+      ...input,
+      client: "claude",
+    });
     return { exitCode: 2, stdout: result.summary || "" };
   } catch {
     return { exitCode: 0, stdout: "" };

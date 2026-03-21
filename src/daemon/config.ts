@@ -10,7 +10,7 @@ export type DaemonConfig = {
     promotionThresholds: { minDepth: number; compressionRatio: number; keywords: Record<string, string[]>; architecturePatterns: string[]; dedupBm25Threshold: number; mergeMaxEntries: number; confidenceDecayRate: number };
   };
   restoration: { recentSummaries: number; promptSearchMinScore: number; promptSearchMaxResults: number; promptSnippetLength: number; recencyHalfLifeHours: number; crossSessionAffinity: number };
-  llm: { provider: "claude-process" | "anthropic" | "openai" | "disabled"; model: string; apiKey?: string; baseURL: string };
+  llm: { provider: "auto" | "claude-process" | "codex-process" | "anthropic" | "openai" | "disabled"; model: string; apiKey?: string; baseURL: string };
 };
 
 const DEFAULTS: DaemonConfig = {
@@ -28,7 +28,7 @@ const DEFAULTS: DaemonConfig = {
     },
   },
   restoration: { recentSummaries: 3, promptSearchMinScore: 2, promptSearchMaxResults: 3, promptSnippetLength: 200, recencyHalfLifeHours: 24, crossSessionAffinity: 0.85 },
-  llm: { provider: "claude-process", model: "", apiKey: "", baseURL: "" },
+  llm: { provider: "auto", model: "", apiKey: "", baseURL: "" },
 };
 
 function deepMerge(target: any, source: any): any {
@@ -51,7 +51,7 @@ export function loadDaemonConfig(configPath: string, overrides?: any, env?: Reco
   if (merged.llm.apiKey) merged.llm.apiKey = merged.llm.apiKey.replace(/\$\{(\w+)\}/g, (_: string, k: string) => e[k] ?? "");
 
   // Env var override: LCM_SUMMARY_PROVIDER takes precedence over config
-  const VALID_PROVIDERS = new Set(["claude-process", "anthropic", "openai", "disabled"]);
+  const VALID_PROVIDERS = new Set(["auto", "claude-process", "codex-process", "anthropic", "openai", "disabled"]);
   if (e.LCM_SUMMARY_PROVIDER) {
     if (!VALID_PROVIDERS.has(e.LCM_SUMMARY_PROVIDER)) {
       throw new Error(
@@ -71,7 +71,7 @@ export function loadDaemonConfig(configPath: string, overrides?: any, env?: Reco
   if (merged.llm.provider === "anthropic" && !merged.llm.apiKey) {
     throw new Error(
       "[lcm] LCM_SUMMARY_API_KEY is required when using the Anthropic provider. " +
-      "Set it in your environment or switch to 'claude-process' provider."
+      "Set it in your environment or switch to 'auto', 'claude-process', or another provider."
     );
   }
 

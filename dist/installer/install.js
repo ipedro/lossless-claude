@@ -59,12 +59,12 @@ export function resolveBinaryPath(deps = defaultDeps) {
     return "lossless-claude";
 }
 async function pickSummarizer(deps) {
-    // Non-TTY (CI, piped stdin): skip interactive picker, default to claude-process
+    // Non-TTY (CI, piped stdin): skip interactive picker, default to auto.
     if (!process.stdin.isTTY) {
-        return { provider: "claude-process", model: "", apiKey: "", baseURL: "" };
+        return { provider: "auto", model: "", apiKey: "", baseURL: "" };
     }
     console.log("\n  ─── Summarizer (for conversation compaction)\n");
-    console.log("  1) Claude Max / Pro  (recommended — uses your subscription, no API key needed)");
+    console.log("  1) Native CLI default (recommended — Claude uses claude-process, Codex uses codex-process)");
     console.log("  2) Anthropic API     (direct API access — requires API key)");
     console.log("  3) Custom server     (any OpenAI-compatible URL)");
     console.log("");
@@ -77,7 +77,7 @@ async function pickSummarizer(deps) {
         choice = "1"; // default after two invalid attempts
     }
     if (choice === "1") {
-        return { provider: "claude-process", model: "", apiKey: "", baseURL: "" };
+        return { provider: "auto", model: "", apiKey: "", baseURL: "" };
     }
     if (choice === "2") {
         const apiKey = process.env.ANTHROPIC_API_KEY ? "${ANTHROPIC_API_KEY}" : "";
@@ -89,7 +89,7 @@ async function pickSummarizer(deps) {
         return { provider: "openai", model, apiKey: "", baseURL };
     }
     // Fallback (should not reach here)
-    return { provider: "claude-process", model: "", apiKey: "", baseURL: "" };
+    return { provider: "auto", model: "", apiKey: "", baseURL: "" };
 }
 // ── Health-wait ──
 export async function waitForHealth(url, timeoutMs = 10000, fetchFn = globalThis.fetch) {

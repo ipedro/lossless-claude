@@ -9,7 +9,10 @@ export async function handlePreCompact(stdin, client, port) {
         return { exitCode: 0, stdout: "" };
     try {
         const input = JSON.parse(stdin || "{}");
-        const result = await client.post("/compact", input);
+        const result = await client.post("/compact", {
+            ...input,
+            client: "claude",
+        });
         return { exitCode: 2, stdout: result.summary || "" };
     }
     catch {

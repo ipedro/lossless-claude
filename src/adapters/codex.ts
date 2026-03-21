@@ -369,6 +369,7 @@ export async function runLosslessCodexTurn(
         session_id: session.lcmSessionId,
         cwd: session.cwd,
         skip_ingest: true,
+        client: "codex",
       });
     } catch {
       // Degrade silently when memory writes fail after Codex succeeds.

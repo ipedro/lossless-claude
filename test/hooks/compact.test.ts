@@ -15,6 +15,10 @@ describe("handlePreCompact", () => {
     const result = await handlePreCompact(JSON.stringify({ session_id: "s1", cwd: "/proj", hook_event_name: "PreCompact" }), client as any);
     expect(result.exitCode).toBe(2);
     expect(result.stdout).toContain("Compacted");
+    expect(client.post).toHaveBeenCalledWith(
+      "/compact",
+      expect.objectContaining({ client: "claude" }),
+    );
   });
 
   it("returns exitCode 0 when daemon unreachable", async () => {

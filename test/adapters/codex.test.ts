@@ -209,7 +209,7 @@ describe("runLosslessCodexTurn", () => {
     );
     expect(deps.client.post).toHaveBeenCalledWith(
       "/compact",
-      expect.objectContaining({ skip_ingest: true }),
+      expect.objectContaining({ skip_ingest: true, client: "codex" }),
     );
   });
 });

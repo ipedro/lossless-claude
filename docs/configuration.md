@@ -85,15 +85,30 @@ The actual summary size depends on the LLM's output; these values are guidelines
 
 ## Model selection
 
-LCM uses the same model as the parent Claude Code session for summarization by default. You can override this:
+LCM defaults to `LCM_SUMMARY_PROVIDER=auto`.
+
+- In Claude sessions, `auto` resolves to `claude-process`
+- In Codex sessions, `auto` resolves to `codex-process`
+- If you explicitly set `LCM_SUMMARY_PROVIDER`, that override applies to both CLIs
+
+You can pin a specific summarizer provider and model:
 
 ```bash
-# Use a specific model for summarization
+# Use a specific provider + model for summarization
 export LCM_SUMMARY_MODEL=anthropic/claude-sonnet-4-20250514
 export LCM_SUMMARY_PROVIDER=anthropic
 ```
 
-Using a cheaper/faster model for summarization can reduce costs, but quality matters — poor summaries compound as they're condensed into higher-level nodes.
+Valid provider values are:
+
+- `auto`
+- `claude-process`
+- `codex-process`
+- `anthropic`
+- `openai`
+- `disabled`
+
+Using a cheaper or faster model for summarization can reduce costs, but quality matters because poor summaries compound as they are condensed into higher-level nodes.
 
 ## TUI conversation window size
 

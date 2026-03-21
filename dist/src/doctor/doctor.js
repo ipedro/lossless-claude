@@ -41,6 +41,25 @@ function loadConfig(deps) {
         summarizer: llm?.provider ?? "disabled",
     };
 }
+function checkBinary(deps, command) {
+    return deps.spawnSync("sh", ["-c", `command -v ${command}`], {}).status === 0;
+}
+function addClaudeProcessChecks(results, deps) {
+    if (checkBinary(deps, "claude")) {
+        results.push({ name: "claude-process", category: "Summarizer", status: "pass", message: "claude CLI found" });
+    }
+    else {
+        results.push({ name: "claude-process", category: "Summarizer", status: "fail", message: "claude CLI not found\n     Fix: npm install -g @anthropic-ai/claude-code" });
+    }
+}
+function addCodexProcessChecks(results, deps) {
+    if (checkBinary(deps, "codex")) {
+        results.push({ name: "codex-process", category: "Summarizer", status: "pass", message: "codex CLI found" });
+    }
+    else {
+        results.push({ name: "codex-process", category: "Summarizer", status: "fail", message: "codex CLI not found\n     Fix: npm install -g @openai/codex" });
+    }
+}
 async function checkUrl(url, deps) {
     try {
         const res = await deps.fetch(url);
@@ -96,7 +115,9 @@ export async function runDoctor(overrides) {
         name: "stack",
         category: "Stack",
         status: "pass",
-        message: `Summarizer: ${config.summarizer}`,
+        message: config.summarizer === "auto"
+            ? "Summarizer: auto (Claude->claude-process, Codex->codex-process)"
+            : `Summarizer: ${config.summarizer}`,
     });
     // ── 1. Binary version ──
     // dist/src/doctor/doctor.js → ../../.. → project root
@@ -206,27 +227,15 @@ export async function runDoctor(overrides) {
         }
     }
     // ── Summarizer (conditional) ──
-    if (config.summarizer === "claude-cli") {
-        const hasClaude = deps.spawnSync("sh", ["-c", "command -v claude"], {}).status === 0;
-        if (hasClaude) {
-            results.push({ name: "claude-cli", category: "Summarizer", status: "pass", message: "claude CLI found" });
-        }
-        else {
-            results.push({ name: "claude-cli", category: "Summarizer", status: "fail", message: "claude CLI not found\n     Fix: npm install -g @anthropic-ai/claude-code" });
-        }
-        const hasClaudeServer = deps.spawnSync("sh", ["-c", "command -v claude-server || command -v claude-max-api"], {}).status === 0;
-        if (hasClaudeServer) {
-            results.push({ name: "claude-server", category: "Summarizer", status: "pass", message: "claude-server binary found" });
-        }
-        else {
-            const r = deps.spawnSync("npm", ["install", "-g", "claude-max-api-proxy"], { stdio: "pipe" });
-            if (r.status === 0) {
-                results.push({ name: "claude-server", category: "Summarizer", status: "warn", message: "claude-max-api-proxy installed", fixApplied: true });
-            }
-            else {
-                results.push({ name: "claude-server", category: "Summarizer", status: "fail", message: "claude-server not found\n     Fix: npm install -g claude-max-api-proxy" });
-            }
-        }
+    if (config.summarizer === "auto") {
+        addClaudeProcessChecks(results, deps);
+        addCodexProcessChecks(results, deps);
+    }
+    else if (config.summarizer === "claude-process") {
+        addClaudeProcessChecks(results, deps);
+    }
+    else if (config.summarizer === "codex-process") {
+        addCodexProcessChecks(results, deps);
     }
     else if (config.summarizer === "anthropic") {
         if (process.env.ANTHROPIC_API_KEY) {

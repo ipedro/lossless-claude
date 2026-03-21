@@ -18,6 +18,16 @@ vi.mock("../../../src/llm/openai.js", () => ({
   createOpenAISummarizer: vi.fn().mockReturnValue(async () => "openai-summary"),
 }));
 
+vi.mock("../../../src/llm/claude-process.js", () => ({
+  createClaudeProcessSummarizer: vi.fn().mockReturnValue(async () => "claude-process-summary"),
+}));
+
+vi.mock("../../../src/llm/codex-process.js", () => ({
+  createCodexProcessSummarizer: vi.fn().mockReturnValue(async () => "codex-process-summary"),
+}));
+
+import { createClaudeProcessSummarizer } from "../../../src/llm/claude-process.js";
+import { createCodexProcessSummarizer } from "../../../src/llm/codex-process.js";
 import { createAnthropicSummarizer } from "../../../src/llm/anthropic.js";
 import { createOpenAISummarizer } from "../../../src/llm/openai.js";
 import { createCompactHandler, buildCompactionMessage } from "../../../src/daemon/routes/compact.js";
@@ -32,7 +42,7 @@ function mockRes() {
   return { res, getBody: () => JSON.parse(body || "{}") };
 }
 
-function makeConfig(provider: "anthropic" | "openai" | "disabled"): DaemonConfig {
+function makeConfig(provider: DaemonConfig["llm"]["provider"]): DaemonConfig {
   return {
     version: 1,
     daemon: { port: 3737, socketPath: "/tmp/test.sock", logLevel: "info", logMaxSizeMB: 10, logRetentionDays: 7, idleTimeoutMs: 1800000 },
@@ -131,6 +141,24 @@ describe("buildCompactionMessage", () => {
 });
 
 describe("createCompactHandler — summarizer branching", () => {
+  it("uses createClaudeProcessSummarizer when provider is claude-process", async () => {
+    vi.clearAllMocks();
+    const handler = createCompactHandler(makeConfig("claude-process"));
+    const { res } = mockRes();
+    await handler({} as any, res, JSON.stringify({ session_id: "s1", cwd: "/tmp/test-claude-process" }));
+    expect(createClaudeProcessSummarizer).toHaveBeenCalled();
+    expect(createCodexProcessSummarizer).not.toHaveBeenCalled();
+  });
+
+  it("uses createCodexProcessSummarizer when provider is codex-process", async () => {
+    vi.clearAllMocks();
+    const handler = createCompactHandler(makeConfig("codex-process"));
+    const { res } = mockRes();
+    await handler({} as any, res, JSON.stringify({ session_id: "s1", cwd: "/tmp/test-codex-process" }));
+    expect(createCodexProcessSummarizer).toHaveBeenCalledWith(expect.objectContaining({ model: "test-model" }));
+    expect(createClaudeProcessSummarizer).not.toHaveBeenCalled();
+  });
+
   it("uses createAnthropicSummarizer when provider is anthropic", async () => {
     vi.clearAllMocks();
     const handler = createCompactHandler(makeConfig("anthropic"));
@@ -157,9 +185,60 @@ describe("createCompactHandler — summarizer branching", () => {
     const handler = createCompactHandler(makeConfig("disabled"));
     const { res, getBody } = mockRes();
     await handler({} as any, res, JSON.stringify({ session_id: "s1", cwd: "/tmp/test-disabled" }));
+    expect(createClaudeProcessSummarizer).not.toHaveBeenCalled();
+    expect(createCodexProcessSummarizer).not.toHaveBeenCalled();
     expect(createAnthropicSummarizer).not.toHaveBeenCalled();
     expect(createOpenAISummarizer).not.toHaveBeenCalled();
     expect(getBody().summary).toContain("disabled");
+  });
+
+  it("auto + client=claude resolves to claude-process", async () => {
+    vi.clearAllMocks();
+    const handler = createCompactHandler(makeConfig("auto"));
+    const { res } = mockRes();
+    await handler({} as any, res, JSON.stringify({ session_id: "s1", cwd: "/tmp/test-auto-claude", client: "claude" }));
+    expect(createClaudeProcessSummarizer).toHaveBeenCalled();
+    expect(createCodexProcessSummarizer).not.toHaveBeenCalled();
+  });
+
+  it("auto + client=codex resolves to codex-process", async () => {
+    vi.clearAllMocks();
+    const handler = createCompactHandler(makeConfig("auto"));
+    const { res } = mockRes();
+    await handler({} as any, res, JSON.stringify({ session_id: "s1", cwd: "/tmp/test-auto-codex", client: "codex" }));
+    expect(createCodexProcessSummarizer).toHaveBeenCalled();
+    expect(createClaudeProcessSummarizer).not.toHaveBeenCalled();
+  });
+
+  it("auto + no client falls back to claude-process", async () => {
+    vi.clearAllMocks();
+    const handler = createCompactHandler(makeConfig("auto"));
+    const { res } = mockRes();
+    await handler({} as any, res, JSON.stringify({ session_id: "s1", cwd: "/tmp/test-auto-default" }));
+    expect(createClaudeProcessSummarizer).toHaveBeenCalled();
+    expect(createCodexProcessSummarizer).not.toHaveBeenCalled();
+  });
+
+  it("explicit provider ignores client override", async () => {
+    vi.clearAllMocks();
+    const handler = createCompactHandler(makeConfig("openai"));
+    const { res } = mockRes();
+    await handler({} as any, res, JSON.stringify({ session_id: "s1", cwd: "/tmp/test-explicit-provider", client: "codex" }));
+    expect(createOpenAISummarizer).toHaveBeenCalled();
+    expect(createClaudeProcessSummarizer).not.toHaveBeenCalled();
+    expect(createCodexProcessSummarizer).not.toHaveBeenCalled();
+  });
+
+  it("memoizes concrete providers across requests", async () => {
+    vi.clearAllMocks();
+    const handler = createCompactHandler(makeConfig("auto"));
+    const { res: res1 } = mockRes();
+    const { res: res2 } = mockRes();
+
+    await handler({} as any, res1, JSON.stringify({ session_id: "s1", cwd: "/tmp/test-memoized", client: "codex" }));
+    await handler({} as any, res2, JSON.stringify({ session_id: "s2", cwd: "/tmp/test-memoized", client: "codex" }));
+
+    expect(createCodexProcessSummarizer).toHaveBeenCalledTimes(1);
   });
 });
 

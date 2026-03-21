@@ -10,10 +10,12 @@ import { ConversationStore } from "../../store/conversation-store.js";
 import { SummaryStore } from "../../store/summary-store.js";
 import { CompactionEngine } from "../../compaction.js";
 import { createClaudeProcessSummarizer } from "../../llm/claude-process.js";
+import { createCodexProcessSummarizer } from "../../llm/codex-process.js";
 import { shouldPromote } from "../../promotion/detector.js";
 import { PromotedStore } from "../../db/promoted.js";
 import { deduplicateAndInsert } from "../../promotion/dedup.js";
 import { parseTranscript } from "../../transcript.js";
+import type { LcmSummarizeFn } from "../../llm/types.js";
 
 function fmtN(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
@@ -75,10 +77,26 @@ export const JUST_COMPACTED_TTL_MS = 30_000;
 // Guard against concurrent compactions for the same session
 const compactingNow = new Set<string>();
 
-async function resolveSummarizer(config: DaemonConfig) {
-  if (config.llm.provider === "disabled") return null;
-  if (config.llm.provider === "claude-process") return createClaudeProcessSummarizer();
-  if (config.llm.provider === "openai") {
+type CompactClient = "claude" | "codex";
+type EffectiveProvider = Exclude<DaemonConfig["llm"]["provider"], "auto">;
+
+function resolveEffectiveProvider(config: DaemonConfig, client?: CompactClient): EffectiveProvider {
+  if (config.llm.provider === "auto") {
+    return client === "codex" ? "codex-process" : "claude-process";
+  }
+  return config.llm.provider;
+}
+
+async function createSummarizer(
+  provider: EffectiveProvider,
+  config: DaemonConfig,
+): Promise<LcmSummarizeFn | null> {
+  if (provider === "disabled") return null;
+  if (provider === "claude-process") return createClaudeProcessSummarizer();
+  if (provider === "codex-process") {
+    return createCodexProcessSummarizer({ model: config.llm.model });
+  }
+  if (provider === "openai") {
     const { createOpenAISummarizer } = await import("../../llm/openai.js");
     return createOpenAISummarizer({
       model: config.llm.model,
@@ -95,21 +113,29 @@ async function resolveSummarizer(config: DaemonConfig) {
 }
 
 export function createCompactHandler(config: DaemonConfig): RouteHandler {
-  const summarizeP = resolveSummarizer(config);
+  const summarizerCache = new Map<EffectiveProvider, Promise<LcmSummarizeFn | null>>();
+
+  const getSummarizer = (provider: EffectiveProvider): Promise<LcmSummarizeFn | null> => {
+    let cached = summarizerCache.get(provider);
+    if (!cached) {
+      cached = createSummarizer(provider, config);
+      summarizerCache.set(provider, cached);
+    }
+    return cached;
+  };
 
   return async (_req, res, body) => {
-    const summarize = await summarizeP;
-    // When summarization is disabled, return early with informative message
-    if (!summarize) {
-      sendJson(res, 200, { summary: "Summarization disabled — no summarizer configured." });
-      return;
-    }
-
     const input = JSON.parse(body || "{}");
-    const { session_id, cwd, transcript_path, skip_ingest } = input;
+    const { session_id, cwd, transcript_path, skip_ingest, client } = input;
 
     if (!session_id || !cwd) {
       sendJson(res, 400, { error: "session_id and cwd are required" });
+      return;
+    }
+
+    const summarize = await getSummarizer(resolveEffectiveProvider(config, client));
+    if (!summarize) {
+      sendJson(res, 200, { summary: "Summarization disabled — no summarizer configured." });
       return;
     }
 

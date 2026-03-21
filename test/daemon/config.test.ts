@@ -6,7 +6,7 @@ describe("loadDaemonConfig", () => {
     const c = loadDaemonConfig("/nonexistent/config.json");
     expect(c.daemon.port).toBe(3737);
     expect(c.daemon.socketPath).toContain("daemon.sock");
-    expect(c.llm.provider).toBe("claude-process");
+    expect(c.llm.provider).toBe("auto");
     expect(c.llm.model).toBe("");
     expect(c.compaction.leafTokens).toBe(1000);
     expect(c.restoration.recentSummaries).toBe(3);
@@ -36,6 +36,13 @@ describe("loadDaemonConfig", () => {
     expect(c.llm.provider).toBe("openai");
     expect(c.llm.baseURL).toBe("http://localhost:11435/v1");
     expect(c.llm.model).toBe("qwen2.5:14b");
+  });
+
+  it("accepts codex-process as a provider from file config", () => {
+    const c = loadDaemonConfig("/nonexistent/config.json", {
+      llm: { provider: "codex-process" }
+    });
+    expect(c.llm.provider).toBe("codex-process");
   });
 
   it("does NOT inject ANTHROPIC_API_KEY when provider is openai", () => {
@@ -73,6 +80,16 @@ describe("loadDaemonConfig", () => {
       { LCM_SUMMARY_PROVIDER: "openai" }
     );
     expect(c.llm.provider).toBe("openai");
+  });
+
+  it("accepts LCM_SUMMARY_PROVIDER=auto", () => {
+    const c = loadDaemonConfig("/nonexistent", {}, { LCM_SUMMARY_PROVIDER: "auto" });
+    expect(c.llm.provider).toBe("auto");
+  });
+
+  it("accepts LCM_SUMMARY_PROVIDER=codex-process", () => {
+    const c = loadDaemonConfig("/nonexistent", {}, { LCM_SUMMARY_PROVIDER: "codex-process" });
+    expect(c.llm.provider).toBe("codex-process");
   });
 
   it("LCM_SUMMARY_PROVIDER=anthropic overrides provider with apiKey", () => {

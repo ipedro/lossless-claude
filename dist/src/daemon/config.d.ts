@@ -30,7 +30,7 @@ export type DaemonConfig = {
         crossSessionAffinity: number;
     };
     llm: {
-        provider: "claude-process" | "anthropic" | "openai" | "disabled";
+        provider: "auto" | "claude-process" | "codex-process" | "anthropic" | "openai" | "disabled";
         model: string;
         apiKey?: string;
         baseURL: string;

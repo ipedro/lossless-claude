@@ -163,7 +163,7 @@ async function main() {
           const { listConnectors } = await import("../src/connectors/installer.js");
           const { AGENTS } = await import("../src/connectors/registry.js");
           const installed = listConnectors();
-          const installedMap = new Map(installed.map(c => [c.agentId + ':' + c.type, c]));
+
 
           if (format === "json") {
             const result = AGENTS.map(a => ({
@@ -236,8 +236,8 @@ async function main() {
           const agentName = argv.slice(4).filter(a => !a.startsWith("--")).join(" ");
           const { AGENTS } = await import("../src/connectors/registry.js");
           const { listConnectors } = await import("../src/connectors/installer.js");
-          const { requiresRestart } = await import("../src/connectors/types.js");
-          const agents = agentName ? [AGENTS.find((a: any) => a.id === agentName.toLowerCase() || a.name.toLowerCase() === agentName.toLowerCase())].filter(Boolean) : AGENTS;
+          const { findAgent } = await import("../src/connectors/registry.js");
+          const agents = agentName ? [findAgent(agentName)].filter(Boolean) : AGENTS;
 
           if (agents.length === 0) { console.error(`  Unknown agent: ${agentName}`); exit(1); }
 

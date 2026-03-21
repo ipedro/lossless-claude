@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { AGENTS, findAgent } from "../../src/connectors/registry.js";
+import { AGENTS } from "../../src/connectors/registry.js";
 import { installConnector, removeConnector, listConnectors } from "../../src/connectors/installer.js";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -12,8 +12,6 @@ describe("connectors CLI integration", () => {
 
   it("install + list + remove roundtrip for rules connector", () => {
     const tmp = mkdtempSync(join(tmpdir(), "lcm-cli-"));
-    const agent = findAgent("cursor")!;
-
     // Install
     const result = installConnector("Cursor", "rules", tmp);
     expect(result.success).toBe(true);

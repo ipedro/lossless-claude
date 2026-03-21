@@ -8,7 +8,7 @@
     ".": "./dist/src/memory/index.js"
   },
   "bin": {
-    "lossless-claude": "./dist/bin/lossless-claude.js"
+    "lossless-claude": "dist/bin/lossless-claude.js"
   },
   "license": "MIT",
   "author": "Pedro Almeida (https://github.com/ipedro)",
@@ -57,8 +57,12 @@
     "openai": "^6.32.0"
   },
   "peerDependenciesMeta": {
-    "@anthropic-ai/sdk": { "optional": true },
-    "openai": { "optional": true }
+    "@anthropic-ai/sdk": {
+      "optional": true
+    },
+    "openai": {
+      "optional": true
+    }
   },
   "publishConfig": {
     "access": "public"

@@ -1,13 +1,14 @@
 import { existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import type { DaemonConfig } from "../config.js";
-import { projectDbPath, ensureProjectDir } from "../project.js";
+import { projectDbPath, projectDir, ensureProjectDir } from "../project.js";
 import { sendJson } from "../server.js";
 import type { RouteHandler } from "../server.js";
 import { runLcmMigrations } from "../../db/migration.js";
 import { ConversationStore } from "../../store/conversation-store.js";
 import { SummaryStore } from "../../store/summary-store.js";
 import { parseTranscript, type ParsedMessage } from "../../transcript.js";
+import { ScrubEngine } from "../../scrub.js";
 
 function isParsedMessage(value: unknown): value is ParsedMessage {
   if (!value || typeof value !== "object") return false;
@@ -33,7 +34,7 @@ function resolveMessages(input: { messages?: unknown; transcript_path?: string }
   return [];
 }
 
-export function createIngestHandler(_config: DaemonConfig): RouteHandler {
+export function createIngestHandler(config: DaemonConfig): RouteHandler {
   return async (_req, res, body) => {
     const input = JSON.parse(body || "{}");
     const { session_id, cwd } = input;
@@ -51,6 +52,11 @@ export function createIngestHandler(_config: DaemonConfig): RouteHandler {
 
     const dbPath = projectDbPath(cwd);
     ensureProjectDir(cwd);
+
+    const scrubber = await ScrubEngine.forProject(
+      config.security?.sensitivePatterns ?? [],
+      projectDir(cwd),
+    );
 
     const db = new DatabaseSync(dbPath);
     runLcmMigrations(db);
@@ -72,7 +78,7 @@ export function createIngestHandler(_config: DaemonConfig): RouteHandler {
         conversationId: conversation.conversationId,
         seq: storedCount + i,
         role: m.role as "user" | "assistant" | "system" | "tool",
-        content: m.content,
+        content: scrubber.scrub(m.content),
         tokenCount: m.tokenCount,
       }));
       const records = await conversationStore.createMessagesBulk(inputs);

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { ConversationStore, CreateMessagePartInput } from "./store/conversation-store.js";
 import type { SummaryStore, SummaryRecord, ContextItemRecord } from "./store/summary-store.js";
 import { extractFileIdsFromContent } from "./large-files.js";
+import type { ScrubEngine } from "./scrub.js";
 
 // ── Public types ─────────────────────────────────────────────────────────────
 
@@ -49,6 +50,8 @@ export interface CompactionConfig {
   maxRounds: number;
   /** IANA timezone for timestamps in summaries (default: UTC) */
   timezone?: string;
+  /** Optional scrubber to redact secrets before sending chunk text to LLM */
+  scrubber?: ScrubEngine;
 }
 
 type CompactionLevel = "normal" | "aggressive" | "fallback";
@@ -965,7 +968,8 @@ export class CompactionEngine {
     summarize: CompactionSummarizeFn;
     options?: CompactionSummarizeOptions;
   }): Promise<{ content: string; level: CompactionLevel }> {
-    const sourceText = params.sourceText.trim();
+    const rawText = params.sourceText.trim();
+    const sourceText = this.config.scrubber ? this.config.scrubber.scrub(rawText) : rawText;
     if (!sourceText) {
       return {
         content: "[Truncated from 0 tokens]",

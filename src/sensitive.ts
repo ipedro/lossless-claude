@@ -104,14 +104,29 @@ async function sensitiveAdd(
     // Read config.json, add to security.sensitivePatterns
     let raw: any = {};
     try {
-      const parsed = JSON.parse(await readFile(configPath, "utf-8"));
-      // Guard against non-object JSON values (arrays, primitives) that would
-      // silently drop non-index property assignments on JSON.stringify.
+      const content = await readFile(configPath, "utf-8");
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(content);
+      } catch {
+        // Corrupt JSON — refuse to overwrite and destroy existing settings.
+        return {
+          exitCode: 1,
+          stdout: `Error: ${configPath} contains invalid JSON. Fix the file manually before adding patterns.\n`,
+        };
+      }
+      // Guard against non-object JSON values (arrays, primitives).
       if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
         raw = parsed;
+      } else {
+        return {
+          exitCode: 1,
+          stdout: `Error: ${configPath} is not a JSON object. Fix the file manually before adding patterns.\n`,
+        };
       }
-    } catch {
-      // file doesn't exist yet or invalid JSON — start fresh
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+      // File doesn't exist yet — start fresh with empty object.
     }
     if (!raw.security) raw.security = {};
     if (!Array.isArray(raw.security.sensitivePatterns)) {

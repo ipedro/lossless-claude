@@ -135,7 +135,8 @@ async function sensitiveAdd(
   const line = pattern + "\n";
   try {
     const current = await readFile(patternsFile, "utf-8");
-    await writeFile(patternsFile, current + line, "utf-8");
+    const normalized = current.length > 0 && !current.endsWith("\n") ? current + "\n" : current;
+    await writeFile(patternsFile, normalized + line, "utf-8");
   } catch {
     // File doesn't exist yet
     await writeFile(patternsFile, line, "utf-8");

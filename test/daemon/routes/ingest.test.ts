@@ -1,9 +1,11 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import { createDaemon, type DaemonInstance } from "../../../src/daemon/server.js";
 import { loadDaemonConfig } from "../../../src/daemon/config.js";
+import { projectDbPath } from "../../../src/daemon/project.js";
 
 const tempDirs: string[] = [];
 
@@ -87,6 +89,42 @@ describe("POST /ingest", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ingested: 2, totalTokens: 3 });
+  });
+
+  it("scrubs secrets from message content before SQLite write", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "lossless-ingest-scrub-"));
+    tempDirs.push(tempDir);
+
+    daemon = await createDaemon(
+      loadDaemonConfig("/nonexistent", {
+        daemon: { port: 0 },
+        security: { sensitivePatterns: ["MY_PROJECT_SECRET"] },
+      }),
+    );
+    const res = await fetch(`http://127.0.0.1:${daemon.address().port}/ingest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: "scrub-test-1",
+        cwd: tempDir,
+        messages: [
+          { role: "user", content: "token=MY_PROJECT_SECRET", tokenCount: 5 },
+        ],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+
+    // Verify the stored content was scrubbed
+    const db = new DatabaseSync(projectDbPath(tempDir));
+    let row: { content: string } | undefined;
+    try {
+      row = db.prepare("SELECT content FROM messages LIMIT 1").get() as { content: string } | undefined;
+    } finally {
+      db.close();
+    }
+    expect(row?.content).toContain("[REDACTED]");
+    expect(row?.content).not.toContain("MY_PROJECT_SECRET");
   });
 
   it("returns ingested=0 when transcript_path is missing and messages[] is absent", async () => {

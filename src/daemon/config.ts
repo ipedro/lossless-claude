@@ -2,6 +2,11 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+export interface SecurityConfig {
+  /** User-defined global regex patterns (plain strings, no /.../ delimiters). */
+  sensitivePatterns: string[];
+}
+
 export type DaemonConfig = {
   version: number;
   daemon: { port: number; socketPath: string; logLevel: string; logMaxSizeMB: number; logRetentionDays: number; idleTimeoutMs: number };
@@ -11,6 +16,7 @@ export type DaemonConfig = {
   };
   restoration: { recentSummaries: number; promptSearchMinScore: number; promptSearchMaxResults: number; promptSnippetLength: number; recencyHalfLifeHours: number; crossSessionAffinity: number };
   llm: { provider: "auto" | "claude-process" | "codex-process" | "anthropic" | "openai" | "disabled"; model: string; apiKey?: string; baseURL: string };
+  security: SecurityConfig;
 };
 
 const DEFAULTS: DaemonConfig = {
@@ -29,6 +35,9 @@ const DEFAULTS: DaemonConfig = {
   },
   restoration: { recentSummaries: 3, promptSearchMinScore: 2, promptSearchMaxResults: 3, promptSnippetLength: 200, recencyHalfLifeHours: 24, crossSessionAffinity: 0.85 },
   llm: { provider: "auto", model: "", apiKey: "", baseURL: "" },
+  security: {
+    sensitivePatterns: [],
+  },
 };
 
 function deepMerge(target: any, source: any): any {

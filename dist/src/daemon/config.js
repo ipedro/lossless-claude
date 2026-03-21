@@ -17,6 +17,9 @@ const DEFAULTS = {
     },
     restoration: { recentSummaries: 3, promptSearchMinScore: 2, promptSearchMaxResults: 3, promptSnippetLength: 200, recencyHalfLifeHours: 24, crossSessionAffinity: 0.85 },
     llm: { provider: "auto", model: "", apiKey: "", baseURL: "" },
+    security: {
+        sensitivePatterns: [],
+    },
 };
 function deepMerge(target, source) {
     if (!source || typeof source !== "object")

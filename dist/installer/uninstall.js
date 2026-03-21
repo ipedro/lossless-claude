@@ -8,6 +8,10 @@ export function removeClaudeSettings(existing) {
     settings.hooks = (settings.hooks && typeof settings.hooks === "object" && !Array.isArray(settings.hooks)) ? settings.hooks : {};
     settings.mcpServers = (settings.mcpServers && typeof settings.mcpServers === "object" && !Array.isArray(settings.mcpServers)) ? settings.mcpServers : {};
     const LC_COMMANDS = new Set(REQUIRED_HOOKS.map(h => h.command));
+    // Also remove legacy lossless-claude commands
+    for (const { command } of REQUIRED_HOOKS) {
+        LC_COMMANDS.add(command.replace(/^lcm /, 'lossless-claude '));
+    }
     for (const event of Object.keys(settings.hooks)) {
         if (!Array.isArray(settings.hooks[event]))
             continue;
@@ -59,7 +63,7 @@ export function teardownDaemonService(deps = defaultDeps) {
 export async function uninstall(deps = defaultDeps) {
     // 1. Stop and remove the daemon service
     teardownDaemonService(deps);
-    // 2. Remove lossless-claude entries from ~/.claude/settings.json
+    // 2. Remove lcm and legacy lossless-claude entries from ~/.claude/settings.json
     const settingsPath = join(homedir(), ".claude", "settings.json");
     if (deps.existsSync(settingsPath)) {
         try {

@@ -1,3 +1,12 @@
+# Superpowers Preferences
+
+- **Specs:** save to `.xgh/specs/YYYY-MM-DD-<topic>-design.md`
+- **Plans:** save to `.xgh/plans/YYYY-MM-DD-<topic>.md`
+
+These override the superpowers default paths (`docs/superpowers/specs/` and `docs/superpowers/plans/`).
+
+---
+
 # context-mode — MANDATORY routing rules
 
 You have context-mode MCP tools available. These rules are NOT optional — they protect your context window from flooding. A single unrouted command can dump 56 KB into context and waste the entire session.

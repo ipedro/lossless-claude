@@ -14,6 +14,42 @@ function buildSettingsJson(): string {
   return JSON.stringify({ hooks, mcpServers: { "lcm": {} } });
 }
 
+function minimalDeps(overrides: Partial<Parameters<typeof runDoctor>[0]> = {}) {
+  return {
+    existsSync: () => true,
+    readFileSync: (path: string) => {
+      if (path.endsWith("config.json")) return "{}";
+      if (path.endsWith("settings.json")) return buildSettingsJson();
+      if (path.endsWith("package.json")) return JSON.stringify({ version: "0.5.0" });
+      return "{}";
+    },
+    writeFileSync: vi.fn(),
+    mkdirSync: vi.fn(),
+    spawnSync: vi.fn(() => ({ status: 0, stdout: "", stderr: "" })),
+    fetch: vi.fn().mockResolvedValue({ ok: false }),
+    homedir: "/tmp/test-home",
+    platform: "darwin",
+    ...overrides,
+  };
+}
+
+describe("runDoctor security section", () => {
+  it("shows built-in pattern count as pass", async () => {
+    const results = await runDoctor(minimalDeps({ cwd: "/tmp/nonexistent-project-xyz" }));
+    const builtIn = results.find((r) => r.name === "built-in-patterns");
+    expect(builtIn?.status).toBe("pass");
+    expect(builtIn?.message).toContain("active");
+    expect(builtIn?.category).toBe("Security");
+  });
+
+  it("warns when no project patterns are configured", async () => {
+    const results = await runDoctor(minimalDeps({ cwd: "/tmp/nonexistent-project-xyz" }));
+    const proj = results.find((r) => r.name === "project-patterns");
+    expect(proj?.status).toBe("warn");
+    expect(proj?.message).toContain("none configured");
+  });
+});
+
 describe("runDoctor summarizer modes", () => {
   it("reports auto mode as Claude and Codex process defaults", async () => {
     const results = await runDoctor({

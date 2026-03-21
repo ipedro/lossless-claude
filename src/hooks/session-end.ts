@@ -3,6 +3,43 @@ import { ensureDaemon } from "../daemon/lifecycle.js";
 import { loadDaemonConfig } from "../daemon/config.js";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { request } from "node:http";
+import { Buffer } from "node:buffer";
+
+/**
+ * Fire a compact request to the daemon without blocking the hook process.
+ *
+ * Uses a raw http.request with socket.unref() so the Node.js event loop
+ * does not wait for a response — the process exits as soon as the request
+ * is sent. The daemon receives and processes the request independently.
+ *
+ * This is intentionally separate from DaemonClient.post() (which uses fetch
+ * and keeps the event loop alive until a response is received).
+ */
+export function fireCompactRequest(
+  port: number,
+  body: Record<string, unknown>,
+): void {
+  const json = JSON.stringify(body);
+  const req = request({
+    hostname: "127.0.0.1",
+    port,
+    path: "/compact",
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(json),
+    },
+  });
+  req.on("socket", (socket) => {
+    // Defer unref until after the request body is flushed so the /compact
+    // request reliably reaches the daemon before the process is allowed to exit.
+    req.on("finish", () => (socket as import("node:net").Socket).unref());
+  });
+  req.on("error", () => {}); // non-fatal
+  req.write(json);
+  req.end();
+}
 
 export async function handleSessionEnd(
   stdin: string,
@@ -35,16 +72,14 @@ export async function handleSessionEnd(
       typeof ingestResult.totalTokens === "number" &&
       ingestResult.totalTokens >= threshold
     ) {
-      try {
-        await client.post("/compact", {
-          session_id: input.session_id,
-          cwd: input.cwd,
-          skip_ingest: true,
-          client: "claude",
-        });
-      } catch {
-        // Non-fatal: compact failure must not break the hook
-      }
+      // Fire-and-forget via unreffed http.request — does not block the event loop.
+      // The daemon receives and compacts independently after the hook process exits.
+      fireCompactRequest(daemonPort, {
+        session_id: input.session_id,
+        cwd: input.cwd,
+        skip_ingest: true,
+        client: "claude",
+      });
     }
 
     return { exitCode: 0, stdout: "" };

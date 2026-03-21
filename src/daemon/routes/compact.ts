@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import type { DaemonConfig } from "../config.js";
-import { projectId, projectDbPath, projectMetaPath, ensureProjectDir } from "../project.js"
+import { projectId, projectDbPath, projectDir, projectMetaPath, ensureProjectDir } from "../project.js"
 import { enqueue } from "../project-queue.js";
 import { sendJson } from "../server.js";
 import type { RouteHandler } from "../server.js";
@@ -16,6 +16,7 @@ import { PromotedStore } from "../../db/promoted.js";
 import { deduplicateAndInsert } from "../../promotion/dedup.js";
 import { parseTranscript } from "../../transcript.js";
 import type { LcmSummarizeFn } from "../../llm/types.js";
+import { ScrubEngine } from "../../scrub.js";
 
 function fmtN(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
@@ -152,9 +153,16 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
     const dbPath = projectDbPath(cwd);
     ensureProjectDir(cwd);
 
+    const scrubber = await ScrubEngine.forProject(
+      config.security?.sensitivePatterns ?? [],
+      projectDir(cwd),
+    );
+
     const db = new DatabaseSync(dbPath);
     db.exec("PRAGMA busy_timeout = 5000");
     runLcmMigrations(db);
+
+    try {
 
     const conversationStore = new ConversationStore(db);
     const summaryStore = new SummaryStore(db);
@@ -170,7 +178,7 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
           conversationId: conversation.conversationId,
           seq: storedCount + i,
           role: m.role as "user" | "assistant" | "system",
-          content: m.content,
+          content: scrubber.scrub(m.content),
           tokenCount: m.tokenCount,
         }));
         const records = await conversationStore.createMessagesBulk(inputs);
@@ -182,7 +190,6 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
     const tokenCount = await summaryStore.getContextTokenCount(conversation.conversationId);
 
     if (tokenCount === 0) {
-      db.close();
       return { summary: "No messages to compact." };
     }
 
@@ -196,6 +203,7 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
       leafTargetTokens: config.compaction.leafTokens,
       condensedTargetTokens: 900,
       maxRounds: 10,
+      scrubber,
     });
 
     const compactResult = await engine.compact({
@@ -263,8 +271,6 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
     // Set justCompacted flag
     justCompactedMap.set(session_id, Date.now());
 
-    db.close();
-
     const summaryMsg = compactResult.actionTaken
       ? buildCompactionMessage({
           tokensBefore: compactResult.tokensBefore,
@@ -277,6 +283,10 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
       : "No compaction needed.";
 
     return { summary: summaryMsg };
+
+    } finally {
+      db.close();
+    }
 
     } finally {
       compactingNow.delete(session_id);

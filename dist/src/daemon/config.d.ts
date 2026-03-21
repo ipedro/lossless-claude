@@ -1,3 +1,7 @@
+export interface SecurityConfig {
+    /** User-defined global regex patterns (plain strings, no /.../ delimiters). */
+    sensitivePatterns: string[];
+}
 export type DaemonConfig = {
     version: number;
     daemon: {
@@ -36,5 +40,6 @@ export type DaemonConfig = {
         apiKey?: string;
         baseURL: string;
     };
+    security: SecurityConfig;
 };
 export declare function loadDaemonConfig(configPath: string, overrides?: any, env?: Record<string, string | undefined>): DaemonConfig;

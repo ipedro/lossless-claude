@@ -286,6 +286,16 @@ async function main() {
       }
       break;
     }
+    case "sensitive": {
+      const { handleSensitive } = await import("../src/sensitive.js");
+      const { join } = await import("node:path");
+      const { homedir } = await import("node:os");
+      const configPath = join(homedir(), ".lossless-claude", "config.json");
+      const r = await handleSensitive(argv.slice(3), process.cwd(), configPath);
+      if (r.stdout) stdout.write(r.stdout);
+      exit(r.exitCode);
+      break;
+    }
     case "import": {
       const all = argv.includes("--all");
       const verbose = argv.includes("--verbose");
@@ -317,7 +327,7 @@ async function main() {
       break;
     }
     default:
-      console.error("Usage: lcm <daemon|compact|import|restore|session-end|user-prompt|mcp|install|uninstall|doctor|diagnose|status|stats|connectors> [options]");
+      console.error("Usage: lcm <daemon|compact|import|restore|session-end|user-prompt|mcp|install|uninstall|doctor|diagnose|status|stats|connectors|sensitive> [options]");
       exit(1);
   }
 }

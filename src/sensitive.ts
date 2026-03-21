@@ -1,6 +1,6 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { rmSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { homedir } from "node:os";
 
 import { BUILT_IN_PATTERNS, ScrubEngine } from "./scrub.js";
@@ -116,7 +116,7 @@ async function sensitiveAdd(
       return { exitCode: 0, stdout: `Pattern already present (global): ${pattern}\n` };
     }
     raw.security.sensitivePatterns.push(pattern);
-    await mkdir(join(homedir(), ".lossless-claude"), { recursive: true });
+    await mkdir(dirname(configPath), { recursive: true });
     await writeFile(configPath, JSON.stringify(raw, null, 2) + "\n", "utf-8");
     return { exitCode: 0, stdout: `Added global pattern: ${pattern}\n` };
   }

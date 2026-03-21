@@ -18,8 +18,9 @@ export const BUILT_IN_PATTERNS: string[] = [
  * token-by-token.
  */
 function isSpanningPattern(source: string): boolean {
-  // Check for literal space or \s — unambiguous spanning intent
-  if (/ |\s/.test(source)) return true;
+  // Check for literal space or the escape sequence \s — unambiguous spanning intent.
+  // Use string includes (not regex) so we detect the two-char sequence \s, not whitespace chars.
+  if (source.includes(" ") || source.includes("\\s")) return true;
   // Check for unescaped `.` which can match spaces
   // Walk the source and look for `.` not preceded by `\`
   for (let i = 0; i < source.length; i++) {

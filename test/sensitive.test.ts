@@ -1,56 +1,48 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
 
+// Mutable ref updated in beforeEach — lets the vi.mock factory redirect projectDir
+// into the per-test temp dir so no writes touch the real ~/.lossless-claude/.
+const _projectBase = vi.hoisted(() => ({ current: "" }));
+
+vi.mock("../src/daemon/project.js", async () => {
+  const { createHash: hash } = await import("node:crypto");
+  const { join: j } = await import("node:path");
+  return {
+    projectDir: (cwd: string) => j(_projectBase.current, "projects", hash("sha256").update(cwd).digest("hex")),
+    projectId: (cwd: string) => hash("sha256").update(cwd).digest("hex"),
+    projectDbPath: (cwd: string) => j(_projectBase.current, "projects", hash("sha256").update(cwd).digest("hex"), "db.sqlite"),
+    projectMetaPath: (cwd: string) => j(_projectBase.current, "projects", hash("sha256").update(cwd).digest("hex"), "meta.json"),
+    ensureProjectDir: () => {},
+  };
+});
+
 import { handleSensitive } from "../src/sensitive.js";
 import { BUILT_IN_PATTERNS } from "../src/scrub.js";
-
-function makeTempEnv() {
-  const base = join(tmpdir(), `lcm-sensitive-test-${Math.random().toString(36).slice(2)}`);
-  mkdirSync(base, { recursive: true });
-  const cwd = join(base, "project");
-  mkdirSync(cwd, { recursive: true });
-
-  // Config path
-  const configPath = join(base, "config.json");
-
-  // Project dir follows projectDir(cwd) logic: base/projects/{sha256(cwd)}
-  const hash = createHash("sha256").update(cwd).digest("hex");
-  const pDir = join(base, "projects", hash);
-  mkdirSync(pDir, { recursive: true });
-
-  return { base, cwd, configPath, pDir };
-}
-
-// We override projectDir by pointing to a test base. But projectDir uses homedir internally.
-// Instead we pass a configPath and rely on the real projectDir(cwd) — we just use a cwd
-// inside tmp so the project hash is isolated. The project dir will be inside ~/.lossless-claude/projects/
-// We need to clean up after each test.
 
 describe("lcm sensitive", () => {
   let tempBase: string;
   let cwd: string;
   let configPath: string;
-  let pDir: string; // real projectDir(cwd)
+  let pDir: string;
 
   beforeEach(() => {
     tempBase = join(tmpdir(), `lcm-sensitive-${Math.random().toString(36).slice(2)}`);
+    _projectBase.current = tempBase;
     cwd = join(tempBase, "project");
     mkdirSync(cwd, { recursive: true });
     configPath = join(tempBase, "config.json");
 
-    // Compute the real project dir that handleSensitive will use
     const hash = createHash("sha256").update(cwd).digest("hex");
-    const { homedir } = require("node:os");
-    pDir = join(homedir(), ".lossless-claude", "projects", hash);
+    pDir = join(tempBase, "projects", hash);
     mkdirSync(pDir, { recursive: true });
   });
 
   afterEach(() => {
     rmSync(tempBase, { recursive: true, force: true });
-    if (existsSync(pDir)) rmSync(pDir, { recursive: true, force: true });
   });
 
   // --- list ---

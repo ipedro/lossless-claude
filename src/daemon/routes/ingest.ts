@@ -59,6 +59,7 @@ export function createIngestHandler(config: DaemonConfig): RouteHandler {
     );
 
     const db = new DatabaseSync(dbPath);
+    db.exec("PRAGMA busy_timeout = 5000");
     runLcmMigrations(db);
 
     try {

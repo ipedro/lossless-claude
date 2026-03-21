@@ -1,5 +1,5 @@
 ---
-name: lossless-claude-import
+name: lcm-import
 description: Import Claude Code session transcripts into lcm memory
 user_invocable: true
 ---

@@ -142,6 +142,31 @@ function getSystemContent(entry: Record<string, unknown>): string | undefined {
   return getString(entry.content) ?? extractText(entry.message);
 }
 
+function getToolUseID(value: Record<string, unknown>): string | undefined {
+  return (
+    getString(value.parentToolUseID) ??
+    getString(value.toolUseID) ??
+    getString(value.parent_tool_use_id) ??
+    getString(value.tool_use_id)
+  );
+}
+
+function getEntryToolUseIDs(entry: Record<string, unknown>): string[] {
+  const toolUseIDs = new Set<string>();
+  const topLevelToolUseID = getToolUseID(entry);
+  if (topLevelToolUseID) toolUseIDs.add(topLevelToolUseID);
+
+  if (isRecord(entry.message) && Array.isArray(entry.message.content)) {
+    for (const item of entry.message.content) {
+      if (!isRecord(item)) continue;
+      const toolUseID = getToolUseID(item);
+      if (toolUseID) toolUseIDs.add(toolUseID);
+    }
+  }
+
+  return Array.from(toolUseIDs);
+}
+
 function getToolResultError(entry: Record<string, unknown>): string | undefined {
   if (entry.type !== "user" || !isRecord(entry.message)) return undefined;
   const content = entry.message.content;
@@ -207,11 +232,23 @@ function matchPendingHook(
   entry: Record<string, unknown>,
   lineNumber: number
 ): PendingHook | undefined {
-  const currentParentToolUseID = getString(entry.parentToolUseID) ?? getString(entry.toolUseID);
+  const currentToolUseIDs = getEntryToolUseIDs(entry);
+
+  if (currentToolUseIDs.length > 0) {
+    for (let i = pending.length - 1; i >= 0; i--) {
+      const hook = pending[i];
+      if (lineNumber - hook.lineNumber > ERROR_WINDOW_LINES) continue;
+      if (hook.parentToolUseID && currentToolUseIDs.includes(hook.parentToolUseID)) {
+        pending.splice(i, 1);
+        return hook;
+      }
+    }
+  }
+
   for (let i = pending.length - 1; i >= 0; i--) {
     const hook = pending[i];
     if (lineNumber - hook.lineNumber > ERROR_WINDOW_LINES) continue;
-    if (!currentParentToolUseID || !hook.parentToolUseID || hook.parentToolUseID === currentParentToolUseID) {
+    if (currentToolUseIDs.length === 0 || !hook.parentToolUseID) {
       pending.splice(i, 1);
       return hook;
     }
@@ -222,13 +259,13 @@ function matchPendingHook(
 function errorTypeLabel(error: DiagnosticError): string {
   switch (error.type) {
     case "hook-error":
-      return `${error.hookEvent ?? "Hook"} hook error`;
+      return error.hookEvent ? `${error.hookEvent} hook error` : "Hook error";
     case "mcp-disconnect":
       return "MCP server disconnect";
     case "old-binary":
       return "Old binary reference";
     case "duplicate-hook":
-      return `${error.hookEvent ?? "Hook"} duplicate hook`;
+      return error.hookEvent ? `${error.hookEvent} duplicate hook` : "Duplicate hook";
   }
 }
 
@@ -247,7 +284,6 @@ function compareSessions(a: ScanSessionResult, b: ScanSessionResult): number {
 
 export async function scanSession(filePath: string): Promise<SessionDiagnostic> {
   const sessionId = basename(filePath, ".jsonl");
-  const mtimeMs = statSync(filePath).mtimeMs;
   const aggregate = new Map<string, DiagnosticError>();
   const pendingHooks: PendingHook[] = [];
   const duplicates = new Map<string, DuplicateGroup>();
@@ -321,7 +357,7 @@ export async function scanSession(filePath: string): Promise<SessionDiagnostic> 
         });
       }
 
-      const parentToolUseID = getString(entry.parentToolUseID);
+      const parentToolUseID = getToolUseID(entry);
       const duplicateKey = [parentToolUseID ?? "", hookEvent ?? "", command].join("\u001f");
       const duplicate = duplicates.get(duplicateKey);
       if (duplicate) {
@@ -388,17 +424,17 @@ export async function diagnose(options: DiagnoseOptions = {}): Promise<DiagnoseR
   const cutoffMs = (options._nowMs ?? Date.now()) - days * 24 * 60 * 60 * 1000;
   const sessionFiles = getProjectDirs(options)
     .flatMap((projectDir) => findSessionFiles(projectDir))
-    .filter((session) => statSync(session.path).mtimeMs >= cutoffMs);
+    .map(({ path }) => ({ path, mtimeMs: statSync(path).mtimeMs }))
+    .filter((session) => session.mtimeMs >= cutoffMs);
 
-  const sessions = await Promise.all(
-    sessionFiles.map(async ({ path }) => {
-      const session = await scanSession(path);
-      return {
-        ...session,
-        mtimeMs: statSync(path).mtimeMs,
-      };
-    })
-  );
+  const sessions: ScanSessionResult[] = [];
+  for (const { path, mtimeMs } of sessionFiles) {
+    const session = await scanSession(path);
+    sessions.push({
+      ...session,
+      mtimeMs,
+    });
+  }
 
   const sessionsWithIssues = sessions
     .filter((session) => session.errors.length > 0)

@@ -14,6 +14,19 @@ See [WORKFLOW.md](./WORKFLOW.md) for the full development workflow.
   - `major`: breaking changes
 - Treat a PR as not release-ready until the changeset question has been answered.
 
+## Local Environment Stability
+
+After merging a feature PR, always rebuild and verify the local environment before moving on:
+
+```bash
+git checkout develop && git fetch origin develop && git reset --hard origin/develop
+npm run build && chmod +x dist/bin/lcm.js && npm link
+lcm doctor          # must show 0 failures
+npm test            # must pass
+```
+
+If anything fails, fix it before starting the next feature. A broken local env wastes time on every subsequent session (stale dist, wrong binary, hook errors).
+
 ## Release Notes Source Of Truth
 
 - Follow [RELEASING.md](./RELEASING.md) for the repo's full Changesets and publish workflow.

@@ -18,7 +18,6 @@
   <a href="https://lossless-claude.com">Website</a> &bull;
   <a href="#runtime-model">Runtime Model</a> &bull;
   <a href="#installation">Installation</a> &bull;
-  <a href="#codex-fallback-without-the-wrapper">Plain Codex Fallback</a> &bull;
   <a href="#mcp-tools">MCP Tools</a> &bull;
   <a href="#development">Development</a>
 </p>
@@ -42,12 +41,10 @@ This repo started as a fork of [lossless-claw](https://github.com/Martian-Engine
 flowchart LR
   subgraph Clients["Clients"]
     CC["Claude Code<br/>hooks + MCP"]
-    LC["lossless-codex<br/>wrapper + writeback"]
     PC["plain codex<br/>MCP + AGENTS fallback"]
   end
 
   CC --> D["lossless-claude daemon"]
-  LC --> D
   PC --> D
 
   D --> DB[("project SQLite DAG")]
@@ -60,21 +57,7 @@ flowchart LR
 | Path | Restore | Prompt hints | Turn writeback | Automatic compaction | Notes |
 |---|---|---|---|---|---|
 | Claude Code | Yes | Yes | Yes, via transcript/hooks | Yes | Primary hook-based integration |
-| `lossless-codex` | Yes | Yes | Yes, live structured ingestion | Yes | Primary Codex integration |
 | Plain `codex` + MCP | Manual | Manual | Manual | Manual | Fallback mode only |
-
-### Why the wrapper exists
-
-`lossless-codex` exists because plain `codex` does not have the same hook path Claude Code has in this repo's integration model.
-
-The wrapper does four things prompt instructions alone cannot guarantee:
-
-1. Restores memory before the turn.
-2. Injects prompt-time hints from prior project memory.
-3. Captures and normalizes the resulting turn into stored messages.
-4. Compacts stored conversation state back into the DAG.
-
-Without the wrapper, Codex can still query and store memory through MCP tools, but memory use becomes manual rather than automatic.
 
 ## LCM Model
 
@@ -106,7 +89,6 @@ flowchart TD
 
 - Node.js 22+
 - Claude Code for hook-based Claude integration
-- Codex CLI for `lossless-codex`
 
 ### Claude Code
 
@@ -115,36 +97,19 @@ Marketplace:
 ```bash
 claude plugin marketplace add ipedro/xgh-marketplace
 claude plugin install lossless-claude
-lossless-claude install
+lcm install
 ```
 
 Standalone:
 
 ```bash
 claude plugin add github:ipedro/lossless-claude
-lossless-claude install
+lcm install
 ```
 
-`lossless-claude install` writes config, registers hooks, installs slash commands, registers MCP, and verifies the daemon.
+`lcm install` writes config, registers hooks, installs slash commands, registers MCP, and verifies the daemon.
 
-### Codex with automatic shared memory
-
-Install the package and the Codex CLI:
-
-```bash
-npm install -g @ipedro/lossless-claude
-npm install -g @openai/codex
-```
-
-Run Codex through the wrapper:
-
-```bash
-lossless-codex "Reply only with OK"
-```
-
-`lossless-codex` wraps `codex exec`, restores memory before the turn, injects prompt hints, writes the turn back into the project database, and compacts the stored session state after each successful turn.
-
-## Codex Fallback Without The Wrapper
+## Codex Fallback
 
 Plain `codex` can still use LCM, but this is advisory fallback mode rather than full automatic shared memory.
 
@@ -154,7 +119,7 @@ Add this to `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.lossless-claude]
-command = "lossless-claude"
+command = "lcm"
 args = ["mcp"]
 ```
 
@@ -190,7 +155,7 @@ Restart Codex after registering the MCP server or changing `AGENTS.md`.
 - automatic post-turn compaction
 - wrapper-level reliability
 
-If you want Claude-like automatic shared memory behavior in Codex, use `lossless-codex`.
+Plain Codex support is intentionally weaker and documented as fallback mode. Hook-based clients (Claude Code) get full automatic memory management.
 
 ## Hooks
 
@@ -198,10 +163,10 @@ Claude Code uses four hooks. All hooks auto-heal: each validates that all requir
 
 | Hook | Command | Purpose |
 |---|---|---|
-| `PreCompact` | `lossless-claude compact` | Intercepts compaction and writes DAG summaries |
-| `SessionStart` | `lossless-claude restore` | Restores project context, recent summaries, and promoted memory |
-| `SessionEnd` | `lossless-claude session-end` | Ingests the completed Claude transcript |
-| `UserPromptSubmit` | `lossless-claude user-prompt` | Searches memory and injects prompt-time hints |
+| `PreCompact` | `lcm compact` | Intercepts compaction and writes DAG summaries |
+| `SessionStart` | `lcm restore` | Restores project context, recent summaries, and promoted memory |
+| `SessionEnd` | `lcm session-end` | Ingests the completed Claude transcript |
+| `UserPromptSubmit` | `lcm user-prompt` | Searches memory and injects prompt-time hints |
 
 ```mermaid
 flowchart LR
@@ -228,19 +193,18 @@ flowchart LR
 ## CLI
 
 ```bash
-lossless-claude install                # setup wizard
-lossless-claude doctor                 # diagnostics
-lossless-claude stats                  # memory and compression overview
-lossless-claude stats -v               # per-conversation breakdown
-lossless-claude status                 # daemon + summarizer mode
-lossless-claude daemon start --detach  # start daemon in background
-lossless-claude compact                # PreCompact hook handler
-lossless-claude restore                # SessionStart hook handler
-lossless-claude session-end            # SessionEnd hook handler
-lossless-claude user-prompt            # UserPromptSubmit hook handler
-lossless-claude mcp                    # MCP server
-lossless-claude -v                     # version
-lossless-codex "your prompt"           # Codex wrapper with shared memory
+lcm install                # setup wizard
+lcm doctor                 # diagnostics
+lcm stats                  # memory and compression overview
+lcm stats -v               # per-conversation breakdown
+lcm status                 # daemon + summarizer mode
+lcm daemon start --detach  # start daemon in background
+lcm compact                # PreCompact hook handler
+lcm restore                # SessionStart hook handler
+lcm session-end            # SessionEnd hook handler
+lcm user-prompt            # UserPromptSubmit hook handler
+lcm mcp                    # MCP server
+lcm -v                     # version
 ```
 
 ## Configuration
@@ -262,9 +226,8 @@ All environment variables are optional. The default summarizer mode is `auto`.
 
 `auto` resolves per caller:
 
-- `lossless-claude` -> `claude-process`
-- `lossless-codex` -> `codex-process`
-- explicit config or `LCM_SUMMARY_PROVIDER` override applies to both
+- `lcm` -> `claude-process`
+- explicit config or `LCM_SUMMARY_PROVIDER` override always takes precedence
 
 See [`docs/configuration.md`](docs/configuration.md) for tuning notes and deeper operational guidance.
 
@@ -281,8 +244,7 @@ npx tsc --noEmit
 
 ```text
 bin/
-  lossless-claude.ts          CLI entry point
-  lossless-codex.ts           Codex wrapper entry point
+  lossless-claude.ts          CLI entry point (binary: lcm)
 configs/
   codex/AGENTS.md             Plain Codex fallback instructions
 src/
@@ -304,7 +266,6 @@ test/
 ## Technical Notes
 
 - Claude Code integration is hook-first.
-- Codex integration is wrapper-first.
 - Plain Codex support is intentionally weaker and documented as fallback mode.
 - The daemon is shared; the memory backend is not Claude-specific or Codex-specific.
 - The repo still carries the original lossless-claw lineage, but the current runtime is Claude Code + Codex oriented.

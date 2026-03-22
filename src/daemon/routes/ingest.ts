@@ -60,10 +60,9 @@ export function createIngestHandler(config: DaemonConfig): RouteHandler {
     );
 
     const db = new DatabaseSync(dbPath);
-    db.exec("PRAGMA busy_timeout = 5000");
-    runLcmMigrations(db);
-
     try {
+      db.exec("PRAGMA busy_timeout = 5000");
+      runLcmMigrations(db);
       const conversationStore = new ConversationStore(db);
       const summaryStore = new SummaryStore(db);
       const conversation = await conversationStore.getOrCreateConversation(session_id);

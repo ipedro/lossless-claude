@@ -105,15 +105,16 @@ async function sensitiveAdd(
     let raw: any = {};
     try {
       raw = JSON.parse(await readFile(configPath, "utf-8"));
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code;
-      if (code === "ENOENT") {
-        // file doesn't exist yet — start fresh
-      } else if (err instanceof SyntaxError) {
-        throw new Error(`Invalid JSON in ${configPath}: ${err.message}`);
-      } else {
-        throw err; // EACCES, EPERM, etc. — propagate as-is
+    } catch (error) {
+      // Only ignore ENOENT (file doesn't exist yet); surface permission/parse errors
+      const err = error as NodeJS.ErrnoException;
+      if (err.code !== "ENOENT") {
+        return {
+          exitCode: 1,
+          stdout: `Error: ${err.code === "EACCES" || err.code === "EPERM" ? "Permission denied" : "Invalid JSON or I/O error"} reading config: ${err.message}\n`,
+        };
       }
+      // file doesn't exist yet — start fresh
     }
     if (!raw.security) raw.security = {};
     if (!Array.isArray(raw.security.sensitivePatterns)) {
@@ -143,7 +144,15 @@ async function sensitiveAdd(
   try {
     const current = await readFile(patternsFile, "utf-8");
     await writeFile(patternsFile, current + line, "utf-8");
-  } catch {
+  } catch (error) {
+    // Only ignore ENOENT (file doesn't exist yet); rethrow permission/IO errors
+    const err = error as NodeJS.ErrnoException;
+    if (err.code !== "ENOENT") {
+      return {
+        exitCode: 1,
+        stdout: `Error: ${err.code === "EACCES" || err.code === "EPERM" ? "Permission denied" : "I/O error"} writing patterns file: ${err.message}\n`,
+      };
+    }
     // File doesn't exist yet
     await writeFile(patternsFile, line, "utf-8");
   }

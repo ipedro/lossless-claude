@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import type { DaemonConfig } from "../config.js";
-import { projectId, projectDbPath, projectDir, projectMetaPath, ensureProjectDir } from "../project.js"
+import { projectId, projectDbPath, projectDir, projectMetaPath, ensureProjectDir } from "../project.js";
 import { enqueue } from "../project-queue.js";
 import { sendJson } from "../server.js";
 import type { RouteHandler } from "../server.js";

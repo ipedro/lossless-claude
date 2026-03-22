@@ -191,7 +191,12 @@ export class ScrubEngine {
         .split("\n")
         .map((line) => line.trim())
         .filter((line) => line.length > 0 && !line.startsWith("#"));
-    } catch {
+    } catch (error) {
+      // Only ignore ENOENT (file doesn't exist yet)
+      const err = error as NodeJS.ErrnoException;
+      if (err.code !== "ENOENT") {
+        console.warn(`Warning: Failed to load project patterns from ${filePath}: ${err.message}`);
+      }
       return [];
     }
   }

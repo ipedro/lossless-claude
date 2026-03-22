@@ -27,6 +27,7 @@ The exception is the summarizer, which you configure explicitly:
 | `codex-process` | Messages sent to OpenAI via the `codex` CLI (your OpenAI subscription) |
 | `anthropic` | Messages sent to Anthropic API (your API key) |
 | `openai` | Messages sent to OpenAI API (your API key) |
+| `auto` | Resolves to either `claude-process` or `codex-process` depending on the client; see above rows |
 
 When using an external summarizer, only the text being summarized is sent — not your full history. The summarizer receives a batch of recent messages to compress into a summary.
 

@@ -1,11 +1,13 @@
 import { existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
-import { projectDbPath, ensureProjectDir } from "../project.js";
+import { projectDbPath, projectDir, projectId, ensureProjectDir } from "../project.js";
 import { sendJson } from "../server.js";
 import { runLcmMigrations } from "../../db/migration.js";
+import { upsertRedactionCounts } from "../../db/redaction-stats.js";
 import { ConversationStore } from "../../store/conversation-store.js";
 import { SummaryStore } from "../../store/summary-store.js";
 import { parseTranscript } from "../../transcript.js";
+import { ScrubEngine } from "../../scrub.js";
 function isParsedMessage(value) {
     if (!value || typeof value !== "object")
         return false;
@@ -24,7 +26,7 @@ function resolveMessages(input) {
     }
     return [];
 }
-export function createIngestHandler(_config) {
+export function createIngestHandler(config) {
     return async (_req, res, body) => {
         const input = JSON.parse(body || "{}");
         const { session_id, cwd } = input;
@@ -39,7 +41,9 @@ export function createIngestHandler(_config) {
         }
         const dbPath = projectDbPath(cwd);
         ensureProjectDir(cwd);
+        const scrubber = await ScrubEngine.forProject(config.security?.sensitivePatterns ?? [], projectDir(cwd));
         const db = new DatabaseSync(dbPath);
+        db.exec("PRAGMA busy_timeout = 5000");
         runLcmMigrations(db);
         try {
             const conversationStore = new ConversationStore(db);
@@ -51,15 +55,24 @@ export function createIngestHandler(_config) {
                 sendJson(res, 200, { ingested: 0, totalTokens: 0 });
                 return;
             }
-            const inputs = newMessages.map((m, i) => ({
-                conversationId: conversation.conversationId,
-                seq: storedCount + i,
-                role: m.role,
-                content: m.content,
-                tokenCount: m.tokenCount,
-            }));
+            const pid = projectId(cwd);
+            const totalCounts = { builtIn: 0, global: 0, project: 0 };
+            const inputs = newMessages.map((m, i) => {
+                const { text: scrubbedContent, builtIn, global, project } = scrubber.scrubWithCounts(m.content);
+                totalCounts.builtIn += builtIn;
+                totalCounts.global += global;
+                totalCounts.project += project;
+                return {
+                    conversationId: conversation.conversationId,
+                    seq: storedCount + i,
+                    role: m.role,
+                    content: scrubbedContent,
+                    tokenCount: m.tokenCount,
+                };
+            });
             const records = await conversationStore.createMessagesBulk(inputs);
             await summaryStore.appendContextMessages(conversation.conversationId, records.map((r) => r.messageId));
+            upsertRedactionCounts(db, pid, totalCounts);
             const totalTokens = await summaryStore.getContextTokenCount(conversation.conversationId);
             sendJson(res, 200, { ingested: records.length, totalTokens });
         }

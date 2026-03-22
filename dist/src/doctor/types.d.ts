@@ -20,4 +20,5 @@ export interface DoctorDeps {
     fetch: typeof globalThis.fetch;
     homedir: string;
     platform: string;
+    cwd?: string;
 }

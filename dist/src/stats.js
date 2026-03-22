@@ -5,11 +5,21 @@ import { homedir } from "node:os";
 import { runLcmMigrations } from "./db/migration.js";
 function queryProjectStats(dbPath) {
     const db = new DatabaseSync(dbPath);
+    db.exec("PRAGMA busy_timeout = 5000");
     runLcmMigrations(db);
     try {
         const msgStats = db.prepare(`SELECT COUNT(*) as count, COALESCE(SUM(token_count), 0) as tokens FROM messages`).get();
         const sumStats = db.prepare(`SELECT COUNT(*) as count, COALESCE(SUM(token_count), 0) as tokens, COALESCE(MAX(depth), 0) as maxDepth FROM summaries`).get();
         const promoted = db.prepare(`SELECT COUNT(*) as count FROM promoted`).get();
+        const redactionRows = db.prepare(`SELECT category, COALESCE(SUM(count), 0) as count FROM redaction_stats GROUP BY category`).all();
+        const redactionMap = Object.fromEntries(redactionRows.map((r) => [r.category, r.count]));
+        const redactionCounts = {
+            builtIn: redactionMap["built_in"] ?? 0,
+            global: redactionMap["global"] ?? 0,
+            project: redactionMap["project"] ?? 0,
+            total: 0,
+        };
+        redactionCounts.total = redactionCounts.builtIn + redactionCounts.global + redactionCounts.project;
         const convRows = db.prepare(`
       SELECT
         c.conversation_id,
@@ -54,6 +64,7 @@ function queryProjectStats(dbPath) {
             ratio: compactedSum > 0 && compactedRaw > 0 ? compactedRaw / compactedSum : 0,
             promotedCount: promoted.count,
             conversationDetails,
+            redactionCounts,
         };
     }
     finally {
@@ -137,6 +148,20 @@ export function printStats(stats, verbose) {
         const bar = "█".repeat(filled) + "░".repeat(empty);
         console.log(`    ${" ".repeat(cLabelWidth)}  ${barColor}${bar}${reset}`);
     }
+    // Security section (always shown)
+    {
+        const rc = stats.redactionCounts;
+        console.log();
+        console.log(sectionHeader("Security"));
+        console.log();
+        if (rc.total === 0) {
+            console.log(`    ${dim}redactions${reset}  0`);
+        }
+        else {
+            const detail = `(built-in: ${rc.builtIn}  global: ${rc.global}  project: ${rc.project})`;
+            console.log(`    ${dim}redactions${reset}  ${rc.total} total  ${dim}${detail}${reset}`);
+        }
+    }
     // Per Conversation (verbose only, compacted only)
     if (verbose) {
         const compactedDetails = stats.conversationDetails.filter((c) => c.summaries > 0);
@@ -173,6 +198,7 @@ export function collectStats() {
             projects: 0, conversations: 0, compactedConversations: 0, messages: 0, summaries: 0,
             maxDepth: 0, rawTokens: 0, summaryTokens: 0, ratio: 0,
             promotedCount: 0, conversationDetails: [],
+            redactionCounts: { builtIn: 0, global: 0, project: 0, total: 0 },
         };
     }
     let totalProjects = 0;
@@ -185,6 +211,7 @@ export function collectStats() {
     let totalSummaryTokens = 0;
     let totalPromoted = 0;
     let allDetails = [];
+    const totalRedactions = { builtIn: 0, global: 0, project: 0, total: 0 };
     for (const entry of readdirSync(baseDir, { withFileTypes: true })) {
         if (!entry.isDirectory())
             continue;
@@ -206,6 +233,10 @@ export function collectStats() {
             totalSummaryTokens += projStats.summaryTokens;
             totalPromoted += projStats.promotedCount;
             allDetails = allDetails.concat(projStats.conversationDetails);
+            totalRedactions.builtIn += projStats.redactionCounts.builtIn;
+            totalRedactions.global += projStats.redactionCounts.global;
+            totalRedactions.project += projStats.redactionCounts.project;
+            totalRedactions.total += projStats.redactionCounts.total;
         }
         catch {
             // skip corrupt databases
@@ -223,6 +254,7 @@ export function collectStats() {
         ratio: totalSummaryTokens > 0 ? totalRawTokens / totalSummaryTokens : 0,
         promotedCount: totalPromoted,
         conversationDetails: allDetails,
+        redactionCounts: totalRedactions,
     };
 }
 //# sourceMappingURL=stats.js.map

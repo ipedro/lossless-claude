@@ -107,7 +107,11 @@ async function sensitiveAdd(
       raw = JSON.parse(await readFile(configPath, "utf-8"));
     } catch (err) {
       if (existsSync(configPath)) {
-        throw new Error(`Invalid JSON in ${configPath}: ${(err as Error).message}`);
+        if (err instanceof SyntaxError) {
+          throw new Error(`Invalid JSON in ${configPath}: ${err.message}`);
+        }
+        const message = err instanceof Error ? err.message : String(err);
+        throw new Error(`Failed to read ${configPath}: ${message}`);
       }
       // file doesn't exist yet — start fresh
     }

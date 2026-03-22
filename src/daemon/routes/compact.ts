@@ -147,10 +147,9 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
     }
     compactingNow.add(session_id);
 
+    try {
     const pid = projectId(cwd);
     const result = await enqueue(pid, async () => {
-    try {
-
     const dbPath = projectDbPath(cwd);
     ensureProjectDir(cwd);
 
@@ -295,12 +294,11 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
     } finally {
       db.close();
     }
-
-    } finally {
-      compactingNow.delete(session_id);
-    }
     }) // end enqueue
 
     sendJson(res, 200, result);
+    } finally {
+      compactingNow.delete(session_id);
+    }
   };
 }

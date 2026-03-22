@@ -8,6 +8,8 @@
 
 **Tech Stack:** TypeScript 5.7+, Node.js ESM (`"type": "module"`), Vitest 3, `tsconfig.json` with `NodeNext` resolution.
 
+**Platform Note:** Commands use macOS/BSD syntax (e.g., `sed -i ''`). On Linux, adjust to GNU equivalents (e.g., `sed -i`).
+
 ---
 
 ## Task 1: Gitignore & Delete Junk

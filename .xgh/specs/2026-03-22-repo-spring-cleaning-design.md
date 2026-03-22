@@ -18,7 +18,7 @@ Consolidate all TypeScript source under `src/`, colocate tests next to the code 
 
 | Item | Action | Detail |
 |------|--------|--------|
-| `data/*.db*` | gitignore | Add `data/` is already gitignored — **verified, no change needed** |
+| `data/` | already gitignored | The directory and all its contents (including `*.db*` files) are already covered by existing `.gitignore` entry `data/` — no action needed |
 | `lcm-cli-*/` | gitignore | Add pattern `lcm-cli-*/` to `.gitignore` |
 | `sensitive-patterns-test.txt` | delete | Root-level test artifact; `rm` it |
 | `.claude/worktrees/` | delete + gitignore | 7 orphaned agent dirs. Delete all of `.claude/worktrees/`. Pattern `/.claude/worktrees/` already covered by existing `/.claude/` gitignore — **verified, no change needed** |

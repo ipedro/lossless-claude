@@ -177,18 +177,14 @@ Move the CLI entry point from `bin/lcm.ts` to `src/cli/lcm.ts`. All dynamic impo
 
   **File:** `/Users/pedro/Developer/lossless-claude/package.json`
 
-  Change:
-  ```json
-  "bin": {
-    "lcm": "dist/bin/lcm.js"
-  },
-  ```
-  To:
+  **Current state (what tsconfig.json produces now):**
   ```json
   "bin": {
     "lcm": "dist/src/cli/lcm.js"
   },
   ```
+
+  This is already correct — `rootDir: "."` compiles `src/cli/lcm.ts` to `dist/src/cli/lcm.js`. No change needed at this step. The final state (after Task 6 changes `rootDir` to `"src"`) will have `"lcm": "dist/cli/lcm.js"`, but that change happens later.
 
 - [ ] **3.4** Update `tsconfig.json` include:
 
@@ -205,15 +201,15 @@ Move the CLI entry point from `bin/lcm.ts` to `src/cli/lcm.ts`. All dynamic impo
 
   > `src/cli/lcm.ts` is now covered by `src/**/*.ts`.
 
-- [ ] **3.5** Verify typecheck:
+- [ ] **3.5** Skip typecheck for now:
 
   ```bash
-  npx tsc --noEmit
+  # Typecheck will fail here because src/cli/lcm.ts imports ../installer/
+  # which should resolve to src/installer/ (not yet moved).
+  # Skip this step; full typecheck happens after Task 4.
   ```
 
-  **Expected:** No errors (installer imports temporarily point to `../installer/` which still resolves from `src/cli/` to root `installer/` -- wait, that's wrong. From `src/cli/lcm.ts`, `../installer/` resolves to `src/installer/` which doesn't exist yet. So **Task 4 must run before typecheck passes**.)
-
-  Skip typecheck here; verify after Task 4.
+  **Expected outcome:** Skip — Task 4 must complete first so `src/installer/` exists.
 
 - [ ] **3.6** Commit:
 

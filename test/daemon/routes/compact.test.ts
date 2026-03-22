@@ -55,6 +55,7 @@ function makeConfig(provider: DaemonConfig["llm"]["provider"]): DaemonConfig {
     llm: { provider, model: "test-model", apiKey: "sk-test", baseURL: "http://localhost:11435/v1" },
     claudeCliProxy: { enabled: true, port: 3456, startupTimeoutMs: 10000, model: "claude-haiku-4-5" },
     cipher: { configPath: "/tmp/cipher.yml", collection: "test" },
+    security: { sensitivePatterns: [] },
   } as DaemonConfig;
 }
 

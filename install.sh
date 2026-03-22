@@ -22,22 +22,22 @@ echo "  ▸ Building"
 cd "$INSTALL_DIR"
 npm install --silent
 npm run build
-if [ ! -f "${INSTALL_DIR}/dist/bin/lossless-claude.js" ]; then
-  echo "  ✘ Build failed — dist/bin/lossless-claude.js not found" >&2
+if [ ! -f "${INSTALL_DIR}/dist/bin/lcm.js" ]; then
+  echo "  ✘ Build failed — dist/bin/lcm.js not found" >&2
   exit 1
 fi
 
 # Install binary as a wrapper script (avoids npm prefix/permission issues)
 # rm -f first: a previous run may have left a symlink here pointing back into dist/,
 # and `cat >` follows symlinks — it would overwrite the compiled JS instead of the wrapper.
-echo "  ▸ Installing lossless-claude binary to ${NPM_PREFIX}/bin"
+echo "  ▸ Installing lcm binary to ${NPM_PREFIX}/bin"
 mkdir -p "${NPM_PREFIX}/bin"
-rm -f "${NPM_PREFIX}/bin/lossless-claude"
-cat > "${NPM_PREFIX}/bin/lossless-claude" << WRAPEOF
+rm -f "${NPM_PREFIX}/bin/lcm"
+cat > "${NPM_PREFIX}/bin/lcm" << WRAPEOF
 #!/bin/sh
-exec node "${INSTALL_DIR}/dist/bin/lossless-claude.js" "\$@"
+exec node "${INSTALL_DIR}/dist/bin/lcm.js" "\$@"
 WRAPEOF
-chmod +x "${NPM_PREFIX}/bin/lossless-claude"
+chmod +x "${NPM_PREFIX}/bin/lcm"
 
 # Make binary available for the rest of this script
 export PATH="${NPM_PREFIX}/bin:${PATH}"
@@ -58,9 +58,9 @@ if ! grep -q 'lossless-claude' "${_RC}" 2>/dev/null; then
 fi
 
 # Run the full installer (wires up hooks, daemon, Cipher, runs doctor)
-lossless-claude install
+lcm install
 
 echo ""
-echo "  Reload your shell to use lossless-claude in new terminals:"
+echo "  Reload your shell to use lcm in new terminals:"
 echo "    source ${_RC}"
 echo ""

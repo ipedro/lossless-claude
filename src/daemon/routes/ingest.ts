@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import type { DaemonConfig } from "../config.js";
-import { projectDbPath, projectDir, ensureProjectDir } from "../project.js";
+import { projectDbPath, projectDir, projectId, ensureProjectDir } from "../project.js";
 import { sendJson } from "../server.js";
 import type { RouteHandler } from "../server.js";
 import { runLcmMigrations } from "../../db/migration.js";
@@ -9,6 +9,7 @@ import { ConversationStore } from "../../store/conversation-store.js";
 import { SummaryStore } from "../../store/summary-store.js";
 import { parseTranscript, type ParsedMessage } from "../../transcript.js";
 import { ScrubEngine } from "../../scrub.js";
+import { upsertRedactionCounts } from "../../db/redaction-stats.js";
 
 function isParsedMessage(value: unknown): value is ParsedMessage {
   if (!value || typeof value !== "object") return false;
@@ -75,15 +76,27 @@ export function createIngestHandler(config: DaemonConfig): RouteHandler {
         return;
       }
 
-      const inputs = newMessages.map((m, i) => ({
-        conversationId: conversation.conversationId,
-        seq: storedCount + i,
-        role: m.role as "user" | "assistant" | "system" | "tool",
-        content: scrubber.scrub(m.content),
-        tokenCount: m.tokenCount,
-      }));
-      const records = await conversationStore.createMessagesBulk(inputs);
-      await summaryStore.appendContextMessages(conversation.conversationId, records.map((r) => r.messageId));
+      const pid = projectId(cwd);
+      const totalCounts = { builtIn: 0, global: 0, project: 0 };
+      const inputs = newMessages.map((m, i) => {
+        const { text: scrubbedContent, builtIn, global: globalCount, project } = scrubber.scrubWithCounts(m.content);
+        totalCounts.builtIn += builtIn;
+        totalCounts.global += globalCount;
+        totalCounts.project += project;
+        return {
+          conversationId: conversation.conversationId,
+          seq: storedCount + i,
+          role: m.role as "user" | "assistant" | "system" | "tool",
+          content: scrubbedContent,
+          tokenCount: m.tokenCount,
+        };
+      });
+      const records = await conversationStore.withTransaction(async () => {
+        const created = await conversationStore.createMessagesBulk(inputs);
+        upsertRedactionCounts(db, pid, totalCounts);
+        await summaryStore.appendContextMessages(conversation.conversationId, created.map((r) => r.messageId));
+        return created;
+      });
 
       const totalTokens = await summaryStore.getContextTokenCount(conversation.conversationId);
       sendJson(res, 200, { ingested: records.length, totalTokens });

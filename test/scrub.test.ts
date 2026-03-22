@@ -57,6 +57,56 @@ describe("ScrubEngine — custom patterns", () => {
   });
 });
 
+describe("ScrubEngine.scrubWithCounts", () => {
+  it("returns zero counts when nothing is redacted", () => {
+    const engine = new ScrubEngine([], []);
+    const result = engine.scrubWithCounts("Hello world, this is safe content.");
+    expect(result.builtIn).toBe(0);
+    expect(result.global).toBe(0);
+    expect(result.project).toBe(0);
+    expect(result.text).toBe("Hello world, this is safe content.");
+  });
+
+  it("counts built-in pattern matches", () => {
+    const engine = new ScrubEngine([], []);
+    const result = engine.scrubWithCounts("token=ghp_" + "A".repeat(36));
+    expect(result.builtIn).toBeGreaterThan(0);
+    expect(result.global).toBe(0);
+    expect(result.project).toBe(0);
+    expect(result.text).toContain("[REDACTED]");
+  });
+
+  it("counts global pattern matches", () => {
+    const engine = new ScrubEngine(["MY_TOKEN_[A-Z0-9]+"], []);
+    const result = engine.scrubWithCounts("token=MY_TOKEN_ABC123");
+    expect(result.builtIn).toBe(0);
+    expect(result.global).toBe(1);
+    expect(result.project).toBe(0);
+  });
+
+  it("counts project pattern matches", () => {
+    const engine = new ScrubEngine([], ["PROJ_SECRET_[A-Z]+"]);
+    const result = engine.scrubWithCounts("secret=PROJ_SECRET_XYZ");
+    expect(result.builtIn).toBe(0);
+    expect(result.global).toBe(0);
+    expect(result.project).toBe(1);
+  });
+
+  it("counts multiple matches across categories independently", () => {
+    const engine = new ScrubEngine(["GLOBAL_[A-Z0-9]+"], ["LOCAL_[A-Z0-9]+"]);
+    const result = engine.scrubWithCounts("GLOBAL_123 and LOCAL_456 and token=ghp_" + "A".repeat(36));
+    expect(result.builtIn).toBeGreaterThan(0);
+    expect(result.global).toBe(1);
+    expect(result.project).toBe(1);
+  });
+
+  it("scrub() returns same text as scrubWithCounts().text", () => {
+    const engine = new ScrubEngine(["GLOBAL_[A-Z]+"], ["LOCAL_[A-Z]+"]);
+    const text = "GLOBAL_ABC LOCAL_XYZ safe text";
+    expect(engine.scrub(text)).toBe(engine.scrubWithCounts(text).text);
+  });
+});
+
 describe("ScrubEngine.loadProjectPatterns", () => {
   let tmpFile: string | undefined;
 

@@ -47,6 +47,7 @@ describe("printStats", () => {
     ratio: 0,
     promotedCount: 0,
     conversationDetails: [],
+    redactionCounts: { builtIn: 0, global: 0, project: 0, total: 0 },
   };
 
   it("prints the lossless-claude header", () => {
@@ -115,5 +116,23 @@ describe("printStats", () => {
       conversationDetails: [{ conversationId: 1, messages: 10, summaries: 2, maxDepth: 1, rawTokens: 5000, summaryTokens: 500, ratio: 10, promotedCount: 0 }],
     }, true));
     expect(out).toContain("Per Conversation");
+  });
+
+  it("prints Security section with zero redactions", () => {
+    const out = captureLog(() => printStats(baseStats, false));
+    expect(out).toContain("Security");
+    expect(out).toContain("redactions");
+  });
+
+  it("prints Security section with redaction counts breakdown", () => {
+    const out = captureLog(() => printStats({
+      ...baseStats,
+      redactionCounts: { builtIn: 10, global: 2, project: 1, total: 13 },
+    }, false));
+    expect(out).toContain("Security");
+    expect(out).toContain("13 total");
+    expect(out).toContain("built-in: 10");
+    expect(out).toContain("global: 2");
+    expect(out).toContain("project: 1");
   });
 });

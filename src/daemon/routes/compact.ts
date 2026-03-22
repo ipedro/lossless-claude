@@ -17,6 +17,7 @@ import { deduplicateAndInsert } from "../../promotion/dedup.js";
 import { parseTranscript } from "../../transcript.js";
 import type { LcmSummarizeFn } from "../../llm/types.js";
 import { ScrubEngine } from "../../scrub.js";
+import { upsertRedactionCounts } from "../../db/redaction-stats.js";
 
 function fmtN(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
@@ -174,15 +175,25 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
       const storedCount = await conversationStore.getMessageCount(conversation.conversationId);
       const newMessages = parsed.slice(storedCount);
       if (newMessages.length > 0) {
-        const inputs = newMessages.map((m, i) => ({
-          conversationId: conversation.conversationId,
-          seq: storedCount + i,
-          role: m.role as "user" | "assistant" | "system",
-          content: scrubber.scrub(m.content),
-          tokenCount: m.tokenCount,
-        }));
-        const records = await conversationStore.createMessagesBulk(inputs);
-        await summaryStore.appendContextMessages(conversation.conversationId, records.map((r) => r.messageId));
+        const ingestCounts = { builtIn: 0, global: 0, project: 0 };
+        const inputs = newMessages.map((m, i) => {
+          const { text: scrubbedContent, builtIn, global: globalCount, project } = scrubber.scrubWithCounts(m.content);
+          ingestCounts.builtIn += builtIn;
+          ingestCounts.global += globalCount;
+          ingestCounts.project += project;
+          return {
+            conversationId: conversation.conversationId,
+            seq: storedCount + i,
+            role: m.role as "user" | "assistant" | "system",
+            content: scrubbedContent,
+            tokenCount: m.tokenCount,
+          };
+        });
+        await conversationStore.withTransaction(async () => {
+          const records = await conversationStore.createMessagesBulk(inputs);
+          upsertRedactionCounts(db, pid, ingestCounts);
+          await summaryStore.appendContextMessages(conversation.conversationId, records.map((r) => r.messageId));
+        });
       }
     }
 

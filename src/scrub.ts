@@ -32,6 +32,15 @@ function isSpanningPattern(source: string): boolean {
     }
     if (source[i] === "[") {
       inCharClass = true;
+      // In JS regex, `]` immediately after `[` (or `[^`) is a literal, not the class end.
+      // Skip over the opening position(s) so we don't prematurely close the class.
+      const next = i + 1;
+      if (next < source.length && source[next] === "^") {
+        i++; // skip the `^`
+      }
+      if (i + 1 < source.length && source[i + 1] === "]") {
+        i++; // skip the literal `]`
+      }
       continue;
     }
     if (source[i] === "]" && inCharClass) {

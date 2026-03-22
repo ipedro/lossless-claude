@@ -40,10 +40,10 @@ lcm sensitive purge --all --yes
 - **add --global `<pattern>`** — Add a pattern to the global config (applies to all projects)
 - **remove `<pattern>`** — Remove a pattern from the project's sensitive patterns file
 - **test `<text>`** — Test what gets redacted from the given text (shows `[REDACTED]` substitutions)
-- **purge** — Permanently delete all stored data for the current project (patterns, config, and SQLite conversation history) by removing its directory under `~/.lossless-claude/projects/{hash}`
-- **purge --all** — Permanently delete all stored data for all projects (patterns, config, and SQLite conversation history) by removing all directories under `~/.lossless-claude/projects/`
+- **purge** — Delete the current project's data directory (`~/.lossless-claude/projects/{hash}/`) (requires `--yes`)
+- **purge --all** — Delete all project data directories under `~/.lossless-claude/projects/` (requires `--yes`)
 
-All `purge` variants perform a **full data purge** (not just patterns) and require `--yes` to confirm the destructive action.
+All `purge` variants require `--yes` to confirm the destructive action.
 
 ### Pattern Guidelines
 

@@ -15,14 +15,13 @@ No data is sent to any lossless-claude server. There is no telemetry.
 
 ## What leaves your machine
 
-lossless-claude is a local runtime. No data is sent to any lossless-claude server.
+lossless-claude is a local runtime. By default, **nothing leaves your machine**.
 
-The summarizer is the only component that can send data externally. The shipped default is `llm.provider: "auto"` with `autoCompactMinTokens: 10000`, which means compaction runs automatically and sends messages to the configured summarizer (Claude CLI by default). To disable all outbound data, set `llm.provider: "disabled"` and/or `autoCompactMinTokens: 0` in `~/.lossless-claude/config.json`.
+The exception is the summarizer, which you configure explicitly:
 
 | Summarizer (`llm.provider`) | Data sent externally |
 |-----------------------------|----------------------|
-| `auto` (default) | Claude CLI if available, otherwise Codex CLI |
-| `disabled` | Nothing |
+| `disabled` (default) | Nothing |
 | `claude-process` | Messages sent to Anthropic via the `claude` CLI (your Claude subscription) |
 | `codex-process` | Messages sent to OpenAI via the `codex` CLI (your OpenAI subscription) |
 | `anthropic` | Messages sent to Anthropic API (your API key) |

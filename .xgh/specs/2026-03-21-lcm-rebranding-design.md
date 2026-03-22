@@ -42,6 +42,20 @@ The old `ipedro/lossless-claude` repo will be taken down manually by the owner a
 
 The plugin manifest (`.claude-plugin/marketplace.json`) lives in this repo. The publish workflow updates the `version` field in that file, commits it to `main`, then tags. No external API call, no `MARKETPLACE_TOKEN` required.
 
+### Copy & Tone
+
+**Attribution paragraph rewrite** (README.md and package.json description):
+- OLD: `"This repo started as a fork of [lossless-claw](https://github.com/Martian-Engineering/lossless-claude) by [Martian Engineering](https://martian.engineering), adapted for Claude Code. The LCM model and DAG architecture originate from the [Voltropy paper](https://papers.voltropy.com/LCM)."`
+- NEW: `"Built on the [LCM model](https://papers.voltropy.com/LCM) from Voltropy and inspired by [lossless-claw](https://github.com/Martian-Engineering/lossless-claude) by Martian Engineering — lcm takes that foundation and builds a first-class Claude Code integration: daemon-backed persistence, automatic hook-driven compaction, MCP retrieval tools, and cross-session memory that survives context resets."`
+
+**Tagline rewrite** (package.json description + README header subtitle):
+- OLD: `"Never lose context again. lossless-claude compresses Claude Code sessions into searchable memory — every message preserved, every insight remembered."`
+- NEW: `"The memory layer Claude Code was built to use. Every message persisted, every insight promoted, nothing ever dropped."`
+
+**Tone principle:** All user-facing copy should be confident and assertive. Credit to lossless-claw and Voltropy is given as "we built on great prior work" not "we started as a fork". The project name is now `lcm` / `@lossless-claude/lcm`.
+
+**Scope:** ALL user-facing copy across README, docs/, website, and .claude-plugin/ should follow this confident tone and reflect the new branding.
+
 ## Phase 3: Validation
 
 After the Codex PR is merged:

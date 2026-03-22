@@ -705,7 +705,7 @@ lcm sensitive purge --all --yes           # delete all lossless-claude project d
 ## Pattern Format
 
 Plain regex strings — no \`/\` delimiters, no flags.
-Case-insensitive: use explicit character classes like \`[Mm][Yy]_[Tt][Oo][Kk][Ee][Nn]\` (JavaScript does not support inline \`(?i)\` flags)
+Case-insensitive: use \`(?i)\` inline flag: \`(?i)my_token\`
 
 ## Storage locations
 

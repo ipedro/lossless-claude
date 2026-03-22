@@ -286,7 +286,7 @@ export async function runDoctor(overrides?: Partial<DoctorDeps>): Promise<CheckR
       name: "project-patterns",
       category: "Security",
       status: "warn",
-      message: 'project patterns   none configured — Run: lcm sensitive add "<pattern>" to protect project-specific secrets',
+      message: 'project patterns   none configured\n     Run: lcm sensitive add "<pattern>" to protect project-specific secrets',
     });
   } else {
     // Check for invalid patterns

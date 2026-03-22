@@ -21,35 +21,23 @@ function isSpanningPattern(source: string): boolean {
   // Check for literal space or the escape sequence \s — unambiguous spanning intent.
   // Use string includes (not regex) so we detect the two-char sequence \s, not whitespace chars.
   if (source.includes(" ") || source.includes("\\s")) return true;
-  // Check for unescaped `.` which can match spaces.
-  // A `.` inside a character class `[...]` is a literal dot and does NOT match
-  // whitespace, so we track bracket depth to avoid false positives.
-  let inCharClass = false;
+  // Check for unescaped `.` which can match spaces
+  // Walk the source and look for `.` not preceded by `\`
   for (let i = 0; i < source.length; i++) {
     if (source[i] === "\\") {
       i++; // skip escaped char
       continue;
     }
-    if (source[i] === "[") {
-      inCharClass = true;
-      // In JS regex, `]` immediately after `[` (or `[^`) is a literal, not the class end.
-      // Skip over the opening position(s) so we don't prematurely close the class.
-      const next = i + 1;
-      if (next < source.length && source[next] === "^") {
-        i++; // skip the `^`
-      }
-      if (i + 1 < source.length && source[i + 1] === "]") {
-        i++; // skip the literal `]`
-      }
-      continue;
-    }
-    if (source[i] === "]" && inCharClass) {
-      inCharClass = false;
-      continue;
-    }
-    if (source[i] === "." && !inCharClass) return true;
+    if (source[i] === ".") return true;
   }
   return false;
+}
+
+export interface ScrubCounts {
+  text: string;
+  builtIn: number;
+  global: number;
+  project: number;
 }
 
 export class ScrubEngine {
@@ -60,7 +48,7 @@ export class ScrubEngine {
   /** Original index for each token pattern. */
   private readonly _tokenOrigIdx: number[] = [];
   /** Number of global patterns (for category accounting). */
-  readonly _globalPatternCount: number;
+  private readonly _globalPatternCount: number;
   readonly invalidPatterns: string[] = [];
 
   constructor(globalPatterns: string[], projectPatterns: string[]) {
@@ -94,7 +82,7 @@ export class ScrubEngine {
    * - "Token" patterns (no whitespace/dot in source) are applied token-by-token
    *   so that greedy `.*`-style patterns in one token don't eat adjacent tokens.
    */
-  scrubWithCounts(text: string): { text: string; builtIn: number; global: number; project: number } {
+  scrubWithCounts(text: string): ScrubCounts {
     const builtInCount = BUILT_IN_PATTERNS.length;
     const globalCount = this._globalPatternCount;
 
@@ -132,15 +120,16 @@ export class ScrubEngine {
     if (taggedRanges.length === 0) return { text, builtIn: 0, global: 0, project: 0 };
 
     // Sort by start position
-    taggedRanges.sort((a, b) => a.range[0] - b.range[0] || a.idx - b.idx);
+    taggedRanges.sort((a, b) => a.range[0] - b.range[0]);
 
-    // Merge overlapping ranges, tracking which category "wins" (first match)
+    // Merge overlapping ranges; when overlaps occur, the lowest original pattern
+    // index wins so that built-in > global > project and earlier patterns win.
     const merged: Array<{ range: [number, number]; idx: number }> = [];
     let cur = taggedRanges[0];
     for (let i = 1; i < taggedRanges.length; i++) {
       const next = taggedRanges[i];
       if (next.range[0] <= cur.range[1]) {
-        cur = { range: [cur.range[0], Math.max(cur.range[1], next.range[1])], idx: cur.idx };
+        cur = { range: [cur.range[0], Math.max(cur.range[1], next.range[1])], idx: Math.min(cur.idx, next.idx) };
       } else {
         merged.push(cur);
         cur = next;
@@ -191,13 +180,9 @@ export class ScrubEngine {
         .split("\n")
         .map((line) => line.trim())
         .filter((line) => line.length > 0 && !line.startsWith("#"));
-    } catch (error) {
-      // Only ignore ENOENT (file doesn't exist yet)
-      const err = error as NodeJS.ErrnoException;
-      if (err.code !== "ENOENT") {
-        console.warn(`Warning: Failed to load project patterns from ${filePath}: ${err.message}`);
-      }
-      return [];
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw err;
     }
   }
 

@@ -3,34 +3,6 @@
 <!-- Claude Code include: @WORKFLOW.md -->
 See [WORKFLOW.md](./WORKFLOW.md) for the full development workflow.
 
-## Copilot Review Automation
-
-**NEVER tag `@copilot` in PR comments or replies** — it triggers Copilot SWE agent to open a new PR (delegation mode), not re-review.
-
-### Triggering Copilot re-review
-
-```bash
-# The [bot] suffix is REQUIRED — without it the API silently fails or returns 422
-gh api repos/{owner}/{repo}/pulls/{n}/requested_reviewers \
-  -X DELETE -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
-gh api repos/{owner}/{repo}/pulls/{n}/requested_reviewers \
-  -X POST -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
-```
-
-### Two Copilot systems
-
-| Trigger | System | Effect |
-|---------|--------|--------|
-| `@copilot` in comment | SWE agent | Opens a new PR with suggested changes |
-| `copilot-pull-request-reviewer[bot]` in reviewer list | Reviewer bot | Code review with inline comments |
-
-### What does NOT work
-
-- `reviewers[]=Copilot` (no `[bot]`) — silently fails
-- `reviewers[]=copilot-pull-request-reviewer` (no `[bot]`) — 422
-- `gh pr edit --add-reviewer Copilot` — GraphQL error
-- Tagging `@copilot` for review — opens PRs instead
-
 ## PR Review And Merge
 
 - Before merging a PR, check whether it changes user-facing behavior or should appear in npm release notes.
@@ -69,6 +41,10 @@ fi
 Then run `/reload-plugins` inside Claude Code to apply the changes.
 
 If anything fails, fix it before starting the next feature. A broken local env wastes time on every subsequent session (stale dist, wrong binary, hook errors, mismatched plugin cache).
+
+## Coding Style
+
+- **Prefer pure functions.** Functions should return their results rather than accumulating state on an object. Avoid mutable side-effect patterns (e.g., shared counters on a class instance) when a return value works just as well.
 
 ## Bug Triage During Investigation
 

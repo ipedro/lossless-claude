@@ -51,7 +51,6 @@ feature/docs branches → develop (default, protected) → main (releases only, 
 | Question | Default Answer |
 |----------|---------------|
 | Spec location | `.xgh/specs/YYYY-MM-DD-<topic>-design.md` |
-| Plan location | `.xgh/plans/YYYY-MM-DD-<topic>.md` |
 | Visual companion | No (CLI project, no visual questions) |
 | Implementation approach | Parallel tracks — breaking changes isolated from additive work |
 | Registry/config format | TypeScript (type-safe, compile-time checks) |
@@ -68,30 +67,26 @@ feature/docs branches → develop (default, protected) → main (releases only, 
 4. Present design sections incrementally, get user approval
 5. Write design spec to `.xgh/specs/`
 6. Run spec review loop (code-reviewer agent + user review)
-7. Write implementation plan to `.xgh/plans/`
+7. Write implementation plan to `.xgh/specs/`
 
 ## Phase 2: Spec Review via PR
 
-1. **Sync first:** `git fetch origin develop && git rebase origin/develop` — stale diffs cause Copilot to review unrelated code
+1. **Sync first:** `git push origin main` if there are unpushed local commits — stale diffs cause Copilot to review unrelated code
 2. Create `docs/<topic>` branch from develop
 3. Ensure only documentation files are in the diff — specs, plans, workflow docs
 4. Push and open PR
-5. Request Copilot review (see Copilot Exact Commands below)
+5. Request Copilot review (add `copilot-pull-request-reviewer[bot]` to reviewers)
 6. Run review loop (see Copilot Review Loop below)
 7. Merge once Copilot has no issues (max 3 rounds — see Review Loop)
 
-## Phase 3: Implementation (model-appropriate subagents)
+## Phase 3: Implementation (Sonnet subagents)
 
-1. **Sync first:** `git pull origin develop` to get latest (including merged specs)
-2. Dispatch subagents with `isolation: worktree` for each task in the plan
-3. **Model selection by complexity:**
-   - **Haiku** — style fixes, renames, simple edits, doc updates
-   - **Sonnet** — feature implementation, test writing, multi-file changes
-   - **Opus** — architectural decisions, complex refactors, final review
-4. **Independent tasks** → launch in parallel (e.g., PR A: delete files, PR D: add new module)
-5. **Sequential tasks** → launch one at a time; after merging upstream PR, rebase downstream branch: `git fetch origin develop && git rebase origin/develop`
-6. Each subagent: implement code + tests, run `npm test`, commit (do NOT push)
-7. After subagent completes: Opus reviews the diff, push, open PR, request Copilot review
+1. **Sync first:** `git pull origin main` to get latest (including merged specs)
+2. Dispatch `model: sonnet` subagents with `isolation: worktree` for each task in the plan
+3. **Independent tasks** → launch in parallel (e.g., PR A: delete files, PR D: add new module)
+4. **Sequential tasks** → launch one at a time; after merging upstream PR, rebase downstream branch: `git fetch origin main && git rebase origin/develop`
+5. Each subagent: implement code + tests, run `npm test`, commit (do NOT push)
+6. After subagent completes: review the diff, push, open PR, request Copilot review
 
 ## Phase 4: Final Review (Opus, max effort)
 
@@ -103,111 +98,81 @@ feature/docs branches → develop (default, protected) → main (releases only, 
 ## Phase 5: Implementation PR + Copilot Review
 
 1. Push implementation branch, open PR
-2. Request Copilot review (see Exact Commands)
+2. Request Copilot review (add to reviewers list)
 3. Run review loop (see below)
-4. Merge per Review Loop rules (max 3 rounds, then judgment call)
+4. Merge once Copilot review has no remaining inline comments
 
 ## Copilot Interaction
 
-### Two Copilot Systems
+### Actions
 
-| Trigger | System | Effect |
-|---------|--------|--------|
-| `copilot-pull-request-reviewer[bot]` in reviewer list | Reviewer bot | Code review with inline comments |
-| `@copilot` in PR comment | SWE agent | Opens a new PR with suggested changes (delegation) |
-
-**NEVER tag `@copilot` when you want a review.** It opens a new PR instead.
+- **Trigger code review:** Add `copilot-pull-request-reviewer` to PR reviewers via `gh pr edit --add-reviewer`
+- **Re-trigger review** (after pushing fixes): `gh pr edit --remove-reviewer` then `--add-reviewer` (see Exact Commands)
+- **Delegate work** (have Copilot open a PR): Tag `@copilot` in a PR comment
+- **Reply to Copilot comments:** Start inline replies with `@copilot`
+- **Never** tag `@copilot` in comments when you want a review — it opens a new PR instead
 
 ### Exact Commands
 
 ```bash
-# Request review (initial or re-trigger after fixes)
-# The [bot] suffix is REQUIRED — without it the API silently fails or returns 422
-gh api repos/{owner}/{repo}/pulls/{n}/requested_reviewers \
-  -X DELETE -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
-gh api repos/{owner}/{repo}/pulls/{n}/requested_reviewers \
-  -X POST -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
-```
-
-**Alternative (also works):**
-```bash
-gh pr edit {n} --repo {owner}/{repo} --remove-reviewer copilot-pull-request-reviewer[bot]
+# Request review (and re-trigger after fixes)
+gh pr edit {n} --repo {owner}/{repo} --remove-reviewer copilot-pull-request-reviewer
 sleep 2
-gh pr edit {n} --repo {owner}/{repo} --add-reviewer copilot-pull-request-reviewer[bot]
+gh pr edit {n} --repo {owner}/{repo} --add-reviewer copilot-pull-request-reviewer
 ```
 
-### Methods That Do NOT Work
+**Why `gh pr edit` and not the REST API:**
+The REST `requested_reviewers` endpoint returns **422** for bot reviewers ("Reviews may only be requested from collaborators"). `gh pr edit` uses the GraphQL API internally and handles bot reviewers correctly. Confirmed working on PR #56.
 
-- `reviewers[]=Copilot` (no `[bot]` suffix) — silently fails, 0 reviewers requested
-- `reviewers[]=copilot-pull-request-reviewer` (no `[bot]`) — 422 for bot reviewers
-- `gh pr edit --add-reviewer Copilot` — GraphQL error "Could not resolve user"
-- Tagging `@copilot` in comments for review — opens new PRs instead
+**Methods that do NOT work:**
+- `gh api -X POST .../requested_reviewers -f 'reviewers[]=copilot-pull-request-reviewer'` — 422 for bots
 - Empty commits — Copilot does not reliably trigger on diffs with no substantive changes
-
-### Replying to Copilot Comments
-
-Reply inline **without** tagging `@copilot`. Just describe the fix plainly:
-- Good: "Fixed — re-indented the callback body consistently."
-- Bad: "@copilot Fixed — re-indented the callback body." ← this opens a new PR
+- Tagging `@copilot` in comments — opens a new PR instead of reviewing
 
 ### Polling for Review Completion
 
-Copilot reviews take 1-5 minutes. Use cron jobs or background agents, not sleep loops.
+Copilot reviews take 1-3 minutes. Do NOT sleep-poll in a loop. Use background commands.
 
 ```bash
-# Check if review request is still pending:
+# 1. Check if review request is still pending (Copilot hasn't started):
 gh pr view {n} --json reviewRequests --jq '.reviewRequests[].login'
-# Empty = review submitted or reviewer removed. "copilot-pull-request-reviewer[bot]" = still pending.
+# Empty = Copilot picked it up. "copilot-pull-request-reviewer[bot]" = still pending.
 
-# Get latest review state:
+# 2. Check review count (compare before/after):
+gh api repos/{owner}/{repo}/pulls/{n}/reviews --jq '. | length'
+
+# 3. Most reliable: check timeline for reviewed event:
+gh api 'repos/{owner}/{repo}/issues/{n}/timeline?per_page=100' \
+  --jq '[.[] | select(.event == "review_requested" or .event == "reviewed")] | .[-2:]'
+# If last event is "reviewed" → review complete.
+# If last event is "review_requested" → still in progress.
+
+# 4. Get latest review details:
 gh api repos/{owner}/{repo}/pulls/{n}/reviews \
-  --jq '[.[] | select(.user.login == "copilot-pull-request-reviewer[bot]")] | last | {state: .state, submitted_at: .submitted_at}'
+  --jq '.[-1] | {state: .state, body: .body[:300]}'
 
-# Get new inline comments from a specific review:
-gh api repos/{owner}/{repo}/pulls/{n}/reviews/{review_id}/comments \
-  --jq '.[] | {path: .path, line: .line, body: .body}'
-
-# Count total Copilot inline comments:
-# Note: inline comments use login "Copilot", reviews use "copilot-pull-request-reviewer[bot]"
+# 5. Get new inline comments (after a timestamp):
 gh api repos/{owner}/{repo}/pulls/{n}/comments \
-  --jq '[.[] | select(.user.login == "Copilot")] | length'
+  --jq '[.[] | select(.created_at > "TIMESTAMP")] | .[] | {path: .path, line: .line, body: .body[:250]}'
 ```
 
 ### Copilot Review Loop
 
-1. Request review (DELETE + POST to requested_reviewers with `[bot]` suffix)
-2. Set up a cron job or background agent to poll every 5 minutes
-3. When review arrives, check comment count against baseline
-4. If new comments found:
-   a. Dispatch a haiku agent (worktree isolation) to fix all comments in a single commit
-   b. If haiku fails (typecheck/test errors), escalate to sonnet
-   c. Push, re-request review (DELETE + POST)
-5. **Max 3 rounds.** After round 3, if remaining comments are minor nits (1-2 editorial suggestions), merge. If substantive comments remain, escalate to Opus for a judgment call. Do not chase zero comments indefinitely.
+1. Request review (POST to requested_reviewers)
+2. Launch ONE background command: `sleep 180 && <check review count + comments>`
+3. When notified, check latest review state and new comments
+4. If comments found:
+   a. **Batch ALL fixes** into a single commit (do not fix-push-review one at a time)
+   b. Push once
+   c. Re-trigger review (DELETE + POST)
+5. **Max 3 rounds.** After round 3, if remaining comments are minor nits (1-2 editorial suggestions), merge. Do not chase zero comments indefinitely.
 6. Review is "clean" when: 0 new comments, or only context-specific nits that Copilot can't understand (e.g., Claude Code conventions)
 
 ### Common Pitfalls
 
-- **Stale diff**: Always rebase from develop before creating branches. If develop has unpushed commits, the PR diff includes unrelated code and Copilot reviews the wrong things.
-- **`@copilot` in comments**: Opens a new PR instead of triggering review. Always use the reviewers API. This caused 23 unwanted sub-PRs in one session.
-- **Missing `[bot]` suffix**: `copilot-pull-request-reviewer` without `[bot]` returns 422 via REST API. Always use `copilot-pull-request-reviewer[bot]`.
-- **Empty commits don't trigger Copilot**: Copilot only reviews on substantive diffs. Use DELETE+POST re-request instead.
+- **Stale diff**: Always push develop before creating branches. If main has unpushed commits, the PR diff includes unrelated code and Copilot reviews the wrong things.
+- **@copilot in comments**: Opens a new PR instead of triggering review. Always use the reviewers API.
+- **REST API 422 for Copilot bot**: The `requested_reviewers` REST endpoint rejects bot slugs. Use `gh pr edit --add-reviewer` instead.
+- **Empty commits don't trigger Copilot**: Copilot only reviews on substantive diffs. Use `gh pr edit` re-request instead.
 - **Code in docs PRs**: Cherry-pick only docs commits if the branch has mixed content. Use `git checkout -B <clean-branch> origin/develop && git cherry-pick <docs-commits>`.
-- **Sequential PR chains**: After merging PR A, rebase PR B onto updated develop before pushing: `git fetch origin develop && git rebase origin/develop`.
-
-## Orchestration Pattern
-
-For multi-PR workflows, use an orchestrator (Opus) that delegates to model-appropriate agents:
-
-```
-Opus (orchestrator)
-├── Haiku agents — PR monitoring, style fixes, simple edits
-├── Sonnet agents — feature implementation, plan execution
-└── Opus review — quality gate before each PR ships
-```
-
-1. **Opus** reads specs/plans and sets up the pipeline
-2. **Cron job** polls PRs every 5 minutes for Copilot responses
-3. **Haiku agents** handle fixes (escalate to sonnet if they fail)
-4. **Sonnet agents** execute implementation plans (superpowers methodology, worktree isolation)
-5. **Opus reviews** every sonnet output before the PR goes up
-6. **Opus merges** PRs following the full workflow (typecheck, test, changeset, Copilot review)
+- **Sequential PR chains**: After merging PR A, rebase PR B onto updated main before pushing: `git fetch origin main && git rebase origin/develop`.

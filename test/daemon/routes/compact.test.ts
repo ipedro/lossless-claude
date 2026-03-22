@@ -342,6 +342,51 @@ describe("POST /compact", () => {
     expect(compactRes.status).toBe(200);
     expect(await readMessageCount(tempDir, sessionId)).toBe(4);
   });
+
+  it("updates redaction_stats when transcript ingestion contains secrets", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "lossless-compact-redact-"));
+    tempDirs.push(tempDir);
+
+    const transcriptPath = join(tempDir, "session.jsonl");
+    writeFileSync(
+      transcriptPath,
+      [
+        // ghp_ + 36 alphanumeric chars → matches built-in GitHub token pattern
+        JSON.stringify({ message: { role: "user", content: "token ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA here" } }),
+        JSON.stringify({ message: { role: "assistant", content: "noted" } }),
+        JSON.stringify({ message: { role: "user", content: "ok" } }),
+      ].join("\n"),
+    );
+
+    // createAnthropicSummarizer is mocked at the top of this file
+    daemon = await createDaemon(loadDaemonConfig("/x", {
+      daemon: { port: 0 },
+      llm: { provider: "anthropic", apiKey: "sk-test" },
+    }));
+
+    const res = await fetch(`http://127.0.0.1:${daemon.address().port}/compact`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: "compact-redact-stats",
+        cwd: tempDir,
+        transcript_path: transcriptPath,
+      }),
+    });
+
+    expect(res.status).toBe(200);
+
+    const db = new DatabaseSync(projectDbPath(tempDir));
+    try {
+      const rows = db.prepare(
+        "SELECT category, count FROM redaction_stats ORDER BY category"
+      ).all() as Array<{ category: string; count: number }>;
+      const byCategory = Object.fromEntries(rows.map((r) => [r.category, r.count]));
+      expect(byCategory["built_in"]).toBeGreaterThan(0);
+    } finally {
+      db.close();
+    }
+  });
 });
 
 describe("POST /compact with disabled provider", () => {

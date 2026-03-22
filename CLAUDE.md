@@ -1,7 +1,3 @@
-<!-- Copilot review rules are in AGENTS.md § "Copilot Review Automation" -->
-
----
-
 # Superpowers Preferences
 
 - **Specs:** save to `.xgh/specs/YYYY-MM-DD-<topic>-design.md`

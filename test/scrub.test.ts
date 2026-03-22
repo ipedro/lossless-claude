@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { ScrubEngine } from "../src/scrub.js";
 
 describe("ScrubEngine — built-in patterns", () => {
@@ -48,15 +48,6 @@ describe("ScrubEngine — custom patterns", () => {
   it("global patterns precede project patterns (merge order)", () => {
     const engine = new ScrubEngine(["GLOBAL_[A-Z0-9]+"], ["LOCAL_[A-Z0-9]+"]);
     expect(engine.scrub("GLOBAL_123 and LOCAL_456")).toBe("[REDACTED] and [REDACTED]");
-  });
-
-  it("does not classify dot inside character class as spanning", () => {
-    // [A-Z0-9._-]+ contains a `.` but it's inside brackets — literal, not spanning
-    const engine = new ScrubEngine([], ["[A-Z0-9._-]+"]);
-    // Should be a token pattern (non-spanning), so it won't gobble whitespace
-    const result = engine.scrub("FOO.BAR BAZ_QUX");
-    // Both tokens should be independently matched and redacted
-    expect(result).toBe("[REDACTED] [REDACTED]");
   });
 
   it("warns and skips invalid regex patterns, continues scrubbing valid ones", () => {
@@ -117,18 +108,32 @@ describe("ScrubEngine.scrubWithCounts", () => {
 });
 
 describe("ScrubEngine.loadProjectPatterns", () => {
+  let tmpFile: string | undefined;
+
+  afterEach(async () => {
+    if (tmpFile) {
+      const { rm } = await import("node:fs/promises");
+      await rm(tmpFile, { force: true });
+      tmpFile = undefined;
+    }
+  });
+
   it("parses patterns file, ignoring comment lines and blanks", async () => {
     const { writeFile } = await import("node:fs/promises");
     const { join } = await import("node:path");
     const { tmpdir } = await import("node:os");
-    const file = join(tmpdir(), "sensitive-patterns-test.txt");
-    await writeFile(file, "# comment\nMY_PAT\n\n# another comment\nSECRET_KEY\n");
-    const patterns = await ScrubEngine.loadProjectPatterns(file);
+    tmpFile = join(tmpdir(), `scrub-test-${Math.random().toString(36).slice(2)}.txt`);
+    await writeFile(tmpFile, "# comment\nMY_PAT\n\n# another comment\nSECRET_KEY\n");
+    const patterns = await ScrubEngine.loadProjectPatterns(tmpFile);
     expect(patterns).toEqual(["MY_PAT", "SECRET_KEY"]);
   });
 
   it("returns empty array when file does not exist", async () => {
     const patterns = await ScrubEngine.loadProjectPatterns("/nonexistent/path.txt");
     expect(patterns).toEqual([]);
+  });
+
+  it("rethrows non-ENOENT errors", async () => {
+    await expect(ScrubEngine.loadProjectPatterns("/")).rejects.toThrow();
   });
 });

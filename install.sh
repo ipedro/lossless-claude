@@ -50,7 +50,7 @@ elif [[ "${SHELL}" == */bash ]]; then
 else
   _RC="${HOME}/.profile"
 fi
-if ! grep -q "${NPM_PREFIX}/bin" "${_RC}" 2>/dev/null; then
+if ! grep -q '# lcm' "${_RC}" 2>/dev/null; then
   echo "" >> "${_RC}"
   echo '# lcm' >> "${_RC}"
   printf 'export PATH="%s/bin:${PATH}"\n' "${NPM_PREFIX}" >> "${_RC}"

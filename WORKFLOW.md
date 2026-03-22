@@ -106,8 +106,8 @@ feature/docs branches → develop (default, protected) → main (releases only, 
 
 ### Actions
 
-- **Trigger code review:** Add `copilot-pull-request-reviewer` to PR reviewers via `gh pr edit --add-reviewer`
-- **Re-trigger review** (after pushing fixes): `gh pr edit --remove-reviewer` then `--add-reviewer` (see Exact Commands)
+- **Trigger code review:** Add `copilot-pull-request-reviewer[bot]` to PR reviewers list via REST API
+- **Re-trigger review** (after pushing fixes): Remove then re-add Copilot from reviewers list
 - **Delegate work** (have Copilot open a PR): Tag `@copilot` in a PR comment
 - **Reply to Copilot comments:** Start inline replies with `@copilot`
 - **Never** tag `@copilot` in comments when you want a review — it opens a new PR instead
@@ -115,19 +115,18 @@ feature/docs branches → develop (default, protected) → main (releases only, 
 ### Exact Commands
 
 ```bash
-# Request review (and re-trigger after fixes)
-gh pr edit {n} --repo {owner}/{repo} --remove-reviewer copilot-pull-request-reviewer
-sleep 2
-gh pr edit {n} --repo {owner}/{repo} --add-reviewer copilot-pull-request-reviewer
+# Request review
+gh api -X POST repos/{owner}/{repo}/pulls/{n}/requested_reviewers \
+  -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
+
+# Re-trigger review (remove + add)
+gh api -X DELETE repos/{owner}/{repo}/pulls/{n}/requested_reviewers \
+  -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
+gh api -X POST repos/{owner}/{repo}/pulls/{n}/requested_reviewers \
+  -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
 ```
 
-**Why `gh pr edit` and not the REST API:**
-The REST `requested_reviewers` endpoint returns **422** for bot reviewers ("Reviews may only be requested from collaborators"). `gh pr edit` uses the GraphQL API internally and handles bot reviewers correctly. Confirmed working on PR #56.
-
-**Methods that do NOT work:**
-- `gh api -X POST .../requested_reviewers -f 'reviewers[]=copilot-pull-request-reviewer'` — 422 for bots
-- Empty commits — Copilot does not reliably trigger on diffs with no substantive changes
-- Tagging `@copilot` in comments — opens a new PR instead of reviewing
+Note: the DELETE may return 422 if Copilot already consumed the request. That's fine — proceed with the POST.
 
 ### Polling for Review Completion
 
@@ -172,7 +171,6 @@ gh api repos/{owner}/{repo}/pulls/{n}/comments \
 
 - **Stale diff**: Always push develop before creating branches. If main has unpushed commits, the PR diff includes unrelated code and Copilot reviews the wrong things.
 - **@copilot in comments**: Opens a new PR instead of triggering review. Always use the reviewers API.
-- **REST API 422 for Copilot bot**: The `requested_reviewers` REST endpoint rejects bot slugs. Use `gh pr edit --add-reviewer` instead.
-- **Empty commits don't trigger Copilot**: Copilot only reviews on substantive diffs. Use `gh pr edit` re-request instead.
+- **DELETE 422**: Expected when Copilot already consumed the request. Ignore and POST.
 - **Code in docs PRs**: Cherry-pick only docs commits if the branch has mixed content. Use `git checkout -B <clean-branch> origin/develop && git cherry-pick <docs-commits>`.
 - **Sequential PR chains**: After merging PR A, rebase PR B onto updated main before pushing: `git fetch origin main && git rebase origin/develop`.

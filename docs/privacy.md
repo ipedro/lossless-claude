@@ -21,13 +21,12 @@ The exception is the summarizer, which you configure explicitly:
 
 | Summarizer (`llm.provider`) | Data sent externally |
 |-----------------------------|----------------------|
-| `auto` (default) | Resolves to `claude-process` (messages sent to Anthropic via the `claude` CLI) |
+| `auto` (default) | Resolves based on client: `claude-process` for Claude, or `codex-process` for Codex |
 | `disabled` | Nothing |
 | `claude-process` | Messages sent to Anthropic via the `claude` CLI (your Claude subscription) |
 | `codex-process` | Messages sent to OpenAI via the `codex` CLI (your OpenAI subscription) |
 | `anthropic` | Messages sent to Anthropic API (your API key) |
 | `openai` | Messages sent to OpenAI API (your API key) |
-| `auto` | Resolves to either `claude-process` or `codex-process` depending on the client; see above rows |
 
 When using an external summarizer, only the text being summarized is sent — not your full history. The summarizer receives a batch of recent messages to compress into a summary.
 

@@ -8,6 +8,12 @@ interface ConversationStats {
     ratio: number;
     promotedCount: number;
 }
+export interface RedactionCounts {
+    builtIn: number;
+    global: number;
+    project: number;
+    total: number;
+}
 interface OverallStats {
     projects: number;
     conversations: number;
@@ -20,6 +26,7 @@ interface OverallStats {
     ratio: number;
     promotedCount: number;
     conversationDetails: ConversationStats[];
+    redactionCounts: RedactionCounts;
 }
 export declare function formatNumber(n: number): string;
 export declare function printStats(stats: OverallStats, verbose: boolean): void;

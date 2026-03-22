@@ -1,5 +1,6 @@
 import type { ConversationStore } from "./store/conversation-store.js";
 import type { SummaryStore } from "./store/summary-store.js";
+import type { ScrubEngine } from "./scrub.js";
 export interface CompactionDecision {
     shouldCompact: boolean;
     reason: "threshold" | "manual" | "none";
@@ -42,6 +43,8 @@ export interface CompactionConfig {
     maxRounds: number;
     /** IANA timezone for timestamps in summaries (default: UTC) */
     timezone?: string;
+    /** Optional scrubber to redact secrets before sending chunk text to LLM */
+    scrubber?: ScrubEngine;
 }
 type CompactionLevel = "normal" | "aggressive" | "fallback";
 type CompactionSummarizeOptions = {

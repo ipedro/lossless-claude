@@ -15,6 +15,8 @@ The scrubbing pipeline (PR #56) protects users from storing secrets in lossless-
   🔒 redactions  142 total  (built-in: 139  global: 2  project: 1)
 ```
 
+The `──` section divider is the standard format used by the existing `sectionHeader()` helper in `stats.ts` and is explicitly specified in `.xgh/specs/2026-03-20-stats-doctor-redesign.md` (line 86). The "no box-drawing characters" note in that spec refers to table borders, not section separators.
+
 Only rendered when `total > 0`. Absence of the section means no redactions were found — not a bug.
 
 ---
@@ -100,9 +102,9 @@ ON CONFLICT(message_id, category) DO UPDATE SET count = excluded.count
 
 One row per `(message_id, category)` pair where `count > 0`. Skip zero-count categories.
 
-**Compact route note.** The compact route stores messages using the same `storedCount` skip mechanism as ingest — each message is written to the DB exactly once (by whichever route first processes it). The LLM-summarization scrub at `compaction.ts:972` operates on already-stored (already-redacted) text and is not counted. The `ON CONFLICT … DO UPDATE SET count = excluded.count` upsert is safe: if a message was already written by ingest with its counts, a subsequent compact call for the same message would resolve to the same message_id and overwrite with the same (or zero) counts from re-scrubbing redacted text.
+**Compact route note.** The compact route uses the same `storedCount` skip mechanism as ingest: for any given logical message, exactly one route (whichever sees it first) inserts the `messages` row and receives its AUTOINCREMENT `message_id`. That same insert path is responsible for writing the corresponding `message_redactions` rows. The LLM-summarization scrub at `compaction.ts:972` operates only on already-stored (already-redacted) text; it does not create new `messages` rows or additional `message_redactions` writes. The `ON CONFLICT … DO UPDATE SET count = excluded.count` upsert is an idempotency guard for retries within the same insert path — it is **not** relied on to reconcile counts across different runs that would allocate a new AUTOINCREMENT `message_id`.
 
-**Migration placement.** Add the `CREATE TABLE IF NOT EXISTS message_redactions` DDL inline in `runLcmMigrations`, immediately after the `promoted` table `CREATE TABLE` block and before the `PRAGMA table_info(promoted)` `archived_at` check (around line 524 of the current `migration.ts`).
+**Migration placement.** Add the `CREATE TABLE IF NOT EXISTS message_redactions` DDL inline in `runLcmMigrations`, immediately after the `CREATE TABLE IF NOT EXISTS promoted` block and before the subsequent `PRAGMA table_info(promoted)` `archived_at` check.
 
 **Read pattern** (stats):
 

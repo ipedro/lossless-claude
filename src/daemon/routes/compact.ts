@@ -148,9 +148,9 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
     compactingNow.add(session_id);
 
     try {
-    const pid = projectId(cwd);
-    const result = await enqueue(pid, async () => {
-    const dbPath = projectDbPath(cwd);
+      const pid = projectId(cwd);
+      const result = await enqueue(pid, async () => {
+      const dbPath = projectDbPath(cwd);
     ensureProjectDir(cwd);
 
     const scrubber = await ScrubEngine.forProject(
@@ -160,8 +160,8 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
 
     const db = new DatabaseSync(dbPath);
     try {
-    db.exec("PRAGMA busy_timeout = 5000");
-    runLcmMigrations(db);
+      db.exec("PRAGMA busy_timeout = 5000");
+      runLcmMigrations(db);
 
     const conversationStore = new ConversationStore(db);
     const summaryStore = new SummaryStore(db);

@@ -21,7 +21,7 @@ The exception is the summarizer, which you configure explicitly:
 
 | Summarizer (`llm.provider`) | Data sent externally |
 |-----------------------------|----------------------|
-| `auto` (default) | Detects available CLI (`claude` or `codex`) and uses it; falls back to `disabled` |
+| `auto` (default) | Resolves to `claude-process` (messages sent to Anthropic via the `claude` CLI) |
 | `disabled` | Nothing |
 | `claude-process` | Messages sent to Anthropic via the `claude` CLI (your Claude subscription) |
 | `codex-process` | Messages sent to OpenAI via the `codex` CLI (your OpenAI subscription) |

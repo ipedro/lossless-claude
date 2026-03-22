@@ -78,6 +78,21 @@ const LOCAL_TOOLS = {
                 }
             }
         }
+        // Security section (always shown)
+        {
+            const rc = stats.redactionCounts;
+            lines.push("");
+            lines.push("## 🔒 Security");
+            lines.push("");
+            lines.push("| Metric | Value |");
+            lines.push("|--------|-------|");
+            if (rc.total === 0) {
+                lines.push(`| Redactions | 0 |`);
+            }
+            else {
+                lines.push(`| Redactions | ${rc.total} total (built-in: ${rc.builtIn}  global: ${rc.global}  project: ${rc.project}) |`);
+            }
+        }
         return lines.join("\n");
     },
     lcm_doctor: async () => {

@@ -689,7 +689,8 @@ export class CompactionEngine {
      * normal -> aggressive -> deterministic fallback.
      */
     async summarizeWithEscalation(params) {
-        const sourceText = params.sourceText.trim();
+        const rawText = params.sourceText.trim();
+        const sourceText = this.config.scrubber ? this.config.scrubber.scrub(rawText) : rawText;
         if (!sourceText) {
             return {
                 content: "[Truncated from 0 tokens]",

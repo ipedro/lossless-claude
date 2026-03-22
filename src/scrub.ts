@@ -21,14 +21,24 @@ function isSpanningPattern(source: string): boolean {
   // Check for literal space or the escape sequence \s — unambiguous spanning intent.
   // Use string includes (not regex) so we detect the two-char sequence \s, not whitespace chars.
   if (source.includes(" ") || source.includes("\\s")) return true;
-  // Check for unescaped `.` which can match spaces
-  // Walk the source and look for `.` not preceded by `\`
+  // Check for unescaped `.` which can match spaces.
+  // A `.` inside a character class `[...]` is a literal dot and does NOT match
+  // whitespace, so we track bracket depth to avoid false positives.
+  let inCharClass = false;
   for (let i = 0; i < source.length; i++) {
     if (source[i] === "\\") {
       i++; // skip escaped char
       continue;
     }
-    if (source[i] === ".") return true;
+    if (source[i] === "[") {
+      inCharClass = true;
+      continue;
+    }
+    if (source[i] === "]" && inCharClass) {
+      inCharClass = false;
+      continue;
+    }
+    if (source[i] === "." && !inCharClass) return true;
   }
   return false;
 }

@@ -50,6 +50,15 @@ describe("ScrubEngine — custom patterns", () => {
     expect(engine.scrub("GLOBAL_123 and LOCAL_456")).toBe("[REDACTED] and [REDACTED]");
   });
 
+  it("does not classify dot inside character class as spanning", () => {
+    // [A-Z0-9._-]+ contains a `.` but it's inside brackets — literal, not spanning
+    const engine = new ScrubEngine([], ["[A-Z0-9._-]+"]);
+    // Should be a token pattern (non-spanning), so it won't gobble whitespace
+    const result = engine.scrub("FOO.BAR BAZ_QUX");
+    // Both tokens should be independently matched and redacted
+    expect(result).toBe("[REDACTED] [REDACTED]");
+  });
+
   it("warns and skips invalid regex patterns, continues scrubbing valid ones", () => {
     const engine = new ScrubEngine(["[invalid"], ["VALID_[A-Z]+"]);
     expect(engine.scrub("VALID_ABC")).toContain("[REDACTED]");

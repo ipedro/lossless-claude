@@ -177,9 +177,9 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
       if (newMessages.length > 0) {
         const ingestCounts = { builtIn: 0, global: 0, project: 0 };
         const inputs = newMessages.map((m, i) => {
-          const { text: scrubbedContent, builtIn, global, project } = scrubber.scrubWithCounts(m.content);
+          const { text: scrubbedContent, builtIn, global: globalCount, project } = scrubber.scrubWithCounts(m.content);
           ingestCounts.builtIn += builtIn;
-          ingestCounts.global += global;
+          ingestCounts.global += globalCount;
           ingestCounts.project += project;
           return {
             conversationId: conversation.conversationId,

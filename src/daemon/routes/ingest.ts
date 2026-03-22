@@ -79,9 +79,9 @@ export function createIngestHandler(config: DaemonConfig): RouteHandler {
       const pid = projectId(cwd);
       const totalCounts = { builtIn: 0, global: 0, project: 0 };
       const inputs = newMessages.map((m, i) => {
-        const { text: scrubbedContent, builtIn, global, project } = scrubber.scrubWithCounts(m.content);
+        const { text: scrubbedContent, builtIn, global: globalCount, project } = scrubber.scrubWithCounts(m.content);
         totalCounts.builtIn += builtIn;
-        totalCounts.global += global;
+        totalCounts.global += globalCount;
         totalCounts.project += project;
         return {
           conversationId: conversation.conversationId,
@@ -91,11 +91,11 @@ export function createIngestHandler(config: DaemonConfig): RouteHandler {
           tokenCount: m.tokenCount,
         };
       });
-      let records!: Awaited<ReturnType<typeof conversationStore.createMessagesBulk>>;
-      await conversationStore.withTransaction(async () => {
-        records = await conversationStore.createMessagesBulk(inputs);
+      const records = await conversationStore.withTransaction(async () => {
+        const created = await conversationStore.createMessagesBulk(inputs);
         upsertRedactionCounts(db, pid, totalCounts);
-        await summaryStore.appendContextMessages(conversation.conversationId, records.map((r) => r.messageId));
+        await summaryStore.appendContextMessages(conversation.conversationId, created.map((r) => r.messageId));
+        return created;
       });
 
       const totalTokens = await summaryStore.getContextTokenCount(conversation.conversationId);

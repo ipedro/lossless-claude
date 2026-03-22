@@ -33,6 +33,13 @@ function isSpanningPattern(source: string): boolean {
   return false;
 }
 
+export interface ScrubCounts {
+  text: string;
+  builtIn: number;
+  global: number;
+  project: number;
+}
+
 export class ScrubEngine {
   private readonly spanningPatterns: Array<{ source: string; regex: RegExp }> = [];
   private readonly tokenPatterns: Array<{ source: string; regex: RegExp }> = [];
@@ -75,7 +82,7 @@ export class ScrubEngine {
    * - "Token" patterns (no whitespace/dot in source) are applied token-by-token
    *   so that greedy `.*`-style patterns in one token don't eat adjacent tokens.
    */
-  scrubWithCounts(text: string): { text: string; builtIn: number; global: number; project: number } {
+  scrubWithCounts(text: string): ScrubCounts {
     const builtInCount = BUILT_IN_PATTERNS.length;
     const globalCount = this._globalPatternCount;
 

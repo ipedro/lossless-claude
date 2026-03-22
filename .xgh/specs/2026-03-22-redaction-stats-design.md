@@ -15,7 +15,7 @@ The scrubbing pipeline (PR #56) protects users from storing secrets in lossless-
   🔒 redactions  142 total  (built-in: 139  global: 2  project: 1)
 ```
 
-The `──` section divider is the standard format used by the existing `sectionHeader()` helper in `stats.ts` and is explicitly specified in `.xgh/specs/2026-03-20-stats-doctor-redesign.md` (line 86). The "no box-drawing characters" note in that spec refers to table borders, not section separators.
+The `──` section divider matches the existing `sectionHeader()` helper in `stats.ts` and the section-divider format explicitly shown in `.xgh/specs/2026-03-20-stats-doctor-redesign.md` (line 86).
 
 Only rendered when `total > 0`. Absence of the section means no redactions were found — not a bug.
 

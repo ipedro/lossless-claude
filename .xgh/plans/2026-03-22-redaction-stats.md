@@ -443,8 +443,7 @@ it("writes redaction counts to message_redactions when secrets are found", async
   expect(res.status).toBe(200);
 
   // Verify redaction counts were written
-  // `projectDbPath` is already imported at the top of this test file
-  const { DatabaseSync } = await import("node:sqlite");
+  // `projectDbPath` and `DatabaseSync` are already imported at the top of this test file
   const dbPath = projectDbPath(tempDir);
 
   const db = new DatabaseSync(dbPath);

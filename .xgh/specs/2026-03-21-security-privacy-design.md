@@ -92,8 +92,8 @@ lcm sensitive add "<pattern>"       # append to current project's sensitive-patt
 lcm sensitive add --global "<pat>"  # append to config.json sensitivePatterns array
 lcm sensitive remove "<pattern>"    # remove from project patterns (exact match)
 lcm sensitive test "<string>"       # dry-run: show which patterns match and what gets redacted
-lcm sensitive purge                 # delete ~/.lossless-claude/projects/{hash}/ (current project)
-lcm sensitive purge --all           # delete all of ~/.lossless-claude/projects/
+lcm sensitive purge --yes           # delete ~/.lossless-claude/projects/{hash}/ (current project)
+lcm sensitive purge --all --yes     # delete all of ~/.lossless-claude/projects/
 ```
 
 `lcm sensitive list` output format:

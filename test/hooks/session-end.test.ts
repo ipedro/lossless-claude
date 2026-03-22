@@ -86,6 +86,20 @@ describe("handleSessionEnd", () => {
 
     expect(result.exitCode).toBe(0);
     expect(elapsed).toBeLessThan(500); // must not block waiting for compact
+
+    // Verify socket.unref() is called via the 'socket' event listener.
+    // The 'socket' listener is what allows the Node process to exit even if
+    // the daemon never responds.
+    expect(mockHttpReq.on).toHaveBeenCalledWith("socket", expect.any(Function));
+    const socketListener = (mockHttpReq.on as any).mock.calls.find(
+      (call: any) => call[0] === "socket",
+    )?.[1];
+    expect(socketListener).toBeDefined();
+
+    // Verify the listener calls unref() on the socket
+    const mockSocket = { unref: vi.fn() };
+    socketListener?.(mockSocket);
+    expect(mockSocket.unref).toHaveBeenCalled();
   });
 
   it("fires compact at exact threshold boundary (>=)", async () => {

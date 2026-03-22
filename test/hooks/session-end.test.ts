@@ -70,7 +70,7 @@ describe("handleSessionEnd", () => {
     } as any);
     const { request } = await import("node:http");
     const client = createMockClient({ ingested: 100, totalTokens: 99999 });
-    await handleSessionEnd(stdin({ session_id: "s1", cwd: "/tmp" }), client, 3737);
+    await handleSessionEnd(JSON.stringify({ session_id: "s1", cwd: "/tmp" }), client, 3737);
     expect(request).not.toHaveBeenCalled();
   });
 

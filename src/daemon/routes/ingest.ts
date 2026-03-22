@@ -5,11 +5,11 @@ import { projectDbPath, projectDir, projectId, ensureProjectDir } from "../proje
 import { sendJson } from "../server.js";
 import type { RouteHandler } from "../server.js";
 import { runLcmMigrations } from "../../db/migration.js";
+import { upsertRedactionCounts } from "../../db/redaction-stats.js";
 import { ConversationStore } from "../../store/conversation-store.js";
 import { SummaryStore } from "../../store/summary-store.js";
 import { parseTranscript, type ParsedMessage } from "../../transcript.js";
 import { ScrubEngine } from "../../scrub.js";
-import { upsertRedactionCounts } from "../../db/redaction-stats.js";
 
 function isParsedMessage(value: unknown): value is ParsedMessage {
   if (!value || typeof value !== "object") return false;
@@ -60,10 +60,9 @@ export function createIngestHandler(config: DaemonConfig): RouteHandler {
     );
 
     const db = new DatabaseSync(dbPath);
-    db.exec("PRAGMA busy_timeout = 5000");
-    runLcmMigrations(db);
-
     try {
+      db.exec("PRAGMA busy_timeout = 5000");
+      runLcmMigrations(db);
       const conversationStore = new ConversationStore(db);
       const summaryStore = new SummaryStore(db);
       const conversation = await conversationStore.getOrCreateConversation(session_id);

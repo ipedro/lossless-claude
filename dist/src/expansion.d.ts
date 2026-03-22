@@ -83,13 +83,7 @@ export declare function buildExpansionToolDefinition(options: {
 }): {
     name: string;
     description: string;
-    parameters: import("@sinclair/typebox").TObject<{
-        summaryIds: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TArray<import("@sinclair/typebox").TString>>;
-        query: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
-        maxDepth: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
-        tokenCap: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TNumber>;
-        includeMessages: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TBoolean>;
-    }>;
+    parameters: any;
     execute: (_toolCallId: string, params: Record<string, unknown>) => Promise<{
         content: Array<{
             type: "text";

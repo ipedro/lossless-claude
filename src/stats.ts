@@ -37,8 +37,9 @@ interface OverallStats {
   redactionCounts: RedactionCounts;
 }
 
-function queryProjectStats(dbPath: string): Omit<OverallStats, "projects"> {
+function queryProjectStats(dbPath: string, projectId: string): Omit<OverallStats, "projects"> {
   const db = new DatabaseSync(dbPath);
+  db.exec("PRAGMA busy_timeout = 5000");
   runLcmMigrations(db);
 
   try {
@@ -55,8 +56,8 @@ function queryProjectStats(dbPath: string): Omit<OverallStats, "projects"> {
     ).get() as { count: number };
 
     const redactionRows = db.prepare(
-      `SELECT category, COALESCE(SUM(count), 0) as count FROM redaction_stats GROUP BY category`
-    ).all() as { category: string; count: number }[];
+      `SELECT category, COALESCE(SUM(count), 0) as count FROM redaction_stats WHERE project_id = ? GROUP BY category`
+    ).all(projectId) as { category: string; count: number }[];
     const redactionMap = Object.fromEntries(redactionRows.map((r) => [r.category, r.count]));
     const redactionCounts: RedactionCounts = {
       builtIn: redactionMap["built_in"] ?? 0,
@@ -290,7 +291,7 @@ export function collectStats(): OverallStats {
     if (!existsSync(dbPath)) continue;
 
     try {
-      const projStats = queryProjectStats(dbPath);
+      const projStats = queryProjectStats(dbPath, entry.name);
       // Only count projects with stored messages
       if (projStats.messages === 0) continue;
       totalProjects++;

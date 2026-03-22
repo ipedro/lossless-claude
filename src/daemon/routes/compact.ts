@@ -189,16 +189,11 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
             tokenCount: m.tokenCount,
           };
         });
-        db.exec("BEGIN IMMEDIATE");
-        try {
+        await conversationStore.withTransaction(async () => {
           const records = await conversationStore.createMessagesBulk(inputs);
           upsertRedactionCounts(db, pid, ingestCounts);
           await summaryStore.appendContextMessages(conversation.conversationId, records.map((r) => r.messageId));
-          db.exec("COMMIT");
-        } catch (err) {
-          db.exec("ROLLBACK");
-          throw err;
-        }
+        });
       }
     }
 

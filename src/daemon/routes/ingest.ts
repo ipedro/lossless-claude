@@ -91,17 +91,12 @@ export function createIngestHandler(config: DaemonConfig): RouteHandler {
           tokenCount: m.tokenCount,
         };
       });
-      db.exec("BEGIN IMMEDIATE");
-      let records;
-      try {
+      let records!: Awaited<ReturnType<typeof conversationStore.createMessagesBulk>>;
+      await conversationStore.withTransaction(async () => {
         records = await conversationStore.createMessagesBulk(inputs);
         upsertRedactionCounts(db, pid, totalCounts);
         await summaryStore.appendContextMessages(conversation.conversationId, records.map((r) => r.messageId));
-        db.exec("COMMIT");
-      } catch (err) {
-        db.exec("ROLLBACK");
-        throw err;
-      }
+      });
 
       const totalTokens = await summaryStore.getContextTokenCount(conversation.conversationId);
       sendJson(res, 200, { ingested: records.length, totalTokens });

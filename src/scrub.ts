@@ -123,7 +123,7 @@ export class ScrubEngine {
     if (taggedRanges.length === 0) return { text, builtIn: 0, global: 0, project: 0 };
 
     // Sort by start position
-    taggedRanges.sort((a, b) => a.range[0] - b.range[0]);
+    taggedRanges.sort((a, b) => a.range[0] - b.range[0] || a.idx - b.idx);
 
     // Merge overlapping ranges, tracking which category "wins" (first match)
     const merged: Array<{ range: [number, number]; idx: number }> = [];

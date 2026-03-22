@@ -105,8 +105,11 @@ async function sensitiveAdd(
     let raw: any = {};
     try {
       raw = JSON.parse(await readFile(configPath, "utf-8"));
-    } catch {
-      // file doesn't exist yet or invalid JSON — start fresh
+    } catch (err) {
+      if (existsSync(configPath)) {
+        throw new Error(`Invalid JSON in ${configPath}: ${(err as Error).message}`);
+      }
+      // file doesn't exist yet — start fresh
     }
     if (!raw.security) raw.security = {};
     if (!Array.isArray(raw.security.sensitivePatterns)) {

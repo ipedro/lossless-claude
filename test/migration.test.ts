@@ -280,3 +280,62 @@ describe("promoted table migration", () => {
     db.close();
   });
 });
+
+describe("redaction_stats table migration", () => {
+  it("creates redaction_stats table with correct schema", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "lossless-claude-redaction-"));
+    tempDirs.push(tempDir);
+    const dbPath = join(tempDir, "test.db");
+    const db = getLcmConnection(dbPath);
+
+    runLcmMigrations(db);
+
+    const tables = db.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='redaction_stats'"
+    ).all() as Array<{ name: string }>;
+    expect(tables).toHaveLength(1);
+
+    const columns = db.prepare("PRAGMA table_info(redaction_stats)").all() as Array<{
+      name: string;
+      type: string;
+    }>;
+    const colNames = columns.map((c) => c.name);
+    expect(colNames).toContain("project_id");
+    expect(colNames).toContain("category");
+    expect(colNames).toContain("count");
+
+    // Can upsert and accumulate counts
+    db.prepare(
+      "INSERT INTO redaction_stats (project_id, category, count) VALUES (?, ?, ?)" +
+      " ON CONFLICT(project_id, category) DO UPDATE SET count = count + excluded.count"
+    ).run("proj-1", "built_in", 3);
+    db.prepare(
+      "INSERT INTO redaction_stats (project_id, category, count) VALUES (?, ?, ?)" +
+      " ON CONFLICT(project_id, category) DO UPDATE SET count = count + excluded.count"
+    ).run("proj-1", "built_in", 2);
+
+    const row = db.prepare(
+      "SELECT count FROM redaction_stats WHERE project_id = ? AND category = ?"
+    ).get("proj-1", "built_in") as { count: number };
+    expect(row.count).toBe(5);
+
+    db.close();
+  });
+
+  it("is idempotent — running migration twice does not error", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "lossless-claude-redaction-idem-"));
+    tempDirs.push(tempDir);
+    const dbPath = join(tempDir, "test.db");
+    const db = getLcmConnection(dbPath);
+
+    runLcmMigrations(db);
+    runLcmMigrations(db);
+
+    const tables = db.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='redaction_stats'"
+    ).all() as Array<{ name: string }>;
+    expect(tables).toHaveLength(1);
+
+    db.close();
+  });
+});

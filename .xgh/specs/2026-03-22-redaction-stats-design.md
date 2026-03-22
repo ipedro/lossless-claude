@@ -42,7 +42,22 @@ export interface ScrubResult {
 scrub(text: string): ScrubResult
 ```
 
-Internally, the constructor already separates patterns into three groups (`builtInPatterns`, `globalPatterns`, `projectPatterns`). Count regex hits per group during the range-collection phase. Each match on a range from a built-in pattern increments `builtIn`, etc.
+**Internal structure change required.** The constructor today merges all patterns into two lists — `spanningPatterns` and `tokenPatterns` — based on whitespace behaviour, losing origin information. To track counts by category, each entry must be tagged at construction time:
+
+```ts
+type PatternEntry = {
+  source: string;
+  regex: RegExp;
+  category: 'builtIn' | 'global' | 'project';
+};
+// Both lists change from Array<{source, regex}> to PatternEntry[]
+private readonly spanningPatterns: PatternEntry[] = [];
+private readonly tokenPatterns: PatternEntry[] = [];
+```
+
+The constructor receives patterns in three groups (`BUILT_IN_PATTERNS`, `globalPatterns`, `projectPatterns`) and assigns the `category` tag accordingly when appending to the spanning/token lists.
+
+**Counting rule — pre-merge raw hits per category.** The `scrub()` algorithm collects regex match ranges, then merges overlapping ranges. Counts are tallied from raw regex hits *before* the merge step. If a built-in pattern and a global pattern both match the same span, each increments its own category count independently. This may produce a count total slightly higher than the number of `[REDACTED]` substitutions, but is acceptable for a headline metric (not an audit trail).
 
 **Call site updates (4 sites):**
 
@@ -73,7 +88,9 @@ CREATE TABLE IF NOT EXISTS message_redactions (
 - No extra index needed beyond the PK.
 - Add an idempotency test mirroring `test/migration.test.ts:266`.
 
-**Write pattern** (ingest/compact routes, after storing messages):
+**`message_id` source.** `ConversationStore.createMessagesBulk()` returns `MessageRecord[]`, each with a `messageId` field (the SQLite `lastInsertRowid`). Use this value when writing to `message_redactions`.
+
+**Write pattern** (ingest and compact routes, immediately after `createMessagesBulk`):
 
 ```sql
 INSERT INTO message_redactions (message_id, category, count)
@@ -82,6 +99,10 @@ ON CONFLICT(message_id, category) DO UPDATE SET count = excluded.count
 ```
 
 One row per `(message_id, category)` pair where `count > 0`. Skip zero-count categories.
+
+**Compact route note.** The compact route stores messages using the same `storedCount` skip mechanism as ingest — each message is written to the DB exactly once (by whichever route first processes it). The LLM-summarization scrub at `compaction.ts:972` operates on already-stored (already-redacted) text and is not counted. The `ON CONFLICT … DO UPDATE SET count = excluded.count` upsert is safe: if a message was already written by ingest with its counts, a subsequent compact call for the same message would resolve to the same message_id and overwrite with the same (or zero) counts from re-scrubbing redacted text.
+
+**Migration placement.** Add the `CREATE TABLE IF NOT EXISTS message_redactions` DDL inline in `runLcmMigrations`, immediately after the `promoted` table `CREATE TABLE` block and before the `PRAGMA table_info(promoted)` `archived_at` check (around line 524 of the current `migration.ts`).
 
 **Read pattern** (stats):
 
@@ -102,7 +123,7 @@ GROUP BY m.conversation_id, mr.category
 
 ### 3. `stats.ts` Changes
 
-**`queryProjectStats()`** — add redaction query, use `COALESCE` for missing categories:
+**`queryProjectStats()`** (private function at `stats.ts:32`) — add redaction query, use `COALESCE` for missing categories:
 
 ```ts
 interface ProjectStats {
@@ -126,7 +147,7 @@ redactionCounts: { builtIn: number; global: number; project: number };
   🔒 redactions  142 total  (built-in: 139  global: 2  project: 1)
 ```
 
-Rendered only when `total > 0`. Styling matches existing `dim` label + value pattern.
+Rendered only when `total > 0`. The `🔒` prefix is intentional — the `printStats` header already uses `🧠`; the lock emoji gives the Security section a matching visual anchor. Row label styling otherwise matches the existing `dim` label + value pattern.
 
 ### 4. `GET /stats` Daemon Route (`src/daemon/routes/stats.ts`)
 
@@ -135,9 +156,10 @@ New route — no `cwd` parameter. Calls `collectStats()` (reads all project DBs)
 ```
 GET /stats
 → 200 { projects, conversations, messages, summaries, redactionCounts, ... }
+→ 500 { error: "Stats collection failed" }   (if collectStats() throws)
 ```
 
-Registered in `src/daemon/server.ts`. The CLI (`lcm stats`) and MCP tool (`lcm_stats`) continue calling `collectStats()` directly — this route is for programmatic consumers.
+Registered in `src/daemon/server.ts`. The CLI (`lcm stats`) and MCP tool (`lcm_stats`) continue calling `collectStats()` directly — this route is for programmatic consumers. Error handling: wrap `collectStats()` in try/catch; on any throw, respond `500 { error: "Stats collection failed" }`.
 
 ---
 

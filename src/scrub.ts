@@ -115,13 +115,14 @@ export class ScrubEngine {
     // Sort by start position
     taggedRanges.sort((a, b) => a.range[0] - b.range[0]);
 
-    // Merge overlapping ranges, tracking which category "wins" (first match)
+    // Merge overlapping ranges; when overlaps occur, the lowest original pattern
+    // index wins so that built-in > global > project and earlier patterns win.
     const merged: Array<{ range: [number, number]; idx: number }> = [];
     let cur = taggedRanges[0];
     for (let i = 1; i < taggedRanges.length; i++) {
       const next = taggedRanges[i];
       if (next.range[0] <= cur.range[1]) {
-        cur = { range: [cur.range[0], Math.max(cur.range[1], next.range[1])], idx: cur.idx };
+        cur = { range: [cur.range[0], Math.max(cur.range[1], next.range[1])], idx: Math.min(cur.idx, next.idx) };
       } else {
         merged.push(cur);
         cur = next;

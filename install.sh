@@ -5,7 +5,7 @@ INSTALL_DIR="${LOSSLESS_CLAUDE_DIR:-${HOME}/.lossless-claude/plugin}"
 NPM_PREFIX="${HOME}/.npm-global"
 
 echo ""
-echo "  lossless-claude — installer"
+echo "  lcm — installer"
 echo ""
 
 # Clone or update
@@ -50,9 +50,9 @@ elif [[ "${SHELL}" == */bash ]]; then
 else
   _RC="${HOME}/.profile"
 fi
-if ! grep -q 'lossless-claude' "${_RC}" 2>/dev/null; then
+if ! grep -q "${NPM_PREFIX}/bin" "${_RC}" 2>/dev/null; then
   echo "" >> "${_RC}"
-  echo '# lossless-claude' >> "${_RC}"
+  echo '# lcm' >> "${_RC}"
   printf 'export PATH="%s/bin:${PATH}"\n' "${NPM_PREFIX}" >> "${_RC}"
   echo "  ▸ Added ${NPM_PREFIX}/bin to PATH in ${_RC}"
 fi

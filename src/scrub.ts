@@ -21,14 +21,33 @@ function isSpanningPattern(source: string): boolean {
   // Check for literal space or the escape sequence \s — unambiguous spanning intent.
   // Use string includes (not regex) so we detect the two-char sequence \s, not whitespace chars.
   if (source.includes(" ") || source.includes("\\s")) return true;
-  // Check for unescaped `.` which can match spaces
-  // Walk the source and look for `.` not preceded by `\`
+  // Check for unescaped `.` which can match spaces.
+  // A `.` inside a character class `[...]` is a literal dot and does NOT match
+  // whitespace, so we track bracket depth to avoid false positives.
+  let inCharClass = false;
   for (let i = 0; i < source.length; i++) {
     if (source[i] === "\\") {
       i++; // skip escaped char
       continue;
     }
-    if (source[i] === ".") return true;
+    if (source[i] === "[") {
+      inCharClass = true;
+      // In JS regex, `]` immediately after `[` (or `[^`) is a literal, not the class end.
+      // Skip over the opening position(s) so we don't prematurely close the class.
+      const next = i + 1;
+      if (next < source.length && source[next] === "^") {
+        i++; // skip the `^`
+      }
+      if (i + 1 < source.length && source[i + 1] === "]") {
+        i++; // skip the literal `]`
+      }
+      continue;
+    }
+    if (source[i] === "]" && inCharClass) {
+      inCharClass = false;
+      continue;
+    }
+    if (source[i] === "." && !inCharClass) return true;
   }
   return false;
 }
@@ -113,7 +132,7 @@ export class ScrubEngine {
     if (taggedRanges.length === 0) return { text, builtIn: 0, global: 0, project: 0 };
 
     // Sort by start position
-    taggedRanges.sort((a, b) => a.range[0] - b.range[0]);
+    taggedRanges.sort((a, b) => a.range[0] - b.range[0] || a.idx - b.idx);
 
     // Merge overlapping ranges, tracking which category "wins" (first match)
     const merged: Array<{ range: [number, number]; idx: number }> = [];

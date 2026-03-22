@@ -39,9 +39,9 @@ interface OverallStats {
 
 function queryProjectStats(dbPath: string): Omit<OverallStats, "projects"> {
   const db = new DatabaseSync(dbPath);
-  runLcmMigrations(db);
-
   try {
+    db.exec("PRAGMA busy_timeout = 5000");
+    runLcmMigrations(db);
     const msgStats = db.prepare(
       `SELECT COUNT(*) as count, COALESCE(SUM(token_count), 0) as tokens FROM messages`
     ).get() as { count: number; tokens: number };

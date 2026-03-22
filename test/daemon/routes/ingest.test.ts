@@ -117,10 +117,13 @@ describe("POST /ingest", () => {
 
     // Verify the stored content was scrubbed
     const db = new DatabaseSync(projectDbPath(tempDir));
-    const row = db.prepare("SELECT content FROM messages LIMIT 1").get() as { content: string } | undefined;
-    db.close();
-    expect(row?.content).toContain("[REDACTED]");
-    expect(row?.content).not.toContain("MY_PROJECT_SECRET");
+    try {
+      const row = db.prepare("SELECT content FROM messages LIMIT 1").get() as { content: string } | undefined;
+      expect(row?.content).toContain("[REDACTED]");
+      expect(row?.content).not.toContain("MY_PROJECT_SECRET");
+    } finally {
+      db.close();
+    }
   });
 
   it("returns ingested=0 when transcript_path is missing and messages[] is absent", async () => {

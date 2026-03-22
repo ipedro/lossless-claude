@@ -42,7 +42,7 @@ export interface ScrubResult {
 scrub(text: string): ScrubResult
 ```
 
-**Internal structure change required.** The constructor today merges all patterns into two lists — `spanningPatterns` and `tokenPatterns` — based on whitespace behaviour, losing origin information. To track counts by category, each entry must be tagged at construction time:
+**Internal structure change required.** The constructor today merges all patterns into two lists — `spanningPatterns` and `tokenPatterns` — based on whitespace behavior, losing origin information. To track counts by category, each entry must be tagged at construction time:
 
 ```ts
 type PatternEntry = {

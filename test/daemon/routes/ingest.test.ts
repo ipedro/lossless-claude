@@ -127,6 +127,49 @@ describe("POST /ingest", () => {
     expect(row?.content).not.toContain("MY_PROJECT_SECRET");
   });
 
+  it("increments redaction_stats per category when content contains secrets", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "lossless-ingest-redact-stats-"));
+    tempDirs.push(tempDir);
+
+    daemon = await createDaemon(
+      loadDaemonConfig("/nonexistent", {
+        daemon: { port: 0 },
+        security: { sensitivePatterns: ["MY_GLOBAL_TOKEN"] },
+      }),
+    );
+    const res = await fetch(`http://127.0.0.1:${daemon.address().port}/ingest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: "redact-stats-1",
+        cwd: tempDir,
+        messages: [
+          {
+            role: "user",
+            // ghp_ + 36 alphanumeric chars → matches built-in GitHub token pattern
+            // MY_GLOBAL_TOKEN → matches the global pattern above
+            content: "token ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA and MY_GLOBAL_TOKEN",
+            tokenCount: 10,
+          },
+        ],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+
+    const db = new DatabaseSync(projectDbPath(tempDir));
+    try {
+      const rows = db.prepare(
+        "SELECT category, count FROM redaction_stats ORDER BY category"
+      ).all() as Array<{ category: string; count: number }>;
+      const byCategory = Object.fromEntries(rows.map((r) => [r.category, r.count]));
+      expect(byCategory["built_in"]).toBeGreaterThan(0);
+      expect(byCategory["global"]).toBeGreaterThan(0);
+    } finally {
+      db.close();
+    }
+  });
+
   it("returns ingested=0 when transcript_path is missing and messages[] is absent", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "lossless-ingest-missing-"));
     tempDirs.push(tempDir);

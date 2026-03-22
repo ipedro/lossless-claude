@@ -5,7 +5,8 @@ import { DatabaseSync } from "node:sqlite";
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { createDaemon, type DaemonInstance } from "../../../src/daemon/server.js";
 import { loadDaemonConfig } from "../../../src/daemon/config.js";
-import { projectDbPath } from "../../../src/daemon/project.js";
+import { projectDbPath, projectId } from "../../../src/daemon/project.js";
+import { runLcmMigrations } from "../../../src/db/migration.js";
 import { ConversationStore } from "../../../src/store/conversation-store.js";
 
 // --- Summarizer branching unit tests ---
@@ -54,6 +55,7 @@ function makeConfig(provider: DaemonConfig["llm"]["provider"]): DaemonConfig {
     llm: { provider, model: "test-model", apiKey: "sk-test", baseURL: "http://localhost:11435/v1" },
     claudeCliProxy: { enabled: true, port: 3456, startupTimeoutMs: 10000, model: "claude-haiku-4-5" },
     cipher: { configPath: "/tmp/cipher.yml", collection: "test" },
+    security: { sensitivePatterns: [] },
   } as DaemonConfig;
 }
 
@@ -64,6 +66,19 @@ async function readMessageCount(cwd: string, sessionId: string): Promise<number>
     const conversationStore = new ConversationStore(db);
     const conversation = await conversationStore.getOrCreateConversation(sessionId);
     return conversationStore.getMessageCount(conversation.conversationId);
+  } finally {
+    db.close();
+  }
+}
+
+async function readMessageContents(cwd: string, sessionId: string): Promise<string[]> {
+  const db = new DatabaseSync(projectDbPath(cwd));
+
+  try {
+    const conversationStore = new ConversationStore(db);
+    const conversation = await conversationStore.getOrCreateConversation(sessionId);
+    const messages = await conversationStore.getMessages(conversation.conversationId);
+    return messages.map((m) => m.content);
   } finally {
     db.close();
   }
@@ -327,6 +342,51 @@ describe("POST /compact", () => {
     expect(compactRes.status).toBe(200);
     expect(await readMessageCount(tempDir, sessionId)).toBe(4);
   });
+
+  it("updates redaction_stats when transcript ingestion contains secrets", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "lossless-compact-redact-"));
+    tempDirs.push(tempDir);
+
+    const transcriptPath = join(tempDir, "session.jsonl");
+    writeFileSync(
+      transcriptPath,
+      [
+        // ghp_ + 36 alphanumeric chars → matches built-in GitHub token pattern
+        JSON.stringify({ message: { role: "user", content: "token ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA here" } }),
+        JSON.stringify({ message: { role: "assistant", content: "noted" } }),
+        JSON.stringify({ message: { role: "user", content: "ok" } }),
+      ].join("\n"),
+    );
+
+    // createAnthropicSummarizer is mocked at the top of this file
+    daemon = await createDaemon(loadDaemonConfig("/x", {
+      daemon: { port: 0 },
+      llm: { provider: "anthropic", apiKey: "sk-test" },
+    }));
+
+    const res = await fetch(`http://127.0.0.1:${daemon.address().port}/compact`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: "compact-redact-stats",
+        cwd: tempDir,
+        transcript_path: transcriptPath,
+      }),
+    });
+
+    expect(res.status).toBe(200);
+
+    const db = new DatabaseSync(projectDbPath(tempDir));
+    try {
+      const rows = db.prepare(
+        "SELECT category, count FROM redaction_stats ORDER BY category"
+      ).all() as Array<{ category: string; count: number }>;
+      const byCategory = Object.fromEntries(rows.map((r) => [r.category, r.count]));
+      expect(byCategory["built_in"]).toBeGreaterThan(0);
+    } finally {
+      db.close();
+    }
+  });
 });
 
 describe("POST /compact with disabled provider", () => {
@@ -347,5 +407,84 @@ describe("POST /compact with disabled provider", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.summary).toContain("disabled");
+  });
+});
+
+describe("POST /compact — scrub redaction during transcript ingestion", () => {
+  let daemon: DaemonInstance | undefined;
+  const tempDirs: string[] = [];
+
+  afterEach(async () => {
+    if (daemon) {
+      await daemon.stop();
+      daemon = undefined;
+    }
+    for (const dir of tempDirs.splice(0)) {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("redacts sensitive patterns from transcript messages during compaction", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "lossless-compact-scrub-"));
+    tempDirs.push(tempDir);
+
+    const secret = "sk-ant-api03-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    const transcriptPath = join(tempDir, "session.jsonl");
+    writeFileSync(
+      transcriptPath,
+      [
+        JSON.stringify({ message: { role: "user", content: `my key is ${secret}` } }),
+        JSON.stringify({ message: { role: "assistant", content: "I see your key" } }),
+        JSON.stringify({ message: { role: "user", content: "thanks" } }),
+        JSON.stringify({ message: { role: "assistant", content: "you're welcome" } }),
+      ].join("\n"),
+    );
+
+    // Create daemon with sensitivePatterns configured (built-in patterns already cover sk-ant-*)
+    daemon = await createDaemon(loadDaemonConfig("/x", {
+      daemon: { port: 0 },
+      llm: { provider: "openai", model: "test-model", apiKey: "sk-test", baseURL: "http://localhost:11435/v1" },
+      security: { sensitivePatterns: [] },
+    }));
+
+    const baseUrl = `http://127.0.0.1:${daemon.address().port}`;
+    const sessionId = "scrub-compact-session";
+
+    // Compact with transcript (not skip_ingest) — scrubber should redact the secret
+    const compactRes = await fetch(`${baseUrl}/compact`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: sessionId,
+        cwd: tempDir,
+        transcript_path: transcriptPath,
+      }),
+    });
+
+    expect(compactRes.status).toBe(200);
+
+    // Verify messages were ingested
+    const msgCount = await readMessageCount(tempDir, sessionId);
+    expect(msgCount).toBe(4);
+
+    // Verify the secret was redacted in stored message content
+    const contents = await readMessageContents(tempDir, sessionId);
+    const userMsg = contents[0];
+    expect(userMsg).toContain("[REDACTED]");
+    expect(userMsg).not.toContain(secret);
+
+    // Verify redaction_stats table was updated
+    const db = new DatabaseSync(projectDbPath(tempDir));
+    try {
+      runLcmMigrations(db);
+      const pid = projectId(tempDir);
+      const row = db.prepare(
+        "SELECT count FROM redaction_stats WHERE project_id = ? AND category = 'built_in'",
+      ).get(pid) as { count: number } | undefined;
+      expect(row).toBeDefined();
+      expect(row!.count).toBeGreaterThan(0);
+    } finally {
+      db.close();
+    }
   });
 });

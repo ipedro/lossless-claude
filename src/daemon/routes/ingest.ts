@@ -5,6 +5,7 @@ import { projectDbPath, projectDir, projectId, ensureProjectDir } from "../proje
 import { sendJson } from "../server.js";
 import type { RouteHandler } from "../server.js";
 import { runLcmMigrations } from "../../db/migration.js";
+import { upsertRedactionCounts } from "../../db/redaction-stats.js";
 import { ConversationStore } from "../../store/conversation-store.js";
 import { SummaryStore } from "../../store/summary-store.js";
 import { parseTranscript, type ParsedMessage } from "../../transcript.js";
@@ -34,22 +35,6 @@ function resolveMessages(input: { messages?: unknown; transcript_path?: string }
   return [];
 }
 
-function upsertRedactionCounts(
-  db: DatabaseSync,
-  pid: string,
-  counts: { builtIn: number; global: number; project: number },
-): void {
-  if (counts.builtIn === 0 && counts.global === 0 && counts.project === 0) return;
-  const upsert = db.prepare(`
-    INSERT INTO redaction_stats (project_id, category, count)
-    VALUES (?, ?, ?)
-    ON CONFLICT(project_id, category) DO UPDATE SET count = count + excluded.count
-  `);
-  if (counts.builtIn > 0) upsert.run(pid, "built_in", counts.builtIn);
-  if (counts.global > 0) upsert.run(pid, "global", counts.global);
-  if (counts.project > 0) upsert.run(pid, "project", counts.project);
-}
-
 export function createIngestHandler(config: DaemonConfig): RouteHandler {
   return async (_req, res, body) => {
     const input = JSON.parse(body || "{}");
@@ -75,10 +60,9 @@ export function createIngestHandler(config: DaemonConfig): RouteHandler {
     );
 
     const db = new DatabaseSync(dbPath);
-    db.exec("PRAGMA busy_timeout = 5000");
-    runLcmMigrations(db);
-
     try {
+      db.exec("PRAGMA busy_timeout = 5000");
+      runLcmMigrations(db);
       const conversationStore = new ConversationStore(db);
       const summaryStore = new SummaryStore(db);
       const conversation = await conversationStore.getOrCreateConversation(session_id);
@@ -94,9 +78,9 @@ export function createIngestHandler(config: DaemonConfig): RouteHandler {
       const pid = projectId(cwd);
       const totalCounts = { builtIn: 0, global: 0, project: 0 };
       const inputs = newMessages.map((m, i) => {
-        const { text: scrubbedContent, builtIn, global, project } = scrubber.scrubWithCounts(m.content);
+        const { text: scrubbedContent, builtIn, global: globalCount, project } = scrubber.scrubWithCounts(m.content);
         totalCounts.builtIn += builtIn;
-        totalCounts.global += global;
+        totalCounts.global += globalCount;
         totalCounts.project += project;
         return {
           conversationId: conversation.conversationId,
@@ -106,9 +90,12 @@ export function createIngestHandler(config: DaemonConfig): RouteHandler {
           tokenCount: m.tokenCount,
         };
       });
-      upsertRedactionCounts(db, pid, totalCounts);
-      const records = await conversationStore.createMessagesBulk(inputs);
-      await summaryStore.appendContextMessages(conversation.conversationId, records.map((r) => r.messageId));
+      const records = await conversationStore.withTransaction(async () => {
+        const created = await conversationStore.createMessagesBulk(inputs);
+        upsertRedactionCounts(db, pid, totalCounts);
+        await summaryStore.appendContextMessages(conversation.conversationId, created.map((r) => r.messageId));
+        return created;
+      });
 
       const totalTokens = await summaryStore.getContextTokenCount(conversation.conversationId);
       sendJson(res, 200, { ingested: records.length, totalTokens });

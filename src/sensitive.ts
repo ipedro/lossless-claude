@@ -104,9 +104,29 @@ async function sensitiveAdd(
     // Read config.json, add to security.sensitivePatterns
     let raw: any = {};
     try {
-      raw = JSON.parse(await readFile(configPath, "utf-8"));
-    } catch {
-      // file doesn't exist yet or invalid JSON — start fresh
+      const content = await readFile(configPath, "utf-8");
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(content);
+      } catch {
+        // Corrupt JSON — refuse to overwrite and destroy existing settings.
+        return {
+          exitCode: 1,
+          stdout: `Error: ${configPath} contains invalid JSON. Fix the file manually before adding patterns.\n`,
+        };
+      }
+      // Guard against non-object JSON values (arrays, primitives).
+      if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+        raw = parsed;
+      } else {
+        return {
+          exitCode: 1,
+          stdout: `Error: ${configPath} is not a JSON object. Fix the file manually before adding patterns.\n`,
+        };
+      }
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+      // File doesn't exist yet — start fresh with empty object.
     }
     if (!raw.security) raw.security = {};
     if (!Array.isArray(raw.security.sensitivePatterns)) {
@@ -135,7 +155,8 @@ async function sensitiveAdd(
   const line = pattern + "\n";
   try {
     const current = await readFile(patternsFile, "utf-8");
-    await writeFile(patternsFile, current + line, "utf-8");
+    const normalized = current.length > 0 && !current.endsWith("\n") ? current + "\n" : current;
+    await writeFile(patternsFile, normalized + line, "utf-8");
   } catch {
     // File doesn't exist yet
     await writeFile(patternsFile, line, "utf-8");
@@ -166,8 +187,19 @@ async function sensitiveRemove(
     };
   }
 
-  const updated = existing.filter((p) => p !== pattern);
-  await writeFile(patternsFile, updated.map((p) => p + "\n").join(""), "utf-8");
+  // Read the raw file and remove only lines matching the pattern, preserving comments and blanks
+  let raw = "";
+  try {
+    raw = await readFile(patternsFile, "utf-8");
+  } catch {
+    // file disappeared between load and remove — treat as already removed
+  }
+  const updatedLines = raw
+    .split("\n")
+    .filter((line) => line.trim() !== pattern);
+  // Ensure single trailing newline
+  const updatedContent = updatedLines.join("\n").replace(/\n+$/, "") + "\n";
+  await writeFile(patternsFile, updatedContent, "utf-8");
 
   return { exitCode: 0, stdout: `Removed project pattern: ${pattern}\n` };
 }

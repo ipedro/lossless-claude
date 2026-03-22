@@ -1,11 +1,12 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import type { DaemonConfig } from "../config.js";
-import { projectId, projectDbPath, projectDir, projectMetaPath, ensureProjectDir } from "../project.js"
+import { projectId, projectDbPath, projectDir, projectMetaPath, ensureProjectDir } from "../project.js";
 import { enqueue } from "../project-queue.js";
 import { sendJson } from "../server.js";
 import type { RouteHandler } from "../server.js";
 import { runLcmMigrations } from "../../db/migration.js";
+import { upsertRedactionCounts } from "../../db/redaction-stats.js";
 import { ConversationStore } from "../../store/conversation-store.js";
 import { SummaryStore } from "../../store/summary-store.js";
 import { CompactionEngine } from "../../compaction.js";
@@ -17,22 +18,6 @@ import { deduplicateAndInsert } from "../../promotion/dedup.js";
 import { parseTranscript } from "../../transcript.js";
 import type { LcmSummarizeFn } from "../../llm/types.js";
 import { ScrubEngine } from "../../scrub.js";
-
-function upsertRedactionCounts(
-  db: DatabaseSync,
-  pid: string,
-  counts: { builtIn: number; global: number; project: number },
-): void {
-  if (counts.builtIn === 0 && counts.global === 0 && counts.project === 0) return;
-  const upsert = db.prepare(`
-    INSERT INTO redaction_stats (project_id, category, count)
-    VALUES (?, ?, ?)
-    ON CONFLICT(project_id, category) DO UPDATE SET count = count + excluded.count
-  `);
-  if (counts.builtIn > 0) upsert.run(pid, "built_in", counts.builtIn);
-  if (counts.global > 0) upsert.run(pid, "global", counts.global);
-  if (counts.project > 0) upsert.run(pid, "project", counts.project);
-}
 
 function fmtN(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
@@ -162,158 +147,159 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
     }
     compactingNow.add(session_id);
 
-    const pid = projectId(cwd);
-    const result = await enqueue(pid, async () => {
     try {
+      const pid = projectId(cwd);
+      const result = await enqueue(pid, async () => {
+        const dbPath = projectDbPath(cwd);
+        ensureProjectDir(cwd);
 
-    const dbPath = projectDbPath(cwd);
-    ensureProjectDir(cwd);
+        const scrubber = await ScrubEngine.forProject(
+          config.security?.sensitivePatterns ?? [],
+          projectDir(cwd),
+        );
 
-    const scrubber = await ScrubEngine.forProject(
-      config.security?.sensitivePatterns ?? [],
-      projectDir(cwd),
-    );
+        const db = new DatabaseSync(dbPath);
+        try {
+          db.exec("PRAGMA busy_timeout = 5000");
+          runLcmMigrations(db);
 
-    const db = new DatabaseSync(dbPath);
-    db.exec("PRAGMA busy_timeout = 5000");
-    runLcmMigrations(db);
+          const conversationStore = new ConversationStore(db);
+          const summaryStore = new SummaryStore(db);
+          const conversation = await conversationStore.getOrCreateConversation(session_id);
 
-    const conversationStore = new ConversationStore(db);
-    const summaryStore = new SummaryStore(db);
-    const conversation = await conversationStore.getOrCreateConversation(session_id);
-
-    // Ingest new messages from the transcript into the DB.
-    if (!skip_ingest && transcript_path && existsSync(transcript_path)) {
-      const parsed = parseTranscript(transcript_path);
-      const storedCount = await conversationStore.getMessageCount(conversation.conversationId);
-      const newMessages = parsed.slice(storedCount);
-      if (newMessages.length > 0) {
-        const ingestCounts = { builtIn: 0, global: 0, project: 0 };
-        const inputs = newMessages.map((m, i) => {
-          const { text: scrubbedContent, builtIn, global, project } = scrubber.scrubWithCounts(m.content);
-          ingestCounts.builtIn += builtIn;
-          ingestCounts.global += global;
-          ingestCounts.project += project;
-          return {
-            conversationId: conversation.conversationId,
-            seq: storedCount + i,
-            role: m.role as "user" | "assistant" | "system",
-            content: scrubbedContent,
-            tokenCount: m.tokenCount,
-          };
-        });
-        upsertRedactionCounts(db, pid, ingestCounts);
-        const records = await conversationStore.createMessagesBulk(inputs);
-        await summaryStore.appendContextMessages(conversation.conversationId, records.map((r) => r.messageId));
-      }
-    }
-
-    // Check if there's anything to compact
-    const tokenCount = await summaryStore.getContextTokenCount(conversation.conversationId);
-
-    if (tokenCount === 0) {
-      db.close();
-      return { summary: "No messages to compact." };
-    }
-
-    const engine = new CompactionEngine(conversationStore, summaryStore, {
-      contextThreshold: 0.75,
-      freshTailCount: 8,
-      leafMinFanout: 3,
-      condensedMinFanout: 2,
-      condensedMinFanoutHard: 1,
-      incrementalMaxDepth: 0,
-      leafTargetTokens: config.compaction.leafTokens,
-      condensedTargetTokens: 900,
-      maxRounds: 10,
-      scrubber,
-    });
-
-    const compactResult = await engine.compact({
-      conversationId: conversation.conversationId,
-      tokenBudget: 200_000,
-      summarize,
-      force: true,
-    });
-
-    // Gather stats for the compaction message (always, regardless of actionTaken)
-    const allSummaries = await summaryStore.getSummariesByConversation(conversation.conversationId);
-    const finalMsgCount = await conversationStore.getMessageCount(conversation.conversationId);
-    const maxDepth = allSummaries.length > 0 ? Math.max(...allSummaries.map((s) => s.depth)) : 0;
-
-    // Promote worthy summaries to cross-session memory (SQLite promoted table)
-    let promotedCount = 0;
-    if (compactResult.actionTaken && compactResult.createdSummaryId) {
-      try {
-        const newSummary = allSummaries.find((s) => s.summaryId === compactResult.createdSummaryId);
-        if (newSummary) {
-          const promotionResult = shouldPromote(
-            {
-              content: newSummary.content,
-              depth: newSummary.depth,
-              tokenCount: newSummary.tokenCount,
-              sourceMessageTokenCount: newSummary.sourceMessageTokenCount,
-            },
-            config.compaction.promotionThresholds,
-          );
-          if (promotionResult.promote) {
-            const promotedStore = new PromotedStore(db);
-            await deduplicateAndInsert({
-              store: promotedStore,
-              content: newSummary.content,
-              tags: promotionResult.tags,
-              projectId: pid,
-              sessionId: session_id,
-              depth: newSummary.depth,
-              confidence: promotionResult.confidence,
-              summarize,
-              thresholds: {
-                dedupBm25Threshold: config.compaction.promotionThresholds.dedupBm25Threshold,
-                mergeMaxEntries: config.compaction.promotionThresholds.mergeMaxEntries,
-                confidenceDecayRate: config.compaction.promotionThresholds.confidenceDecayRate,
-              },
-            });
-            promotedCount = 1;
+          // Ingest new messages from the transcript into the DB.
+          if (!skip_ingest && transcript_path && existsSync(transcript_path)) {
+            const parsed = parseTranscript(transcript_path);
+            const storedCount = await conversationStore.getMessageCount(conversation.conversationId);
+            const newMessages = parsed.slice(storedCount);
+            if (newMessages.length > 0) {
+              const ingestCounts = { builtIn: 0, global: 0, project: 0 };
+              const inputs = newMessages.map((m, i) => {
+                const { text: scrubbedContent, builtIn, global: globalCount, project } = scrubber.scrubWithCounts(m.content);
+                ingestCounts.builtIn += builtIn;
+                ingestCounts.global += globalCount;
+                ingestCounts.project += project;
+                return {
+                  conversationId: conversation.conversationId,
+                  seq: storedCount + i,
+                  role: m.role as "user" | "assistant" | "system",
+                  content: scrubbedContent,
+                  tokenCount: m.tokenCount,
+                };
+              });
+              await conversationStore.withTransaction(async () => {
+                const records = await conversationStore.createMessagesBulk(inputs);
+                upsertRedactionCounts(db, pid, ingestCounts);
+                await summaryStore.appendContextMessages(conversation.conversationId, records.map((r) => r.messageId));
+              });
+            }
           }
+
+          // Check if there's anything to compact
+          const tokenCount = await summaryStore.getContextTokenCount(conversation.conversationId);
+
+          if (tokenCount === 0) {
+            return { summary: "No messages to compact." };
+          }
+
+          const engine = new CompactionEngine(conversationStore, summaryStore, {
+            contextThreshold: 0.75,
+            freshTailCount: 8,
+            leafMinFanout: 3,
+            condensedMinFanout: 2,
+            condensedMinFanoutHard: 1,
+            incrementalMaxDepth: 0,
+            leafTargetTokens: config.compaction.leafTokens,
+            condensedTargetTokens: 900,
+            maxRounds: 10,
+            scrubber,
+          });
+
+          const compactResult = await engine.compact({
+            conversationId: conversation.conversationId,
+            tokenBudget: 200_000,
+            summarize,
+            force: true,
+          });
+
+          // Gather stats for the compaction message (always, regardless of actionTaken)
+          const allSummaries = await summaryStore.getSummariesByConversation(conversation.conversationId);
+          const finalMsgCount = await conversationStore.getMessageCount(conversation.conversationId);
+          const maxDepth = allSummaries.length > 0 ? Math.max(...allSummaries.map((s) => s.depth)) : 0;
+
+          // Promote worthy summaries to cross-session memory (SQLite promoted table)
+          let promotedCount = 0;
+          if (compactResult.actionTaken && compactResult.createdSummaryId) {
+            try {
+              const newSummary = allSummaries.find((s) => s.summaryId === compactResult.createdSummaryId);
+              if (newSummary) {
+                const promotionResult = shouldPromote(
+                  {
+                    content: newSummary.content,
+                    depth: newSummary.depth,
+                    tokenCount: newSummary.tokenCount,
+                    sourceMessageTokenCount: newSummary.sourceMessageTokenCount,
+                  },
+                  config.compaction.promotionThresholds,
+                );
+                if (promotionResult.promote) {
+                  const promotedStore = new PromotedStore(db);
+                  await deduplicateAndInsert({
+                    store: promotedStore,
+                    content: newSummary.content,
+                    tags: promotionResult.tags,
+                    projectId: pid,
+                    sessionId: session_id,
+                    depth: newSummary.depth,
+                    confidence: promotionResult.confidence,
+                    summarize,
+                    thresholds: {
+                      dedupBm25Threshold: config.compaction.promotionThresholds.dedupBm25Threshold,
+                      mergeMaxEntries: config.compaction.promotionThresholds.mergeMaxEntries,
+                      confidenceDecayRate: config.compaction.promotionThresholds.confidenceDecayRate,
+                    },
+                  });
+                  promotedCount = 1;
+                }
+              }
+            } catch { /* non-fatal */ }
+          }
+
+          // Update meta.json
+          try {
+            const metaPath = projectMetaPath(cwd);
+            let meta: Record<string, unknown> = {};
+            if (existsSync(metaPath)) {
+              meta = JSON.parse(readFileSync(metaPath, "utf-8"));
+            }
+            meta.cwd = cwd;
+            meta.lastCompact = new Date().toISOString();
+            writeFileSync(metaPath, JSON.stringify(meta, null, 2));
+          } catch { /* non-fatal */ }
+
+          // Set justCompacted flag
+          justCompactedMap.set(session_id, Date.now());
+
+          const summaryMsg = compactResult.actionTaken
+            ? buildCompactionMessage({
+                tokensBefore: compactResult.tokensBefore,
+                tokensAfter: compactResult.tokensAfter,
+                messageCount: finalMsgCount,
+                summaryCount: allSummaries.length,
+                maxDepth,
+                promotedCount,
+              })
+            : "No compaction needed.";
+
+          return { summary: summaryMsg };
+        } finally {
+          db.close();
         }
-      } catch { /* non-fatal */ }
-    }
+      }); // end enqueue
 
-    // Update meta.json
-    try {
-      const metaPath = projectMetaPath(cwd);
-      let meta: Record<string, unknown> = {};
-      if (existsSync(metaPath)) {
-        meta = JSON.parse(readFileSync(metaPath, "utf-8"));
-      }
-      meta.cwd = cwd;
-      meta.lastCompact = new Date().toISOString();
-      writeFileSync(metaPath, JSON.stringify(meta, null, 2));
-    } catch { /* non-fatal */ }
-
-    // Set justCompacted flag
-    justCompactedMap.set(session_id, Date.now());
-
-    db.close();
-
-    const summaryMsg = compactResult.actionTaken
-      ? buildCompactionMessage({
-          tokensBefore: compactResult.tokensBefore,
-          tokensAfter: compactResult.tokensAfter,
-          messageCount: finalMsgCount,
-          summaryCount: allSummaries.length,
-          maxDepth,
-          promotedCount,
-        })
-      : "No compaction needed.";
-
-    return { summary: summaryMsg };
-
+      sendJson(res, 200, result);
     } finally {
       compactingNow.delete(session_id);
     }
-    }) // end enqueue
-
-    sendJson(res, 200, result);
   };
 }

@@ -33,6 +33,13 @@ function isSpanningPattern(source: string): boolean {
   return false;
 }
 
+export interface ScrubCounts {
+  text: string;
+  builtIn: number;
+  global: number;
+  project: number;
+}
+
 export class ScrubEngine {
   private readonly spanningPatterns: Array<{ source: string; regex: RegExp }> = [];
   private readonly tokenPatterns: Array<{ source: string; regex: RegExp }> = [];
@@ -41,7 +48,7 @@ export class ScrubEngine {
   /** Original index for each token pattern. */
   private readonly _tokenOrigIdx: number[] = [];
   /** Number of global patterns (for category accounting). */
-  readonly _globalPatternCount: number;
+  private readonly _globalPatternCount: number;
   readonly invalidPatterns: string[] = [];
 
   constructor(globalPatterns: string[], projectPatterns: string[]) {
@@ -75,7 +82,7 @@ export class ScrubEngine {
    * - "Token" patterns (no whitespace/dot in source) are applied token-by-token
    *   so that greedy `.*`-style patterns in one token don't eat adjacent tokens.
    */
-  scrubWithCounts(text: string): { text: string; builtIn: number; global: number; project: number } {
+  scrubWithCounts(text: string): ScrubCounts {
     const builtInCount = BUILT_IN_PATTERNS.length;
     const globalCount = this._globalPatternCount;
 
@@ -115,13 +122,14 @@ export class ScrubEngine {
     // Sort by start position
     taggedRanges.sort((a, b) => a.range[0] - b.range[0]);
 
-    // Merge overlapping ranges, tracking which category "wins" (first match)
+    // Merge overlapping ranges; when overlaps occur, the lowest original pattern
+    // index wins so that built-in > global > project and earlier patterns win.
     const merged: Array<{ range: [number, number]; idx: number }> = [];
     let cur = taggedRanges[0];
     for (let i = 1; i < taggedRanges.length; i++) {
       const next = taggedRanges[i];
       if (next.range[0] <= cur.range[1]) {
-        cur = { range: [cur.range[0], Math.max(cur.range[1], next.range[1])], idx: cur.idx };
+        cur = { range: [cur.range[0], Math.max(cur.range[1], next.range[1])], idx: Math.min(cur.idx, next.idx) };
       } else {
         merged.push(cur);
         cur = next;
@@ -172,8 +180,9 @@ export class ScrubEngine {
         .split("\n")
         .map((line) => line.trim())
         .filter((line) => line.length > 0 && !line.startsWith("#"));
-    } catch {
-      return [];
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw err;
     }
   }
 

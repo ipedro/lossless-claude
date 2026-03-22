@@ -42,6 +42,10 @@ Then run `/reload-plugins` inside Claude Code to apply the changes.
 
 If anything fails, fix it before starting the next feature. A broken local env wastes time on every subsequent session (stale dist, wrong binary, hook errors, mismatched plugin cache).
 
+## Coding Style
+
+- **Prefer pure functions.** Functions should return their results rather than accumulating state on an object. Avoid mutable side-effect patterns (e.g., shared counters on a class instance) when a return value works just as well.
+
 ## Bug Triage During Investigation
 
 When you stumble across a bug while working on something else, **stop and file a GitHub issue immediately** before continuing:

@@ -220,9 +220,9 @@ test/
 
 All conversation data is stored locally in `~/.lossless-claude/`. Nothing is sent to any lossless-claude server.
 
-If you configure an external summarizer (`claude-process`, `anthropic`, `openai`, etc.), messages are sent to that provider for summarization — after secret redaction (built-in and user-defined patterns). lossless-claude scrubs common secret patterns (API keys, tokens, passwords) from message content before writing to SQLite and before sending to the summarizer.
+If you configure an external summarizer (`claude-process`, `anthropic`, `openai`, etc.), messages are sent to that provider for summarization — after built-in secret redaction. lossless-claude scrubs common secret patterns (API keys, tokens, passwords) from message content before writing to SQLite and before sending to the summarizer.
 
-Add project-specific patterns with `lcm sensitive add "MY_PATTERN"` so they are included in this redaction step. See [docs/privacy.md](docs/privacy.md) for full details.
+Add project-specific patterns with `lcm sensitive add "MY_PATTERN"`. See [docs/privacy.md](docs/privacy.md) for full details.
 
 ## Technical Notes
 

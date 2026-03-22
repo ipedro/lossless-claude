@@ -160,6 +160,7 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
     );
 
     const db = new DatabaseSync(dbPath);
+    try {
     db.exec("PRAGMA busy_timeout = 5000");
     runLcmMigrations(db);
 
@@ -197,7 +198,6 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
     const tokenCount = await summaryStore.getContextTokenCount(conversation.conversationId);
 
     if (tokenCount === 0) {
-      db.close();
       return { summary: "No messages to compact." };
     }
 
@@ -279,8 +279,6 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
     // Set justCompacted flag
     justCompactedMap.set(session_id, Date.now());
 
-    db.close();
-
     const summaryMsg = compactResult.actionTaken
       ? buildCompactionMessage({
           tokensBefore: compactResult.tokensBefore,
@@ -293,6 +291,10 @@ export function createCompactHandler(config: DaemonConfig): RouteHandler {
       : "No compaction needed.";
 
     return { summary: summaryMsg };
+
+    } finally {
+      db.close();
+    }
 
     } finally {
       compactingNow.delete(session_id);

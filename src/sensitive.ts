@@ -106,10 +106,14 @@ async function sensitiveAdd(
     try {
       raw = JSON.parse(await readFile(configPath, "utf-8"));
     } catch (err) {
-      if (existsSync(configPath)) {
-        throw new Error(`Invalid JSON in ${configPath}: ${(err as Error).message}`);
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") {
+        // file doesn't exist yet — start fresh
+      } else if (err instanceof SyntaxError) {
+        throw new Error(`Invalid JSON in ${configPath}: ${err.message}`);
+      } else {
+        throw err; // EACCES, EPERM, etc. — propagate as-is
       }
-      // file doesn't exist yet — start fresh
     }
     if (!raw.security) raw.security = {};
     if (!Array.isArray(raw.security.sensitivePatterns)) {

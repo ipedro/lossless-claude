@@ -78,15 +78,9 @@ export function createIngestHandler(config: DaemonConfig): RouteHandler {
       const pid = projectId(cwd);
       const totalCounts = { builtIn: 0, global: 0, project: 0 };
       const inputs = newMessages.map((m, i) => {
-<<<<<<< HEAD
-        const { text: scrubbedContent, builtIn, global, project } = scrubber.scrubWithCounts(m.content);
-        totalCounts.builtIn += builtIn;
-        totalCounts.global += global;
-=======
         const { text: scrubbedContent, builtIn, global: globalCount, project } = scrubber.scrubWithCounts(m.content);
         totalCounts.builtIn += builtIn;
         totalCounts.global += globalCount;
->>>>>>> origin/develop
         totalCounts.project += project;
         return {
           conversationId: conversation.conversationId,
@@ -96,18 +90,12 @@ export function createIngestHandler(config: DaemonConfig): RouteHandler {
           tokenCount: m.tokenCount,
         };
       });
-<<<<<<< HEAD
-      const records = await conversationStore.createMessagesBulk(inputs);
-      await summaryStore.appendContextMessages(conversation.conversationId, records.map((r) => r.messageId));
-      upsertRedactionCounts(db, pid, totalCounts);
-=======
       const records = await conversationStore.withTransaction(async () => {
         const created = await conversationStore.createMessagesBulk(inputs);
         upsertRedactionCounts(db, pid, totalCounts);
         await summaryStore.appendContextMessages(conversation.conversationId, created.map((r) => r.messageId));
         return created;
       });
->>>>>>> origin/develop
 
       const totalTokens = await summaryStore.getContextTokenCount(conversation.conversationId);
       sendJson(res, 200, { ingested: records.length, totalTokens });

@@ -165,7 +165,6 @@ describe("POST /ingest", () => {
       const byCategory = Object.fromEntries(rows.map((r) => [r.category, r.count]));
       expect(byCategory["built_in"]).toBeGreaterThan(0);
       expect(byCategory["global"]).toBeGreaterThan(0);
->>>>>>> origin/develop
     } finally {
       db.close();
     }

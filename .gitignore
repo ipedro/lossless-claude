@@ -11,8 +11,15 @@ data/
 # Tools
 .serena/
 
-# TUI
-tui/lcm-tui
-tui/dist/
-tui/tui
-lossless-claw*.db
+# Codex / LCM temp worktrees
+lcm-cli-*/
+lossless-codex-*/
+
+# Scratch files
+sensitive-patterns-test.txt
+*.db
+!data/
+
+# Superpowers local state
+.superpowers/
+.pebbles/

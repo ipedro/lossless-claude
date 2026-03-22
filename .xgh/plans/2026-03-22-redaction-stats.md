@@ -422,9 +422,9 @@ it("writes redaction counts to message_redactions when secrets are found", async
 
   daemon = await createDaemon(
     loadDaemonConfig("/nonexistent", {
+      daemon: { port: 0 },
       security: { sensitivePatterns: [] },
     }),
-    { socketPath: join(tempDir, "daemon.sock") }
   );
 
   const res = await fetch(`http://127.0.0.1:${daemon.address().port}/ingest`, {
@@ -888,21 +888,25 @@ Create `test/daemon/routes/stats.test.ts`:
 
 ```typescript
 import { describe, it, expect, afterEach } from "vitest";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { createDaemon } from "../../../src/daemon/server.js";
+import { createDaemon, type DaemonInstance } from "../../../src/daemon/server.js";
 import { loadDaemonConfig } from "../../../src/daemon/config.js";
 
 describe("GET /stats route", () => {
-  let daemon: Awaited<ReturnType<typeof createDaemon>> | undefined;
+  let daemon: DaemonInstance | undefined;
   const tempDirs: string[] = [];
 
   afterEach(async () => {
     if (daemon) {
-      await daemon.close();
+      await daemon.stop();
       daemon = undefined;
     }
+    for (const dir of tempDirs) {
+      rmSync(dir, { recursive: true, force: true });
+    }
+    tempDirs.length = 0;
   });
 
   it("returns 200 with OverallStats shape including redactionCounts", async () => {
@@ -911,9 +915,9 @@ describe("GET /stats route", () => {
 
     daemon = await createDaemon(
       loadDaemonConfig("/nonexistent", {
+        daemon: { port: 0 },
         security: { sensitivePatterns: [] },
       }),
-      { socketPath: join(tempDir, "daemon.sock") }
     );
 
     const res = await fetch(`http://127.0.0.1:${daemon.address().port}/stats`);

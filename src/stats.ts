@@ -39,6 +39,7 @@ interface OverallStats {
 
 function queryProjectStats(dbPath: string): Omit<OverallStats, "projects"> {
   const db = new DatabaseSync(dbPath);
+  db.exec("PRAGMA busy_timeout = 5000");
   runLcmMigrations(db);
 
   try {
